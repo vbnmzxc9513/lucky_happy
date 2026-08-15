@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>團隊連擊賽馬：終極道具賽</title>
+    <style>
+        body {
+            background-color: #222;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- 大廳畫面 --- */
+        #lobby-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .setup-container {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .player-card {
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 10px;
+            padding: 15px;
+            width: 160px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .player-card h4 { margin: 0 0 10px 0; color: #ffeb3b; }
+        .team-btn {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+        }
+        .btn-red { background-color: #c62828; }
+        .btn-blue { background-color: #1565c0; }
+        .player-card.joined-red { border-color: #ff1744; background: #421b1b; }
+        .player-card.joined-blue { border-color: #2979ff; background: #1b2642; }
+        
+        #start-btn {
+            padding: 12px 40px;
+            font-size: 18px;
+            background-color: #4caf50;
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(76,175,80,0.4);
+        }
+
+        /* --- 賽馬場畫面 --- */
+        #game-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        #game-container {
+            position: relative;
+            width: 90vw;
+            max-width: 800px;
+            height: 240px;
+            background-color: #8d6e63;
+            border: 6px solid #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .track-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: dashed #fff;
+        }
+        .finish-line {
+            position: absolute;
+            right: 50px;
+            top: 0;
+            width: 15px;
+            height: 100%;
+            background: repeating-linear-gradient(0deg, #fff, #fff 10px, #000 10px, #000 20px);
+        }
+        .horse {
+            position: absolute;
+            font-size: 40px;
+            will-change: left;
+            z-index: 5;
+            width: 50px;
+        }
+        #horse-red { top: 25px; left: 10px; }
+        #horse-blue { bottom: 25px; left: 10px; }
+
+        /* 道具樣式 */
+        .item {
+            position: absolute;
+            font-size: 30px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+
+        /* 團隊資訊看板 */
+        .team-info-board {
+            display: flex;
+            justify-content: space-between;
+            width: 90vw;
+            max-width: 800px;
+            margin-bottom: 10px;
+        }
+        .team-count { font-size: 18px; font-weight: bold; }
+        .stun-status { font-size: 14px; margin-left: 5px; color: #ff1744; animation: blink 0.5s infinite alternate; }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0; } }
+
+        /* 模擬手機點擊面板 */
+        .controller-panel {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+        }
+        .phone-mock-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid #fff;
+            font-weight: bold;
+            font-size: 16px;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 10px rgba(0,0,0,0.4);
+            transition: transform 0.05s;
+        }
+        .phone-mock-btn:active { transform: scale(0.9); }
+        .phone-red { background: linear-gradient(135deg, #ff1744, #b71c1c); }
+        .phone-blue { background: linear-gradient(135deg, #2979ff, #0d47a1); }
+
+        /* --- 選擇題彈窗與計時器樣式 --- */
+        #quiz-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            gap: 30px; /* 題目與計時器拉開距離 */
+        }
+        .quiz-box {
+            background: #2a2a2a;
+            border: 3px solid #ff1744;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            max-width: 550px;
+            width: 70%;
+            box-shadow: 0 10px 30px rgba(255, 23, 68, 0.3);
+        }
+        
+        /* 圓形倒數計時器 */
+        .timer-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #1a1a1a;
+            border: 4px solid #ffeb3b;
+            border-radius: 50%;
+            width: 100px;
+            height: 100px;
+            box-shadow: 0 0 20px rgba(255, 235, 59, 0.4);
+        }
+        #countdown-num {
+            font-size: 42px;
+            font-weight: bold;
+            color: #ffeb3b;
+        }
+        .timer-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: -2px;
+        }
+
+        .quiz-box h2 {
+            margin-top: 0;
+            color: #ffeb3b;
+            font-size: 26px;
+            letter-spacing: 2px;
+        }
+        .options-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        .option-btn {
+            padding: 18px 10px;
+            font-size: 20px;
+            font-weight: bold;
+            background: #3a3a3a;
+            color: #ffeb3b;
+            border: 2px solid #555;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .option-btn:hover:not(:disabled) { background: #4a4a4a; border-color: #ffeb3b; }
+        .option-btn:active:not(:disabled) { transform: scale(0.95); }
+        
+        /* 時間到之後的特殊樣式 */
+        .option-btn.correct-glow {
+            background: #2e7d32 !important;
+            color: #fff !important;
+            border-color: #4caf50 !important;
+            box-shadow: 0 0 15px #4caf50;
+            opacity: 1 !important;
+        }
+        .option-btn:disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+            color: #777;
+            border-color: #444;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="lobby-screen">
+        <h1>🏁 團隊賽馬：選隊與道具大亂鬥 🏁</h1>
+        <p style="color: #aaa;">請為 3 位模擬玩家分配隊伍（道具會隨機出現在馬匹前進的路上）：</p>
+        
+        <div class="setup-container">
+            <div id="p1-card" class="player-card">
+                <h4>📱 玩家 A</h4>
+                <div id="p1-team-status">尚未選隊</div>
+                <button class="team-btn btn-red" onclick="joinTeam(1, 'red')">加入紅隊</button>
+                <button class="team-btn btn-blue" onclick="joinTeam(1, 'blue')">加入藍隊</button>
+            </div>
+            <div id="p2-card" class="player-card">
+                <h4>📱 玩家 B</h4>
+                <div id="p2-team-status">尚未選隊</div>
+                <button class="team-btn btn-red" onclick="joinTeam(2, 'red')">加入紅隊</button>
+                <button class="team-btn btn-blue" onclick="joinTeam(2, 'blue')">加入藍隊</button>
+            </div>
+            <div id="p3-card" class="player-card">
+                <h4>📱 玩家 C</h4>
+                <div id="p3-team-status">尚未選隊</div>
+                <button class="team-btn btn-red" onclick="joinTeam(3, 'red')">加入紅隊</button>
+                <button class="team-btn btn-blue" onclick="joinTeam(3, 'blue')">加入藍隊</button>
+            </div>
+        </div>
+
+        <button id="start-btn" onclick="startGame()">全員就位！開啟團隊對抗賽 🚀</button>
+    </div>
+
+    <div id="game-screen">
+        <div class="team-info-board">
+            <div class="team-count" style="color: #ff5252;">
+                🔴 紅隊人數: <span id="red-count">0</span> 人 <span id="red-stun" class="stun-status" style="display:none;">⚠️ 停滯中(2s)!!</span>
+            </div>
+            <div class="team-count" style="color: #448aff;">
+                🔵 藍隊人數: <span id="blue-count">0</span> 人 <span id="blue-stun" class="stun-status" style="display:none;">⚠️ 停滯中(2s)!!</span>
+            </div>
+        </div>
+
+        <div id="game-container">
+            <div class="track-line"></div>
+            <div class="finish-line"></div>
+            <div id="horse-red" class="horse">🐎🔴</div>
+            <div id="horse-blue" class="horse">🐎🔵</div>
+            
+            <div id="items-layer"></div>
+        </div>
+
+        <p style="margin-top: 15px; color:#aaa;">【大螢幕模擬手機控制器】用滑鼠瘋狂猛點下方按鈕！</p>
+        <div class="controller-panel">
+            <div id="click-btn-1" class="phone-mock-btn" onmousedown="playerClick(1)" ontouchstart="playerClick(1)">
+                <span>玩家 A</span><small id="click-team-1"></small>
+            </div>
+            <div id="click-btn-2" class="phone-mock-btn" onmousedown="playerClick(2)" ontouchstart="playerClick(2)">
+                <span>玩家 B</span><small id="click-team-2"></small>
+            </div>
+            <div id="click-btn-3" class="phone-mock-btn" onmousedown="playerClick(3)" ontouchstart="playerClick(3)">
+                <span>玩家 C</span><small id="click-team-3"></small>
+            </div>
+        </div>
+    </div>
+
+    <div id="quiz-overlay">
+        <div class="quiz-box">
+            <h2>🚨 終極微積分與線代突襲 🚨</h2>
+            <div id="quiz-question" style="font-size: 15px; margin: 15px 0; text-align: left; line-height: 1.7; color: #e0e0e0; background: #1e1e1e; padding: 15px; border-radius: 8px; border: 1px solid #444;">
+                已知誤差平方和函數定義為：<br>
+                <span style="color:#ffeb3b; display:block; text-align:center; margin: 5px 0; font-size:16px;">f(x) = ||Ax - b||²</span>
+                其中矩陣 <strong>A = [1; 2]</strong>，向量 <strong>b = [3 × 10⁴; 0]</strong>。<br>
+                若藉由求導令 <strong>f'(x) = 0</strong> 找出使誤差最小的 <strong>x</strong>，並將其代回以求得殘差向量的歐幾里得範數（即最小誤差長度）：<br>
+                <span style="color:#ffeb3b; display:block; text-align:center; margin: 5px 0; font-size:16px;">||Ax - b|| = √[ (x - 3×10⁴)² + (2x)² ]</span>
+                <strong>請選出該精確殘差長度簡化後的最終根型表示式：</strong>
+            </div>
+            <div class="options-container">
+                <button class="option-btn" onclick="submitAnswer('24√2 × 10³')">24√2 × 10³</button>
+                <button class="option-btn" onclick="submitAnswer('12√5 × 10³')">12√5 × 10³</button>
+                <button class="option-btn" onclick="submitAnswer('6√15 × 10⁴')">6√15 × 10⁴</button>
+                <button class="option-btn" onclick="submitAnswer('12√3 × 10³')">12√3 × 10³</button>
+            </div>
+        </div>
+
+        <div class="timer-container" id="quiz-timer-box">
+            <span id="countdown-num">10</span>
+            <span class="timer-label">秒後揭曉</span>
+        </div>
+    </div>
+
+    <script>
+        let playerTeams = { 1: null, 2: null, 3: null };
+
+        // 賽馬物理與狀態變數
+        let red_pos = 10, blue_pos = 10;
+        let red_speed = 0, blue_speed = 0;
+        let gameOver = false;
+        let isQuizTime = false; 
+
+        // 停滯狀態鎖定
+        let isRedStunned = false;
+        let isBlueStunned = false;
+
+        // 紀錄賽道道具狀態
+        let trackItems = { red: null, blue: null };
+
+        // 題目與倒數計時器紀錄
+        let quizTimer = null;
+        let countdownInterval = null;
+        let timeLeft = 10;
+        const correctAnswerStr = '12√5 × 10³';
+
+        const friction = 0.93; 
+        const boost = 2.0;     
+
+        function joinTeam(playerNum, team) {
+            playerTeams[playerNum] = team;
+            const targetCard = document.getElementById(`p${playerNum}-card`);
+            const statusText = document.getElementById(`p${playerNum}-team-status`);
+            
+            targetCard.className = "player-card";
+            if (team === 'red') {
+                targetCard.classList.add('joined-red');
+                statusText.innerText = "🔴 已選紅隊";
+            } else {
+                targetCard.classList.add('joined-blue');
+                statusText.innerText = "🔵 已選藍隊";
+            }
+        }
+
+        function generateObstaclesAndAccelerators() {
+            const itemsLayer = document.getElementById('items-layer');
+            itemsLayer.innerHTML = ''; 
+            trackItems = { red: null, blue: null };
+
+            const containerWidth = document.getElementById('game-container').clientWidth;
+            const minX = containerWidth * 0.25;
+            const maxX = containerWidth * 0.75;
+            
+            const redX = Math.floor(Math.random() * (maxX - minX)) + minX;
+            const blueX = Math.floor(Math.random() * (maxX - minX)) + minX;
+
+            let randRed = Math.random();
+            if (randRed < 0.33) {
+                trackItems.red = { type: 'obstacle', x: redX, triggered: false };
+                createItemDOM('🚧', redX, 25); 
+            } else if (randRed < 0.66) {
+                trackItems.red = { type: 'accelerator', x: redX, triggered: false };
+                createItemDOM('⚡', redX, 25);
+            }
+
+            let randBlue = Math.random();
+            if (randBlue < 0.33) {
+                trackItems.blue = { type: 'obstacle', x: blueX, triggered: false };
+                createItemDOM('🚧', blueX, 145); 
+            } else if (randBlue < 0.66) {
+                trackItems.blue = { type: 'accelerator', x: blueX, triggered: false };
+                createItemDOM('⚡', blueX, 145);
+            }
+        }
+
+        function createItemDOM(emoji, x, y) {
+            const el = document.createElement('div');
+            el.className = 'item';
+            el.innerText = emoji;
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            document.getElementById('items-layer').appendChild(el);
+        }
+
+        // 開始遊戲
+        function startGame() {
+            if (!playerTeams[1] || !playerTeams[2] || !playerTeams[3]) {
+                alert("還有玩家沒有選擇隊伍喔！");
+                return;
+            }
+
+            let redCount = Object.values(playerTeams).filter(t => t === 'red').length;
+            let blueCount = Object.values(playerTeams).filter(t => t === 'blue').length;
+            document.getElementById('red-count').innerText = redCount;
+            document.getElementById('blue-count').innerText = blueCount;
+
+            for (let i = 1; i <= 3; i++) {
+                const btn = document.getElementById(`click-btn-${i}`);
+                const label = document.getElementById(`click-team-${i}`);
+                if (playerTeams[i] === 'red') {
+                    btn.className = "phone-mock-btn phone-red";
+                    label.innerText = "(紅隊)";
+                } else {
+                    btn.className = "phone-mock-btn phone-blue";
+                    label.innerText = "(藍隊)";
+                }
+            }
+
+            document.getElementById('lobby-screen').style.display = "none";
+            document.getElementById('game-screen').style.display = "flex";
+
+            generateObstaclesAndAccelerators();
+
+            isQuizTime = false;
+            gameOver = false;
+
+            // 設定 3 秒後出現選擇題與倒數
+            quizTimer = setTimeout(() => {
+                if (!gameOver) {
+                    triggerQuizPopup();
+                }
+            }, 3000);
+
+            requestAnimationFrame(update);
+        }
+
+        // 彈出題目並啟動 10 秒倒數
+        function triggerQuizPopup() {
+            isQuizTime = true;
+            timeLeft = 10;
+            
+            // 重置按鈕狀態
+            const buttons = document.querySelectorAll('.option-btn');
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                btn.classList.remove('correct-glow');
+            });
+
+            document.getElementById('countdown-num').innerText = timeLeft;
+            document.getElementById('quiz-timer-box').style.borderColor = "#ffeb3b";
+            document.getElementById('quiz-overlay').style.display = 'flex';
+
+            // 啟動倒數定時器
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('countdown-num').innerText = timeLeft;
+
+                if (timeLeft <= 3) {
+                    document.getElementById('quiz-timer-box').style.borderColor = "#ff1744"; // 最後3秒變紅警告
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    handleTimeOut(); // 時間到處理
+                }
+            }, 1000);
+        }
+
+        // 10 秒時間到：答案亮起，其餘反灰，2 秒後關閉彈窗並處罰兩隊
+        function handleTimeOut() {
+            const buttons = document.querySelectorAll('.option-btn');
+            
+            buttons.forEach(btn => {
+                btn.disabled = true; // 所有按鈕禁止點擊（反灰）
+                if (btn.innerText === correctAnswerStr) {
+                    btn.classList.add('correct-glow'); // 唯獨正確答案亮起來
+                }
+            });
+
+            // 兩秒後自動關閉並給予處罰
+            setTimeout(() => {
+                document.getElementById('quiz-overlay').style.display = 'none';
+                isQuizTime = false;
+                triggerStun('red');
+                triggerStun('blue');
+                requestAnimationFrame(update);
+            }, 2000);
+        }
+
+        // 玩家主動點擊答案
+        function submitAnswer(selectedAnswer) {
+            clearInterval(countdownInterval); // 停止倒數
+            document.getElementById('quiz-overlay').style.display = 'none';
+            isQuizTime = false; 
+
+            if (selectedAnswer === correctAnswerStr) {
+                // 答對：小馬前進一格 (增加 80 像素)
+                red_pos += 80;
+                blue_pos += 80;
+            } else {
+                // 答錯：兩隊皆停在原地 2 秒
+                triggerStun('red');
+                triggerStun('blue');
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        function playerClick(playerNum) {
+            if (gameOver || isQuizTime) return; 
+            
+            let team = playerTeams[playerNum];
+            if (team === 'red' && !isRedStunned) {
+                red_speed += boost;
+            } else if (team === 'blue' && !isBlueStunned) {
+                blue_speed += boost;
+            }
+        }
+
+        function update() {
+            if (gameOver || isQuizTime) return; 
+
+            if (isRedStunned) red_speed = 0;
+            else red_speed *= friction;
+
+            if (isBlueStunned) blue_speed = 0;
+            else blue_speed *= friction;
+
+            if (red_speed < 0.05) red_speed = 0;
+            if (blue_speed < 0.05) blue_speed = 0;
+
+            red_pos += red_speed;
+            blue_pos += blue_speed;
+
+            if (trackItems.red && !trackItems.red.triggered && (red_pos + 40) >= trackItems.red.x) {
+                trackItems.red.triggered = true;
+                if (trackItems.red.type === 'obstacle') {
+                    triggerStun('red');
+                } else {
+                    red_speed += 25; 
+                }
+            }
+            if (trackItems.blue && !trackItems.blue.triggered && (blue_pos + 40) >= trackItems.blue.x) {
+                trackItems.blue.triggered = true;
+                if (trackItems.blue.type === 'obstacle') {
+                    triggerStun('blue');
+                } else {
+                    blue_speed += 25;
+                }
+            }
+
+            const horseRed = document.getElementById('horse-red');
+            const horseBlue = document.getElementById('horse-blue');
+            const container = document.getElementById('game-container');
+
+            horseRed.style.left = red_pos + 'px';
+            horseBlue.style.left = blue_pos + 'px';
+
+            horseRed.style.transform = (red_speed > 0.5 && !isRedStunned) ? `translateY(${Math.sin(Date.now()/20)*3}px)` : 'none';
+            horseBlue.style.transform = (blue_speed > 0.5 && !isBlueStunned) ? `translateY(${Math.sin(Date.now()/20)*3}px)` : 'none';
+
+            const finishLineX = container.clientWidth - 110;
+            if (red_pos >= finishLineX || blue_pos >= finishLineX) {
+                gameOver = true; 
+                clearTimeout(quizTimer);
+                clearInterval(countdownInterval);
+                
+                setTimeout(() => {
+                    if (red_pos >= finishLineX && blue_pos >= finishLineX) {
+                        alert("多麼驚人的默契！兩隊竟然同時抵達終點！🤝");
+                    } else if (red_pos >= finishLineX) {
+                        alert("🎉 恭喜 🔴 紅隊 贏得勝利！");
+                    } else {
+                        alert("🎉 恭喜 🔵 藍隊 贏得勝利！");
+                    }
+                    resetGame();
+                }, 50);
+                return;
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        function triggerStun(team) {
+            if (team === 'red') {
+                isRedStunned = true;
+                document.getElementById('red-stun').style.display = 'inline';
+                setTimeout(() => {
+                    isRedStunned = false;
+                    document.getElementById('red-stun').style.display = 'none';
+                }, 2000);
+            } else {
+                isBlueStunned = true;
+                document.getElementById('blue-stun').style.display = 'inline';
+                setTimeout(() => {
+                    isBlueStunned = false;
+                    document.getElementById('blue-stun').style.display = 'none';
+                }, 2000);
+            }
+        }
+
+        function resetGame() {
+            clearTimeout(quizTimer);
+            clearInterval(countdownInterval);
+            document.getElementById('quiz-overlay').style.display = 'none';
+
+            red_pos = 10; blue_pos = 10;
+            red_speed = 0; blue_speed = 0;
+            isRedStunned = false; isBlueStunned = false;
+            isQuizTime = false;
+            document.getElementById('red-stun').style.display = 'none';
+            document.getElementById('blue-stun').style.display = 'none';
+            document.getElementById('horse-red').style.left = '10px';
+            document.getElementById('horse-blue').style.left = '10px';
+            
+            playerTeams = { 1: null, 2: null, 3: null };
+            document.getElementById('p1-team-status').innerText = "尚未選隊";
+            document.getElementById('p2-team-status').innerText = "尚未選隊";
+            document.getElementById('p3-team-status').innerText = "尚未選隊";
+            document.getElementById('p1-card').className = "player-card";
+            document.getElementById('p2-card').className = "player-card";
+            document.getElementById('p3-card').className = "player-card";
+
+            gameOver = false;
+            document.getElementById('game-screen').style.display = "none";
+            document.getElementById('lobby-screen').style.display = "flex";
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (gameOver || isQuizTime || document.getElementById('game-screen').style.display !== "flex") return;
+            if ((e.key === 'a' || e.key === 'A') && !isRedStunned) red_speed += boost;
+            if ((e.key === 'l' || e.key === 'L') && !isBlueStunned) blue_speed += boost;
+        });
+    </script>
+</body>
+</html>

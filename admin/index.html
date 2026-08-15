@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lucky Horse — 婚禮設定中心</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=Noto+Serif+TC:wght@400;600;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css?v=13">
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/shared/events.js?v=12"></script>
+  <script src="/shared/game-config.js?v=12"></script>
+</head>
+<body>
+  <div class="luxury-bg-glow"></div>
+  <div class="admin-container">
+    
+    <!-- 頂部皇家標題 header -->
+    <header class="admin-header">
+      <div class="flourish">— ❖ —</div>
+      <h1 class="main-title">LUCKY HORSE CONTROL <span class="gold-subtitle">婚禮設定中心</span></h1>
+      <p class="chinese-subtitle">賽事、題庫、賽道與彩排管理</p>
+    </header>
+
+    <!-- 導覽分頁 Tabs -->
+    <nav class="admin-tabs">
+      <button class="tab-btn active" onclick="switchTab('tab-config')">
+        <span class="tab-icon">🏆</span> 賽事與陣營
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-map')">
+        <span class="tab-icon">🗺️</span> 賽道關卡
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-quiz')">
+        <span class="tab-icon">❓</span> 題庫編輯
+      </button>
+      <button class="tab-btn highlight-tab" onclick="switchTab('tab-rehearsal')">
+        <span class="tab-icon">🤖</span> 彩排控台
+      </button>
+      <div class="status-badge" id="connectionStatus">🟡 連線同步中...</div>
+    </nav>
+
+    <!-- 分頁內容區 -->
+    <main class="tab-content-area">
+      
+      <!-- TAB 1: 賽事與陣營配置 -->
+      <section id="tab-config" class="tab-pane active">
+        <div class="settings-stage-grid">
+          <!-- 陣營名稱與主題設定 -->
+          <div class="luxury-card team-config-card">
+            <h2 class="card-title">🎭 應援陣營名稱設定 (Faction Names)</h2>
+            <p class="card-desc">自訂現場五隊的專屬顯示稱謂，修改後全場大螢幕與手機將即時同步生效。</p>
+            <div id="teamNamesContainer">
+              <!-- JS 依 GameConfig.TEAMS 動態產生所有隊伍欄位 -->
+            </div>
+          </div>
+
+          <!-- 賽事里程與物理參數 -->
+          <div class="luxury-card race-params-card">
+            <h2 class="card-title">🏁 賽道里程與物理參數 (Race Parameters)</h2>
+            <p class="card-desc">調整比賽總里程與加速手感，可依現場參與人數與桌數彈性設定勝利門檻。</p>
+            <div class="form-row">
+              <div class="form-group half">
+                <label>📏 賽道總里程 / 勝利點擊門檻 (px)</label>
+                <select id="trackLength" class="luxury-input">
+                  <option value="500">500 px (極速閃電戰 - 約 300 次點擊)</option>
+                  <option value="1000" selected>1000 px (標準婚禮宴會 - 約 600 次點擊)</option>
+                  <option value="1500">1500 px (熱血耐力賽 - 約 1000 次點擊)</option>
+                  <option value="2000">2000 px (百人千人狂歡 - 約 1500 次點擊)</option>
+                </select>
+              </div>
+              <div class="form-group half">
+                <label>🏆 賽事總局數 (Total Rounds)</label>
+                <select id="totalRounds" class="luxury-input">
+                  <option value="1">1 局定勝負</option>
+                  <option value="3" selected>3 局 2 勝制 (推薦)</option>
+                  <option value="5">5 局大對抗</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group half">
+                <label>⚡ 基礎點擊加速係數 (Base Boost)</label>
+                <input type="number" id="baseBoost" class="luxury-input" step="0.5" value="2.0">
+              </div>
+              <div class="form-group half">
+                <label>⏱️ 突襲答題倒數秒數 (Quiz Time)</label>
+                <input type="number" id="quizTimeLimit" class="luxury-input" value="10">
+              </div>
+            </div>
+          </div>
+
+          <div class="luxury-card checkpoint-preview-card">
+            <h2 class="card-title">賽道與關卡設計</h2>
+            <p class="card-desc">用時間軸呈現觸發規則，對齊現有規則頁的教學感。</p>
+            <div class="checkpoint-timeline">
+              <div class="checkpoint-line"></div>
+              <div class="checkpoint-node node-pink"><span></span><strong>10s</strong><em>新人題</em></div>
+              <div class="checkpoint-node node-mint"><span></span><strong>30s</strong><em>默契題</em></div>
+              <div class="checkpoint-node node-purple"><span></span><strong>70%</strong><em>趣味題</em></div>
+            </div>
+            <div class="schema-pill">✓ checkpoint 使用 trigger schema　✓ 題目答案統一 A/B/C/D</div>
+          </div>
+
+          <div class="luxury-card rehearsal-preview-card">
+            <h2 class="card-title">彩排與現場控台</h2>
+            <p class="card-desc">保留大按鈕與深墨綠 CTA，貼近選隊頁的操作語言。</p>
+            <div class="preview-stat-row">
+              <div class="preview-stat"><span>虛擬賓客</span><strong id="configPreviewBots">100 人</strong></div>
+              <div class="preview-stat"><span>即時指令</span><strong>跳題 / 加速 / 暈眩</strong></div>
+            </div>
+            <div class="preview-command-grid" id="configPreviewCommands">
+              <!-- JS 依五隊設定動態產生 -->
+            </div>
+          </div>
+        </div>
+        <div class="action-footer">
+          <button class="cta-gold-btn" onclick="saveConfig()">✨ 保存並即時生效全場配置</button>
+        </div>
+      </section>
+
+      <!-- TAB 2: 賽道地圖與關卡配置 -->
+      <section id="tab-map" class="tab-pane">
+        <div class="card-grid">
+          <div class="luxury-card">
+            <h2 class="card-title">🗺️ 當前可選地圖清單 (Map Library)</h2>
+            <div id="mapListContainer" class="list-container">
+              <!-- JS 動態渲染地圖清單 -->
+            </div>
+          </div>
+          <div class="luxury-card">
+            <h2 class="card-title">📝 新增 / 編輯賽道關卡 (Map Editor)</h2>
+            <form id="mapForm" onsubmit="event.preventDefault(); saveMap();">
+              <input type="hidden" id="mapEditId">
+              <div class="form-group">
+                <label>地圖唯一代號 (ID，英數字與減號)</label>
+                <input type="text" id="mapIdInput" class="luxury-input" placeholder="例如: royal-garden-track" required>
+              </div>
+              <div class="form-group">
+                <label>地圖顯示名稱 (Name)</label>
+                <input type="text" id="mapNameInput" class="luxury-input" placeholder="例如: 🌸 浪漫櫻花大道" required>
+              </div>
+              <div class="form-group">
+                <label>地圖描述與特色 (Description)</label>
+                <textarea id="mapDescInput" class="luxury-input" rows="2" placeholder="浪漫櫻花紛飛的幸福禮道..."></textarea>
+              </div>
+              <h3 class="sub-heading">🚩 里程碑關卡觸發器配置 (Checkpoints)</h3>
+              <p class="card-desc">設定在跑道達到特定百分比時，自動觸發指定的突襲問題或事件：</p>
+              <div id="checkpointsContainer">
+                <!-- JS 動態產生里程碑輸入框 -->
+              </div>
+              <button type="button" class="btn-secondary" onclick="addCheckpointField()">+ 新增關卡里程碑</button>
+              <div class="action-footer mt-4">
+                <button type="submit" class="cta-gold-btn">💾 保存地圖與關卡設定</button>
+                <button type="button" class="btn-danger" onclick="resetMapForm()">清除重填</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: 互動題庫編輯器 -->
+      <section id="tab-quiz" class="tab-pane">
+        <div class="card-grid">
+          <div class="luxury-card">
+            <h2 class="card-title">❓ 互動問答題庫 (Question Bank)</h2>
+            <p class="card-desc">點擊題目即可載入右側表單進行修改，或點擊下方新增題目。</p>
+            <div id="quizListContainer" class="list-container">
+              <!-- JS 動態渲染題庫 -->
+            </div>
+            <button class="btn-secondary mt-3" onclick="resetQuizForm()">+ 建立全新專屬問答</button>
+          </div>
+          <div class="luxury-card">
+            <h2 class="card-title">📝 題目與選項編輯 (Question Editor)</h2>
+            <form id="quizForm" onsubmit="event.preventDefault(); saveQuiz();">
+              <input type="hidden" id="quizEditId">
+              <div class="form-group">
+                <label>題目 ID</label>
+                <input type="text" id="quizIdInput" class="luxury-input" placeholder="例如: q-first-date" required>
+              </div>
+              <div class="form-group">
+                <label>大螢幕題目文字 (Question)</label>
+                <input type="text" id="quizQuestionInput" class="luxury-input" placeholder="例如: 新郎與新娘第一次約會是去哪裡？" required>
+              </div>
+              <div class="form-row">
+                <div class="form-group half">
+                  <label class="opt-a">🌸 選項 A</label>
+                  <input type="text" id="optA" class="luxury-input" placeholder="看電影" required>
+                </div>
+                <div class="form-group half">
+                  <label class="opt-b">💜 選項 B</label>
+                  <input type="text" id="optB" class="luxury-input" placeholder="吃火鍋" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group half">
+                  <label class="opt-c">🌿 選項 C</label>
+                  <input type="text" id="optC" class="luxury-input" placeholder="陽明山看夜景" required>
+                </div>
+                <div class="form-group half">
+                  <label class="opt-d">🥂 選項 D</label>
+                  <input type="text" id="optD" class="luxury-input" placeholder="去海邊吹風" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group half">
+                  <label>✅ 正確答案 (Correct Answer)</label>
+                  <select id="correctAns" class="luxury-input">
+                    <option value="A">選項 A</option>
+                    <option value="B">選項 B</option>
+                    <option value="C">選項 C</option>
+                    <option value="D">選項 D</option>
+                  </select>
+                </div>
+                <div class="form-group half">
+                  <label>🎁 答對率 > 70% 衝刺獎勵</label>
+                  <select id="quizReward" class="luxury-input">
+                    <option value="large_boost" selected>衝刺加速 (+150 px)</option>
+                    <option value="small_boost">小幅加速 (+50 px)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="action-footer mt-4">
+                <button type="submit" class="cta-gold-btn">💾 保存互動問答題目</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: 模擬預演與現場控台 (核心創新) -->
+      <section id="tab-rehearsal" class="tab-pane">
+        <div class="rehearsal-banner">
+          <div class="banner-icon">🤖</div>
+          <div class="banner-text">
+            <h2>AI 虛擬賓客百人彩排引擎 (Bot Rehearsal Simulator)</h2>
+            <p>主持人無需準備上百支手機！一鍵即可在記憶體內產生虛擬機器人自動入席、分隊，當比賽開始時將自動進行高頻點擊應援與突襲關卡作答，讓您輕鬆預演大螢幕震撼效果！</p>
+          </div>
+        </div>
+
+        <div class="card-grid">
+          <!-- 虛擬機器人模擬器按鈕 -->
+          <div class="luxury-card center-card">
+            <h2 class="card-title">⚙️ 一鍵產生虛擬賓客測試</h2>
+            <div class="bot-status-panel">
+              <div class="stat-item">
+                <span class="stat-label">當前在場機器人數</span>
+                <span class="stat-value gold" id="activeBotsCount">0 人</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">AI 模擬點擊迴圈</span>
+                <span class="stat-value" id="botLoopStatus">⚪ 待命/未啟動</span>
+              </div>
+            </div>
+            <div class="bot-btn-group mt-4">
+              <button class="bot-btn" onclick="spawnBots(20)">🤖 產生 20 名虛擬賓客</button>
+              <button class="bot-btn" onclick="spawnBots(50)">🤖 產生 50 名虛擬賓客</button>
+              <button class="bot-btn highlight" onclick="spawnBots(100)">👑 產生 100 名虛擬賓客 (滿載測試)</button>
+              <button class="bot-btn danger" onclick="clearBots()">🧹 清除所有虛擬機器人</button>
+            </div>
+            <p class="hint-text mt-3">💡 點擊產生後，請立即切換至 <a href="/host" target="_blank" class="gold-link">大螢幕主持端 (/host)</a> 查看賓客湧入與比賽彩排效果！</p>
+          </div>
+
+          <!-- 上帝模式現場控台 -->
+          <div class="luxury-card">
+            <h2 class="card-title">⚡ 上帝模式現場控台 (Live GM Tools)</h2>
+            <p class="card-desc">在比賽進行中，您可以隨時介入現場節奏，強力引爆現場氣氛！</p>
+            
+            <div class="gm-action-box">
+              <label>📺 現場強制觸發突襲關卡</label>
+              <div class="gm-input-group">
+                <select id="forceQuizSelect" class="luxury-input">
+                  <option value="">-- 隨機抽選一題 --</option>
+                </select>
+                <button class="gm-btn gold" onclick="forceTriggerQuiz()">⚡ 立即跳題</button>
+              </div>
+            </div>
+
+            <div class="gm-action-box mt-4">
+              <label>🚀 陣營道具強制賜福/懲罰</label>
+              <div class="gm-btn-grid" id="forceItemGrid">
+                <!-- JS 依五隊設定動態產生賜福/懲罰按鈕 -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="admin-footer">
+      <p>🏇 Lucky Horse v1.1 Wedding Event System — Authoritative State Guardrails & Zero Silent Failures Enabled.</p>
+    </footer>
+  </div>
+  <script src="js/admin-app.js?v=12"></script>
+</body>
+</html>

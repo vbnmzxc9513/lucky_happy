@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "id": "fun-trivia",
+    "name": "🧠 趣味冷知識",
+    "description": "婚禮與生活趣味常識挑戰",
+    "version": "1.1"
+  },
+  "quizzes": [
+    {
+      "id": "ft_001",
+      "question": "傳統西式婚禮中，新娘丟出的花球代表什麼？",
+      "options": ["下一個結婚的幸運兒", "財富與平安", "永遠的青春", "早生貴子"],
+      "correctAnswer": "下一個結婚的幸運兒",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "ft_002",
+      "question": "世界上歷史最悠久的婚姻持續了幾年？",
+      "options": ["86年", "72年", "91年", "80年"],
+      "correctAnswer": "86年",
+      "difficulty": "medium",
+      "timeLimit": 10
+    },
+    {
+      "id": "ft_003",
+      "question": "結婚週年紀念中，第 50 週年被稱為什麼婚？",
+      "options": ["金婚", "銀婚", "鑽石婚", "白金婚"],
+      "correctAnswer": "金婚",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "ft_004",
+      "question": "古羅馬人在婚禮上會把哪種穀物撒在新娘頭上以示祝福？",
+      "options": ["小麥", "稻米", "玉米", "燕麥"],
+      "correctAnswer": "小麥",
+      "difficulty": "hard",
+      "timeLimit": 8
+    },
+    {
+      "id": "ft_005",
+      "question": "下列哪種動物在自然界中以「一夫一妻制」聞名？",
+      "options": ["黑天鵝", "獅子", "海豚", "熊貓"],
+      "correctAnswer": "黑天鵝",
+      "difficulty": "medium",
+      "timeLimit": 8
+    }
+  ]
+}

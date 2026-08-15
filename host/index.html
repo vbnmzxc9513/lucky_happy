@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>❖ Lucky Horse ❖ 頂級婚禮互動對抗賽</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/host/css/host.css?v=18">
+</head>
+<body>
+    <div id="app-container">
+            <!-- 頂部導覽列 (在大廳迎賓頁面預設隱藏或極簡，保持畫面純淨) -->
+        <header id="top-bar" style="display: none;">
+            <div class="logo">
+                <span class="wedding-flourish">❖</span> 
+                <span class="logo-text">LUCKY HORSE</span> 
+            </div>
+            <div id="round-status-badge" class="round-badge">第 1 / 3 局</div>
+            <div id="game-state-label" class="state-label">等候賓客入席...</div>
+        </header>
+
+        <!-- 1. 迎賓報到大廳 (LOBBY) - 嚴格依據設計圖 100% 16:9 重構 -->
+        <section id="screen-lobby" class="screen active widescreen-16-9 design-exact-lobby">
+            <!-- 左側高立式磨砂玻璃卡片：已入席賓客列表 -->
+            <div class="lobby-side-card left-roster-card">
+                <div class="card-inner-header">
+                    <h2>🎉 已入席賓客列表</h2>
+                    <span class="sub-en">Guest Roster</span>
+                    <div class="divider-line"></div>
+                    <p id="total-players-count" class="roster-count-label">已入席人數：0 人</p>
+                </div>
+
+                <!-- 賓客名單雙排網格 -->
+                <div id="guest-roster-grid" class="roster-grid-2col">
+                    <!-- 預設顯示待入席席位插槽，隨賓客加入即時翻轉點亮 -->
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                    <div class="roster-slot"><span>👤</span> --</div>
+                </div>
+
+                <div class="card-corner-ribbon left-ribbon"></div>
+            </div>
+
+            <!-- 中央主視覺舞台：手繪風有機緞帶 + 高品質賽馬剪影 PNG + 日期 -->
+            <div class="lobby-center-stage">
+                <!-- 手繪風波浪緞帶 (SVG shape + 文字) -->
+                <div class="ribbon-wrapper">
+                    <svg class="ribbon-svg" viewBox="0 0 600 100" preserveAspectRatio="none">
+                        <path d="M 0,50 C 0,50 15,10 40,15 C 65,20 60,5 85,10 L 85,8 C 85,3 70,0 55,0 L 545,0 C 560,0 575,3 575,8 L 575,10 C 600,5 595,20 620,15 C 645,10 660,50 660,50 C 660,50 645,90 620,85 C 595,80 600,95 575,90 L 575,92 C 575,97 560,100 545,100 L 55,100 C 40,100 25,97 25,92 L 25,90 C 0,95 5,80 -20,85 C -45,90 -60,50 0,50 Z" fill="#F5D06B" stroke="#2A2A2A" stroke-width="2"/>
+                    </svg>
+                    <span class="ribbon-text">The Tsai Nieh Wedding Club</span>
+                </div>
+
+
+                <!-- 奔跑賽馬動畫 (Canvas 動態逐幀渲染 + 100% JS 去背) -->
+                <div class="horse-stage">
+                    <canvas id="horse-canvas" width="256" height="256"></canvas>
+                </div>
+
+                <!-- 日期 -->
+                <div class="date-text">FRIDAY 9TH OCTOBER</div>
+
+                <!-- 底部出發按鈕 -->
+                <div class="center-start-action">
+                    <button id="btn-start-round" class="btn-royal-next">🏇 報到齊全，進入選隊與賽道選擇 →</button>
+                </div>
+            </div>
+
+            <!-- 右側高立式磨砂玻璃卡片：QR Code 報到 -->
+            <div class="lobby-side-card right-qr-card">
+                <div class="card-inner-header qr-header">
+                    <div class="qr-card-title">掃描 QR Code</div>
+                    <div class="qr-card-subtitle">報到進場</div>
+                </div>
+
+                <!-- 專屬掃碼 QR Code 容器 -->
+                <div class="qr-code-box">
+                    <div id="qr-placeholder" class="qr-code-render">
+                        <!-- QR code will be injected here by JS -->
+                    </div>
+                    <div class="qr-grid" style="margin-top: 15px; text-align: center;">
+                        <span style="display: block; font-weight: bold; font-size: 1.2rem; margin-bottom: 5px;">掃碼加入</span>
+                        <small id="join-url-text" style="font-size: 1rem; color: #555;">http://localhost:3000/guest</small>
+                    </div>
+                </div>
+
+                <div class="qr-card-footer">
+                    請用手機掃碼輸入暱稱報到
+                </div>
+
+                <div class="card-corner-ribbon right-top-ribbon"></div>
+                <div class="card-corner-ribbon right-bottom-ribbon"></div>
+
+                <!-- 隱藏相容舊腳本變數欄位 -->
+                <div style="display: none;">
+                    <span id="lobby-red-count">0</span>
+                    <span id="lobby-red-score">0</span>
+                    <span id="lobby-blue-count">0</span>
+                    <span id="lobby-blue-score">0</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 1.5 規則說明畫面 (RULES) — 16:9 全幅設計 -->
+        <section id="screen-rules" class="screen widescreen-16-9 rules-screen">
+            <!-- 頂部金色緞帶標題 -->
+            <div class="rules-ribbon-header">
+                <svg class="rules-ribbon-svg" viewBox="0 0 900 90" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="ribbonGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#F5D06B"/>
+                            <stop offset="40%" style="stop-color:#F1D495"/>
+                            <stop offset="60%" style="stop-color:#D8AF63"/>
+                            <stop offset="100%" style="stop-color:#BA8935"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M 0,45 C 0,45 20,8 55,12 C 90,16 85,4 110,8 L 110,6 C 110,2 95,0 80,0 L 820,0 C 835,0 850,2 850,6 L 850,8 C 875,4 870,16 905,12 C 940,8 960,45 960,45 C 960,45 940,82 905,78 C 870,74 875,86 850,82 L 850,84 C 850,88 835,90 820,90 L 80,90 C 65,90 50,88 50,84 L 50,82 C 25,86 30,74 -5,78 C -40,82 -60,45 0,45 Z" fill="url(#ribbonGold)" stroke="#9A7426" stroke-width="1.5"/>
+                </svg>
+                <div class="rules-ribbon-text-wrap">
+                    <span class="rules-title-en">— HOW TO PLAY —</span>
+                    <span class="rules-title-zh">五大陣營賽馬與答題規則</span>
+                </div>
+            </div>
+
+            <!-- 2x2 規則卡片網格 -->
+            <div class="rules-grid">
+                <!-- 卡片 1: 選擇五大陣營 -->
+                <div class="rules-card">
+                    <div class="rules-card-number">1</div>
+                    <h3 class="rules-card-title">選擇五大陣營</h3>
+                    <p class="rules-card-subtitle">Choose Your Team</p>
+                    <div class="rules-card-illustration">
+                        <div class="team-buttons-demo" id="dynamic-demo-buttons">
+                            <!-- JS將動態產生五個小按鈕 -->
+                        </div>
+                    </div>
+                    <p class="rules-card-desc">每位賓客用手機掃碼後<br>選擇一個陣營加入戰鬥！</p>
+                </div>
+
+                <!-- 卡片 2: 瘋狂點擊衝刺 -->
+                <div class="rules-card">
+                    <div class="rules-card-number">2</div>
+                    <h3 class="rules-card-title">瘋狂點擊衝刺</h3>
+                    <p class="rules-card-subtitle">Tap to Sprint</p>
+                    <div class="rules-card-illustration">
+                        <div class="tap-demo">
+                            <span class="tap-hand">👆</span>
+                            <span class="tap-burst">💥</span>
+                            <span class="tap-horses">🏇🏇🏇</span>
+                        </div>
+                    </div>
+                    <p class="rules-card-desc">全隊一起瘋狂點擊按鈕<br><strong>最先衝過終點線的陣營勝利！</strong></p>
+                </div>
+
+                <!-- 卡片 3: 快問快答與機遇 -->
+                <div class="rules-card">
+                    <div class="rules-card-number">3</div>
+                    <h3 class="rules-card-title">快問快答與機遇</h3>
+                    <p class="rules-card-subtitle">Quiz & Mystery Events</p>
+                    <div class="rules-card-illustration">
+                        <div class="quiz-demo">
+                            <span class="quiz-box">❓</span>
+                            <span class="quiz-surprise">🎁</span>
+                            <span class="quiz-bolt">⚡</span>
+                        </div>
+                    </div>
+                    <p class="rules-card-desc">賽道中途隨機觸發<br>新人快問快答或驚喜機遇事件！</p>
+                </div>
+
+                <!-- 卡片 4: 多數決答題獎懲 -->
+                <div class="rules-card">
+                    <div class="rules-card-number">4</div>
+                    <h3 class="rules-card-title">多數決答題獎懲</h3>
+                    <p class="rules-card-subtitle">Majority Vote System</p>
+                    <div class="rules-card-illustration">
+                        <div class="vote-demo">
+                            <div class="vote-bar">
+                                <div class="vote-fill vote-fill-75"></div>
+                                <span class="vote-label">75%</span>
+                            </div>
+                            <div class="vote-results">
+                                <span class="vote-correct">🚀 答對加速</span>
+                                <span class="vote-wrong">⚡ 答錯停滯</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="rules-card-desc">全隊投票比例最高的選項<br>作為繳卷答案，答對加速 答錯受罰！</p>
+                </div>
+            </div>
+
+            <!-- 左右兩邊新人立繪 (去背圖) -->
+            <img class="rules-char rules-char-left" src="/host/assets/a_ping_rule_explain_fullbody_nobg.png" alt="新郎說明">
+            <img class="rules-char rules-char-right" src="/host/assets/xiao_nie_rule_explain_fullbody_nobg.png" alt="新娘說明">
+
+            <!-- 底部開賽按鈕 -->
+            <div class="rules-action-bar">
+                <button id="btn-rules-proceed" class="btn-rules-start">
+                    ✨ 進入陣營選擇與分隊環節 →
+                </button>
+            </div>
+        </section>
+
+        <!-- 1.8 陣營選擇與分隊環節 (TEAM SELECT) — 16:9 全幅設計 -->
+        <section id="screen-team-select" class="screen widescreen-16-9 team-select-screen">
+            <!-- 頂部金色緞帶標題 -->
+            <div class="rules-ribbon-header">
+                <svg class="rules-ribbon-svg" viewBox="0 0 900 90" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="ribbonGold2" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#F5D06B"/>
+                            <stop offset="40%" style="stop-color:#F1D495"/>
+                            <stop offset="60%" style="stop-color:#D8AF63"/>
+                            <stop offset="100%" style="stop-color:#BA8935"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M 0,45 C 0,45 20,8 55,12 C 90,16 85,4 110,8 L 110,6 C 110,2 95,0 80,0 L 820,0 C 835,0 850,2 850,6 L 850,8 C 875,4 870,16 905,12 C 940,8 960,45 960,45 C 960,45 940,82 905,78 C 870,74 875,86 850,82 L 850,84 C 850,88 835,90 820,90 L 80,90 C 65,90 50,88 50,84 L 50,82 C 25,86 30,74 -5,78 C -40,82 -60,45 0,45 Z" fill="url(#ribbonGold2)" stroke="#9A7426" stroke-width="1.5"/>
+                </svg>
+                <div class="rules-ribbon-text-wrap">
+                    <span class="rules-title-en">— CHOOSE YOUR TEAM —</span>
+                    <span class="rules-title-zh">選擇你的專屬黑皮陣營加入！</span>
+                </div>
+            </div>
+
+            <!-- 倒數計時與操作指示橫幅 -->
+            <div class="team-select-banner">
+                <div class="team-select-timer-box">
+                    ⏱️ 選擇倒數：<span id="team-select-countdown" class="countdown-num-hl">20</span> 秒
+                </div>
+                <div class="team-select-notice">
+                    📱 請打開手機畫面選擇喜愛的黑皮加入！倒數結束後，未及時選擇者將由系統自動均衡分配
+                </div>
+            </div>
+
+            <!-- 五大陣營名單展示牆 -->
+            <div class="team-select-grid" id="dynamic-team-select-grid">
+                <!-- JS將動態產生各隊伍選單卡片 -->
+            </div>
+
+            <!-- 底部進入開賽按鈕 -->
+            <div class="rules-action-bar">
+                <button id="btn-team-select-proceed" class="btn-rules-start">
+                    🚀 倒數結束與自動分配完畢，進入賽道準備起跑 →
+                </button>
+            </div>
+        </section>
+
+        <!-- 2. 賽馬競技場畫面 (COUNTDOWN / RACING / QUIZ) -->
+        <section id="screen-racing" class="screen">
+            <!-- 賽事頂部資訊板 -->
+            <div id="dynamic-race-header" class="race-header">
+                <!-- 動態注入的各隊伍數據統計 -->
+                
+                <div class="race-timer-box" style="margin: 0 auto;">
+                    <span id="race-timer-text">00:00</span>
+                </div>
+            </div>
+
+            <!-- 賽道容器 -->
+            <div id="track-container" class="track-area">
+                <div class="track-bg-pattern"></div>
+                <!-- 動態生成的賽道 (lanes) -->
+                <div id="dynamic-lanes-container"></div>
+                
+                <!-- 終點線 -->
+                <div class="finish-line-banner">
+                    <span>FINISH</span>
+                </div>
+
+                <!-- 道具層 -->
+                <div id="items-layer" class="layer"></div>
+
+                <!-- 動態生成的馬匹物件 -->
+                <div id="dynamic-horses-container"></div>
+            </div>
+
+            <!-- 賽事跑馬燈訊息 -->
+            <div class="race-ticker">
+                💬 現場快報：<span id="ticker-text">比賽即將開始，請準備瘋狂點擊！</span>
+            </div>
+        </section>
+
+        <!-- 3. 關卡答題全屏畫面 -->
+        <div id="quiz-overlay" class="overlay">
+            <div class="quiz-fullscreen">
+                <!-- 裝飾性背景飄浮物 -->
+                <div class="quiz-decorations">
+                    <span class="decor-item paw-1">🐾</span>
+                    <span class="decor-item paw-2">🐾</span>
+                    <span class="decor-item q-1">❓</span>
+                    <span class="decor-item q-2">❓</span>
+                    <span class="decor-item star-1">✨</span>
+                    <span class="decor-item star-2">✨</span>
+                </div>
+
+                <!-- 突發關卡準備倒數彈窗 -->
+                <div id="quiz-prepare-splash" class="quiz-prepare-splash">
+                    <div class="quiz-prepare-alert">🚨</div>
+                    <h2 class="quiz-prepare-title">突襲答題關卡即將開始</h2>
+                    <div id="quiz-prepare-num" class="quiz-prepare-countdown">3</div>
+                    <p class="quiz-prepare-sub">📱 請看手機螢幕準備作答！</p>
+                </div>
+
+                <!-- 頂部五隊答題進度列 (與賽道 header 同風格) -->
+                <div id="quiz-team-bar" class="quiz-team-bar">
+                    <!-- 動態注入的各隊伍答題進度 -->
+                </div>
+
+                <!-- 題目卡片 + 內嵌倒數計時 -->
+                <div class="quiz-question-row">
+                    <div id="quiz-question-box" class="quiz-question-card">
+                        載入題目中...
+                    </div>
+                    <div id="quiz-countdown-circle" class="quiz-timer-badge">
+                        <span id="quiz-timer-num">10</span>
+                        <small>秒</small>
+                    </div>
+                </div>
+
+                <!-- ABCD 四選項 2x2 大格 -->
+                <div id="quiz-options-display" class="quiz-options-grid-v2">
+                    <!-- 動態注入的選項卡片 -->
+                </div>
+
+                <!-- 答題揭曉展示區 -->
+                <div id="quiz-result-section" class="quiz-result-box" style="display: none;">
+                    <h3>🎉 正確答案揭曉：<span id="correct-answer-text" class="highlight-ans-v2">--</span></h3>
+                    <div class="quiz-result-grid" id="dynamic-quiz-results">
+                        <!-- 動態注入各隊伍的答題結果 -->
+                    </div>
+                </div>
+
+                <!-- 右下角黑皮探頭裝飾 -->
+                <img src="/host/assets/heipi_cowboy_run.png" alt="黑皮" class="quiz-dog-peek" />
+            </div>
+        </div>
+
+        <!-- 4. 倒數計時大字彈窗 -->
+        <div id="countdown-overlay" class="overlay">
+            <div id="big-countdown-num" class="giant-num">3</div>
+        </div>
+
+        <!-- 5. 結算與積分板畫面 (ROUND_FINISHED / MATCH_FINISHED) -->
+        <section id="screen-scoreboard" class="screen scoreboard-screen">
+            <div id="round-scoreboard-panel" class="scoreboard-content round-scoreboard-panel">
+                <div class="ornament-line">— ❖ C E L E B R A T I O N ❖ —</div>
+                <h1 id="scoreboard-title">🏆 第 1 局 幸福榮耀戰報 🏆</h1>
+                <div id="winner-banner" class="winner-banner">
+                    🎉 恭喜 <span id="winner-team-name">🔴 新郎應援陣營</span> 贏得本局榮耀勝利！
+                </div>
+
+                <!-- 三局積分總表 -->
+                <div class="match-summary">
+                    <h2>📊 總冠軍賽程戰績表</h2>
+                    <table class="score-table">
+                        <thead>
+                            <tr>
+                                <th>隊伍陣營</th>
+                                <th>第 1 局</th>
+                                <th>第 2 局</th>
+                                <th>第 3 局</th>
+                                <th>總積分 / 狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scoreboard-tbody">
+                            <!-- 由 scoreboard.js 動態產生 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="scoreboard-actions">
+                    <button id="btn-next-round" class="btn-primary btn-glow">🔄 進入下局大廳 (開放換隊與新賓客加入)</button>
+                    <button id="btn-reset-match" class="btn-secondary" style="display:none;">🏁 重新開啟全新賽事</button>
+                </div>
+            </div>
+
+            <div id="final-awards-panel" class="final-awards-stage" style="display:none;">
+                <div class="final-awards-ribbon">
+                    <span class="final-awards-eyebrow">LUCKY HORSE AWARDS</span>
+                    <strong>最終頒獎典禮</strong>
+                    <small>獎項名稱保密，揭曉瞬間才公開</small>
+                </div>
+
+                <img class="final-awards-character final-awards-groom" src="/host/assets/a_ping_awards_cheer_nobg.png" alt="新郎加油">
+                <img class="final-awards-character final-awards-bride" src="/host/assets/xiao_nie_awards_cheer_nobg.png" alt="新娘加油">
+
+                <div class="final-awards-frame">
+                    <aside class="award-progress-panel">
+                        <h2>頒獎順序</h2>
+                        <p>獎項名稱先保密，揭曉才公布。</p>
+                        <div id="award-progress-list" class="award-progress-list"></div>
+                    </aside>
+
+                    <main class="award-main-area">
+                        <section id="award-current-card" class="award-current-card">
+                            <div class="award-meta-line">
+                                <span id="award-step-label">AWARD 01 / 04</span>
+                                <span id="award-tag-label">TEAM WINNER</span>
+                            </div>
+                            <h1 id="award-title">幸福總冠軍</h1>
+                            <p id="award-prompt">哪個隊伍贏得最終勝利</p>
+
+                            <div class="award-hero-row">
+                                <div class="award-metric-box">
+                                    <span id="award-metric-label">總積分</span>
+                                    <strong id="award-metric-value">0 分</strong>
+                                </div>
+                                <div id="award-winner-identity" class="award-winner-identity"></div>
+                            </div>
+
+                            <h2 id="award-congrats">恭喜得獎者</h2>
+                            <p id="award-description">頒獎內容準備中</p>
+                        </section>
+
+                        <section class="award-ranking-panel">
+                            <h2 id="award-ranking-title">排行榜</h2>
+                            <div id="award-ranking-list" class="award-ranking-list"></div>
+                        </section>
+                    </main>
+                </div>
+
+                <div class="final-awards-actions">
+                    <button id="btn-award-prev" class="award-action-btn secondary">上一個獎</button>
+                    <button id="btn-award-next" class="award-action-btn primary">揭曉下一個神秘獎</button>
+                    <button id="btn-final-reset-match" class="award-action-btn secondary reset">重新開啟全新賽事</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 全域右下角「回到大廳」浮動按鈕 (大廳頁面自動隱藏) -->
+        <button id="btn-back-to-lobby" class="btn-back-lobby" style="display:none;">
+            🏠 回到大廳
+        </button>
+    </div>
+
+    <!-- 引入 Socket.IO Client 還有 QR Code 生成與遊戲邏輯 JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/shared/events.js?v=12"></script>
+    <script src="/shared/game-config.js?v=12"></script>
+    <script src="/host/js/effects.js?v=12"></script>
+    <script src="/host/js/race-renderer.js?v=12"></script>
+    <script src="/host/js/quiz-display.js?v=12"></script>
+    <script src="/host/js/map-select-ui.js?v=12"></script>
+    <script src="/host/js/scoreboard.js?v=13"></script>
+    <script src="/host/js/host-app.js?v=15"></script>
+</body>
+</html>

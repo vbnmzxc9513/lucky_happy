@@ -1,0 +1,1325 @@
+/**
+ * Lucky Horse — 皇家婚禮後台配置與彩排控制台樣式表 (admin.css)
+ * 嚴格遵循 GAME_DESIGN.md 美學設計系統：藏青深藍、白紗、奶茶香檳金與湖水綠
+ */
+
+:root {
+  /* --- 婚禮主色調 Wedding Core Palette --- */
+  --navy-dark: #132238;          /* 深藍色/藏青色 - 主背景 */
+  --navy-card: rgba(26, 43, 76, 0.85); /* 藏青玻璃磨砂卡片 */
+  --wedding-white: #FAF9F5;      /* 白紗 - 主字體 */
+  --milktea: #D8C3A5;            /* 奶茶色 - 高亮、金邊、按鈕 */
+  --milktea-light: #EAE0CE;      /* 奶茶高光版 */
+  --lake-green: #7AB8B1;         /* 湖水綠 - 狀態與數值高亮 */
+
+  /* --- 陣營對抗色系 Factions --- */
+  --team-red-main: #88303C;      /* 酒紅色 Burgundy */
+  --team-red-light: #C98CA7;     /* 霧玫粉 Dusty Rose */
+  --team-blue-main: #4A6B8A;     /* 灰藍色 Slate Blue */
+  --team-blue-light: #9B8AA4;    /* 薰衣草紫 Lavender */
+
+  /* --- 突襲答題選項配色 --- */
+  --dusty-rose: #C98CA7;
+  --lavender: #9B8AA4;
+  --sage-green: #8FAD91;
+  --champagne: #DFD1BA;
+  --terracotta: #B86B53;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--navy-dark);
+  color: var(--wedding-white);
+  font-family: 'Noto Serif TC', 'Outfit', serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* 皇家星空微光漸層背景 */
+.luxury-bg-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 10%, rgba(216, 195, 165, 0.15), transparent 60%),
+              radial-gradient(circle at 80% 80%, rgba(122, 184, 177, 0.1), transparent 50%),
+              radial-gradient(circle at 20% 70%, rgba(136, 48, 60, 0.1), transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.admin-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 30px 20px;
+}
+
+/* 頂部 Header */
+.admin-header {
+  text-align: center;
+  margin-bottom: 30px;
+  position: relative;
+}
+
+.flourish {
+  font-family: 'Cinzel', serif;
+  color: var(--milktea);
+  font-size: 1.2rem;
+  letter-spacing: 4px;
+  margin-bottom: 8px;
+}
+
+.main-title {
+  font-family: 'Cinzel', serif;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--wedding-white);
+  letter-spacing: 2px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.gold-subtitle {
+  color: var(--milktea-light);
+  font-weight: 700;
+}
+
+.chinese-subtitle {
+  font-size: 1.1rem;
+  color: var(--milktea);
+  margin-top: 8px;
+  letter-spacing: 1px;
+}
+
+.status-badge {
+  display: inline-block;
+  margin-top: 15px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--lake-green);
+  color: var(--lake-green);
+  font-size: 0.9rem;
+  font-family: 'Outfit', sans-serif;
+}
+
+/* 導覽分頁 Tabs */
+.admin-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  background: rgba(19, 34, 56, 0.8);
+  border: 1px solid rgba(216, 195, 165, 0.3);
+  color: var(--wedding-white);
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-size: 1rem;
+  font-family: 'Noto Serif TC', serif;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.tab-btn:hover {
+  border-color: var(--milktea);
+  background: rgba(216, 195, 165, 0.15);
+  transform: translateY(-2px);
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, var(--milktea), #B89C70);
+  color: var(--navy-dark);
+  font-weight: 700;
+  border-color: var(--milktea-light);
+  box-shadow: 0 4px 15px rgba(216, 195, 165, 0.4);
+}
+
+.tab-btn.highlight-tab {
+  border-color: var(--lake-green);
+}
+
+.tab-btn.highlight-tab.active {
+  background: linear-gradient(135deg, var(--lake-green), #5A968F);
+  color: var(--navy-dark);
+}
+
+/* 分頁內容 */
+.tab-pane {
+  display: none;
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 卡片與網格 */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+@media (max-width: 768px) {
+  .card-grid { grid-template-columns: 1fr; }
+}
+
+.luxury-card {
+  background: var(--navy-card);
+  border: 1px solid rgba(216, 195, 165, 0.25);
+  border-radius: 16px;
+  padding: 28px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  transition: border-color 0.3s ease;
+}
+
+.luxury-card:hover {
+  border-color: rgba(216, 195, 165, 0.5);
+}
+
+.center-card {
+  text-align: center;
+}
+
+.card-title {
+  font-size: 1.5rem;
+  color: var(--milktea-light);
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(216, 195, 165, 0.2);
+  padding-bottom: 10px;
+}
+
+.card-desc {
+  font-size: 0.95rem;
+  color: rgba(250, 249, 245, 0.8);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+/* 表單樣式 */
+.form-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-group.half {
+  flex: 1;
+}
+
+label {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--milktea);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+label.red-label { color: var(--team-red-light); }
+label.blue-label { color: var(--team-blue-light); }
+label.opt-a { color: var(--dusty-rose); }
+label.opt-b { color: var(--lavender); }
+label.opt-c { color: var(--sage-green); }
+label.opt-d { color: var(--champagne); }
+
+.luxury-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(216, 195, 165, 0.3);
+  border-radius: 8px;
+  color: var(--wedding-white);
+  font-size: 1rem;
+  font-family: 'Outfit', 'Noto Serif TC', sans-serif;
+  transition: all 0.3s ease;
+}
+
+.luxury-input:focus {
+  outline: none;
+  border-color: var(--milktea-light);
+  box-shadow: 0 0 10px rgba(216, 195, 165, 0.3);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+select.luxury-input option {
+  background: var(--navy-dark);
+  color: var(--wedding-white);
+}
+
+/* 按鈕樣式 */
+.cta-gold-btn {
+  background: linear-gradient(135deg, var(--milktea), #B89C70);
+  color: var(--navy-dark);
+  border: none;
+  padding: 14px 32px;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: 'Noto Serif TC', serif;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(216, 195, 165, 0.4);
+  transition: all 0.3s ease;
+}
+
+.cta-gold-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(216, 195, 165, 0.6);
+  background: linear-gradient(135deg, var(--milktea-light), #C5A87B);
+}
+
+.btn-secondary {
+  background: rgba(216, 195, 165, 0.15);
+  color: var(--milktea);
+  border: 1px solid var(--milktea);
+  padding: 10px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: rgba(216, 195, 165, 0.3);
+  color: var(--wedding-white);
+}
+
+.btn-danger {
+  background: rgba(184, 107, 83, 0.2);
+  color: var(--terracotta);
+  border: 1px solid var(--terracotta);
+  padding: 10px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  margin-left: 10px;
+  transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+  background: var(--terracotta);
+  color: var(--wedding-white);
+}
+
+.action-footer {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.mt-3 { margin-top: 15px; }
+.mt-4 { margin-top: 25px; }
+
+/* 列表渲染容器 */
+.list-container {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list-item {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(216, 195, 165, 0.2);
+  padding: 16px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.list-item:hover {
+  border-color: var(--milktea);
+  background: rgba(216, 195, 165, 0.1);
+}
+
+.list-item-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--wedding-white);
+}
+
+.list-item-sub {
+  font-size: 0.85rem;
+  color: var(--milktea);
+  margin-top: 4px;
+}
+
+/* 模擬預演 Banner */
+.rehearsal-banner {
+  background: linear-gradient(135deg, rgba(122, 184, 177, 0.2), rgba(26, 43, 76, 0.9));
+  border: 2px solid var(--lake-green);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 0 25px rgba(122, 184, 177, 0.3);
+}
+
+.banner-icon {
+  font-size: 3.5rem;
+}
+
+.banner-text h2 {
+  color: var(--lake-green);
+  font-size: 1.6rem;
+  margin-bottom: 8px;
+}
+
+.banner-text p {
+  color: var(--wedding-white);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* 機器人模擬面板 */
+.bot-status-panel {
+  display: flex;
+  justify-content: space-around;
+  background: rgba(0,0,0,0.4);
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(216, 195, 165, 0.2);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: var(--milktea);
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 900;
+  font-family: 'Outfit', sans-serif;
+}
+
+.stat-value.gold { color: var(--milktea-light); }
+
+.bot-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.bot-btn {
+  background: rgba(26, 43, 76, 0.9);
+  border: 1px solid var(--milktea);
+  color: var(--wedding-white);
+  padding: 12px 20px;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.bot-btn:hover {
+  background: var(--milktea);
+  color: var(--navy-dark);
+  transform: translateY(-2px);
+}
+
+.bot-btn.highlight {
+  background: linear-gradient(135deg, var(--milktea), #B89C70);
+  color: var(--navy-dark);
+  font-weight: 700;
+  box-shadow: 0 4px 15px rgba(216, 195, 165, 0.4);
+}
+
+.bot-btn.highlight:hover {
+  background: linear-gradient(135deg, var(--milktea-light), #C5A87B);
+}
+
+.bot-btn.danger {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+}
+
+.bot-btn.danger:hover {
+  background: var(--terracotta);
+  color: var(--wedding-white);
+}
+
+.hint-text {
+  font-size: 0.9rem;
+  color: rgba(250, 249, 245, 0.7);
+}
+
+.gold-link {
+  color: var(--milktea-light);
+  text-decoration: underline;
+  font-weight: 700;
+}
+
+/* 上帝模式現場控台 */
+.gm-action-box {
+  background: rgba(0,0,0,0.3);
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(216, 195, 165, 0.2);
+}
+
+.gm-input-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.gm-btn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.gm-btn.gold {
+  background: var(--milktea);
+  color: var(--navy-dark);
+}
+
+.gm-btn.red {
+  background: var(--team-red-main);
+  color: var(--wedding-white);
+  border: 1px solid var(--team-red-light);
+}
+
+.gm-btn.blue {
+  background: var(--team-blue-main);
+  color: var(--wedding-white);
+  border: 1px solid var(--team-blue-light);
+}
+
+.gm-btn.red-warn {
+  background: rgba(184, 107, 83, 0.8);
+  color: var(--wedding-white);
+}
+
+.gm-btn.blue-warn {
+  background: rgba(184, 107, 83, 0.8);
+  color: var(--wedding-white);
+}
+
+.gm-btn:hover {
+  transform: scale(1.03);
+  filter: brightness(1.15);
+}
+
+.gm-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* 頁腳 */
+.admin-footer {
+  text-align: center;
+  margin-top: 50px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(216, 195, 165, 0.2);
+  color: rgba(216, 195, 165, 0.6);
+  font-size: 0.85rem;
+}
+
+/* ==========================================================================
+   薄荷綠設定中心新版視覺
+   ========================================================================== */
+:root {
+  --mint-bg: #9EDBD0;
+  --mint-bg-soft: #BEE9E1;
+  --mint-card: rgba(159, 213, 204, 0.82);
+  --mint-panel: rgba(255, 255, 255, 0.30);
+  --mint-ink: #20383B;
+  --mint-ink-soft: #35595A;
+  --mint-deep: #315E58;
+  --mint-deep-2: #3E756C;
+  --mint-gold: #F5D06B;
+  --mint-gold-deep: #D6A742;
+  --mint-white-line: rgba(255, 255, 255, 0.68);
+}
+
+body {
+  min-height: 100vh;
+  color: var(--mint-ink);
+  background:
+    radial-gradient(circle at 50% 14%, rgba(255,255,255,0.32) 0%, transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(49,94,88,0.12) 0%, transparent 44%),
+    var(--mint-bg);
+  font-family: 'Outfit', 'Noto Serif TC', 'Microsoft JhengHei', sans-serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(rgba(32, 56, 59, 0.12) 1px, transparent 1px);
+  background-size: 18px 18px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: -10% 0;
+  background:
+    repeating-linear-gradient(82deg, transparent 0 255px, rgba(49,94,88,0.10) 257px 259px, transparent 261px 510px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.luxury-bg-glow {
+  display: none;
+}
+
+.admin-container {
+  width: min(1780px, calc(100vw - 80px));
+  max-width: none;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 306px 1fr;
+  grid-template-areas:
+    "header header"
+    "tabs content"
+    "footer footer";
+  gap: 28px 38px;
+  margin: 0 auto;
+  padding: 48px 0 30px;
+}
+
+.admin-header {
+  grid-area: header;
+  width: min(680px, 60vw);
+  min-height: 88px;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 6px;
+  padding: 10px 54px;
+  color: #2C271B;
+  background: linear-gradient(135deg, #F9DB83 0%, #F5D06B 54%, #C5963C 100%);
+  border: 2px solid #A9782B;
+  border-radius: 10px 28px 10px 28px;
+  box-shadow: 0 10px 24px rgba(92, 67, 25, 0.18);
+  clip-path: polygon(4% 12%, 16% 8%, 18% 0, 82% 0, 84% 8%, 96% 12%, 100% 78%, 88% 100%, 12% 100%, 0 84%);
+}
+
+.flourish {
+  display: none;
+}
+
+.main-title {
+  color: #2C271B;
+  font-size: clamp(18px, 1.1vw, 20px);
+  font-family: 'Outfit', sans-serif;
+  line-height: 1.05;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+
+.gold-subtitle {
+  display: block;
+  color: #2C271B;
+  font-family: 'Noto Serif TC', serif;
+  font-size: clamp(28px, 2vw, 34px);
+  line-height: 1.05;
+}
+
+.chinese-subtitle {
+  margin-top: 3px;
+  color: #4D3C1F;
+  font-size: clamp(13px, 1vw, 16px);
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.status-badge {
+  position: fixed;
+  left: 112px;
+  bottom: 76px;
+  z-index: 5;
+  width: 230px;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 20px;
+  background: rgba(49, 94, 88, 0.88);
+  border: 2px solid var(--mint-gold);
+  color: #D7F2ED;
+  font-family: 'Outfit', 'Noto Serif TC', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  text-align: center;
+  box-shadow: 0 14px 30px rgba(55, 88, 86, 0.20);
+}
+
+.admin-tabs {
+  grid-area: tabs;
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  min-height: 846px;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 26px;
+  margin: 0;
+  padding: 124px 38px 132px;
+  background: rgba(151, 210, 201, 0.76);
+  border: 3px solid rgba(255,255,255,0.72);
+  border-radius: 24px;
+  box-shadow: 0 18px 45px rgba(55, 88, 86, 0.20);
+}
+
+.admin-tabs::before {
+  content: "ADMIN\A設定中心";
+  white-space: pre;
+  position: absolute;
+  top: 44px;
+  left: 44px;
+  color: var(--mint-ink);
+  font-family: 'Noto Serif TC', serif;
+  font-size: 32px;
+  line-height: 1.24;
+  font-weight: 900;
+}
+
+.tab-btn {
+  width: 100%;
+  min-height: 62px;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 12px 20px;
+  color: var(--mint-ink);
+  background: rgba(255,255,255,0.25);
+  border: 2px solid rgba(255,255,255,0.34);
+  border-radius: 18px;
+  box-shadow: 0 8px 20px rgba(55, 88, 86, 0.10);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.tab-icon {
+  width: 17px;
+  height: 17px;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #75B9AF;
+  color: transparent;
+  flex: 0 0 auto;
+}
+
+.tab-btn:nth-child(1) .tab-icon { background: #F5D06B; }
+.tab-btn:nth-child(2) .tab-icon { background: #75B9AF; }
+.tab-btn:nth-child(3) .tab-icon { background: #E7A6C8; }
+.tab-btn:nth-child(4) .tab-icon { background: #C8B6E2; }
+
+.tab-btn:hover,
+.tab-btn.highlight-tab:hover {
+  border-color: var(--mint-gold);
+  background: rgba(255,255,255,0.34);
+  transform: translateY(-2px);
+}
+
+.tab-btn.active,
+.tab-btn.highlight-tab.active {
+  color: #FDFBF2;
+  background: var(--mint-deep);
+  border-color: var(--mint-gold);
+  box-shadow: 0 10px 26px rgba(55, 88, 86, 0.18);
+}
+
+.tab-content-area {
+  grid-area: content;
+}
+
+.card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px 40px;
+  margin-bottom: 28px;
+}
+
+.luxury-card,
+.rehearsal-banner,
+.gm-action-box,
+.bot-status-panel,
+.list-item {
+  color: var(--mint-ink);
+  background: var(--mint-card);
+  border: 3px solid rgba(255,255,255,0.72);
+  border-radius: 24px;
+  box-shadow: 0 18px 45px rgba(55, 88, 86, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.luxury-card {
+  padding: 32px 42px;
+}
+
+.luxury-card:hover {
+  border-color: rgba(255,255,255,0.82);
+}
+
+.card-title,
+.banner-text h2 {
+  color: var(--mint-ink);
+  border-bottom: 0;
+  padding-bottom: 0;
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+.card-desc,
+.banner-text p,
+.hint-text,
+.list-item-sub {
+  color: var(--mint-ink-soft);
+  font-weight: 800;
+}
+
+label,
+.stat-label,
+.sub-heading {
+  color: var(--mint-deep);
+  font-weight: 900;
+}
+
+.luxury-input {
+  color: var(--mint-ink);
+  background: rgba(255,255,255,0.32);
+  border: 2px solid rgba(255,255,255,0.60);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
+}
+
+.luxury-input:focus {
+  border-color: var(--mint-gold);
+  box-shadow: 0 0 0 3px rgba(245, 208, 107, 0.18);
+  background: rgba(255,255,255,0.42);
+}
+
+select.luxury-input option {
+  background: #D7F2ED;
+  color: var(--mint-ink);
+}
+
+.cta-gold-btn,
+.bot-btn.highlight,
+.gm-btn.gold {
+  color: var(--mint-ink);
+  background: var(--mint-gold);
+  border: 2px solid var(--mint-gold-deep);
+  border-radius: 24px;
+  box-shadow: 0 10px 24px rgba(92, 67, 25, 0.14);
+}
+
+.cta-gold-btn:hover,
+.bot-btn.highlight:hover,
+.gm-btn.gold:hover {
+  background: #F9DB83;
+  box-shadow: 0 12px 28px rgba(92, 67, 25, 0.18);
+}
+
+.btn-secondary,
+.bot-btn,
+.gm-btn {
+  color: #FDFBF2;
+  background: var(--mint-deep);
+  border: 2px solid var(--mint-gold);
+  border-radius: 22px;
+  font-weight: 900;
+}
+
+.btn-secondary:hover,
+.bot-btn:hover,
+.gm-btn:hover {
+  color: #FDFBF2;
+  background: var(--mint-deep-2);
+}
+
+.btn-danger,
+.bot-btn.danger,
+.gm-btn.red-warn,
+.gm-btn.blue-warn {
+  color: #FDFBF2;
+  background: #C23830;
+  border: 2px solid #E8847B;
+  border-radius: 22px;
+}
+
+.list-container {
+  max-height: 520px;
+}
+
+.list-item {
+  border-width: 2px;
+  background: rgba(255,255,255,0.26);
+  cursor: default;
+}
+
+.list-item:hover {
+  background: rgba(255,255,255,0.36);
+  border-color: var(--mint-gold);
+}
+
+.list-item-title,
+.stat-value {
+  color: var(--mint-ink);
+}
+
+.stat-value.gold,
+.gold-link {
+  color: var(--mint-deep);
+}
+
+.rehearsal-banner {
+  padding: 24px 30px;
+  margin-bottom: 34px;
+}
+
+.banner-icon {
+  color: var(--mint-gold);
+}
+
+.gm-input-group,
+.bot-btn-group {
+  gap: 14px;
+}
+
+.gm-btn-grid {
+  gap: 14px;
+}
+
+.admin-footer {
+  grid-area: footer;
+  margin-top: 20px;
+  color: rgba(32, 56, 59, 0.70);
+  border-top-color: rgba(49,94,88,0.20);
+  font-weight: 800;
+}
+
+@media (max-width: 1200px) {
+  .admin-container {
+    width: min(100vw - 32px, 980px);
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "header"
+      "tabs"
+      "content"
+      "footer";
+    padding-top: 28px;
+  }
+
+  .admin-header {
+    width: min(680px, 100%);
+  }
+
+  .admin-tabs {
+    position: relative;
+    top: auto;
+    min-height: auto;
+    padding: 108px 24px 24px;
+  }
+
+  .admin-tabs::before {
+    top: 28px;
+    left: 28px;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .status-badge {
+    position: static;
+    width: auto;
+    min-height: auto;
+    margin-top: 18px;
+  }
+}
+
+/* 16:9 presentation lock: wedding screens must never scroll. */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.admin-container {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1080px;
+  min-height: 0;
+  grid-template-columns: 306px 1fr;
+  grid-template-rows: 88px 1fr;
+  grid-template-areas:
+    "header header"
+    "tabs content";
+  gap: 28px 38px;
+  padding: 48px 72px 40px;
+  transform: translate(-50%, -50%) scale(var(--admin-stage-scale, 1));
+  transform-origin: center;
+  overflow: hidden;
+}
+
+.admin-header {
+  width: 680px;
+  position: static;
+}
+
+.admin-tabs {
+  position: relative;
+  top: auto;
+  height: 100%;
+  min-height: 0;
+}
+
+.tab-content-area,
+.tab-pane {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.tab-pane.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-grid {
+  min-height: 0;
+  flex: 1;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.luxury-card {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.action-footer {
+  flex: 0 0 auto;
+}
+
+.admin-footer {
+  display: none;
+}
+
+.status-badge {
+  position: absolute;
+  left: 64px;
+  bottom: 78px;
+  z-index: 4;
+  width: 230px;
+}
+
+.settings-stage-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 648px 734px;
+  grid-template-rows: 250px 468px;
+  gap: 36px 40px;
+}
+
+.settings-stage-grid .luxury-card {
+  padding: 30px 42px;
+}
+
+.team-config-card {
+  grid-column: 2;
+  grid-row: 1;
+  padding-top: 26px;
+  padding-bottom: 18px;
+}
+
+.team-config-card .card-title {
+  margin-bottom: 6px;
+  padding-bottom: 0;
+  border-bottom: 0;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.team-config-card .card-desc {
+  margin-bottom: 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.race-params-card {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.checkpoint-preview-card {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.rehearsal-preview-card {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+#teamNamesContainer {
+  display: grid;
+  grid-template-columns: repeat(3, 186px);
+  gap: 12px 28px;
+  margin-top: 16px;
+}
+
+#teamNamesContainer .form-group {
+  position: relative;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  grid-template-rows: 19px 19px;
+  column-gap: 10px;
+  align-items: center;
+  margin: 0;
+  padding: 4px 10px 4px 6px;
+  background: rgba(255,255,255,0.32);
+  border: 2px solid currentColor;
+  border-radius: 18px;
+  color: var(--mint-deep);
+}
+
+#teamNamesContainer .form-group::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 6px;
+  height: 28px;
+  background: currentColor;
+}
+
+#teamNamesContainer img {
+  grid-row: 1 / span 2;
+  width: 40px;
+  height: 36px;
+  object-fit: contain;
+}
+
+#teamNamesContainer label {
+  grid-column: 2;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#teamNamesContainer .luxury-input {
+  grid-column: 2;
+  min-height: 0;
+  height: 19px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.race-params-card .form-row {
+  align-items: stretch;
+}
+
+.race-params-card .form-group {
+  margin-bottom: 18px;
+}
+
+.race-params-card .luxury-input {
+  height: 52px;
+}
+
+.checkpoint-timeline {
+  position: relative;
+  height: 194px;
+  margin-top: 58px;
+}
+
+.checkpoint-line {
+  position: absolute;
+  left: 38px;
+  right: 38px;
+  top: 48px;
+  height: 5px;
+  background: rgba(49,94,88,0.62);
+}
+
+.checkpoint-node {
+  position: absolute;
+  top: 26px;
+  width: 144px;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.checkpoint-node:nth-of-type(2) { left: 72px; }
+.checkpoint-node:nth-of-type(3) { left: 50%; }
+.checkpoint-node:nth-of-type(4) { right: 0; transform: translateX(0); }
+
+.checkpoint-node span {
+  display: block;
+  width: 38px;
+  height: 38px;
+  margin: 0 auto 32px;
+  border-radius: 50%;
+  background: var(--node-color);
+}
+
+.checkpoint-node strong,
+.checkpoint-node em {
+  display: block;
+  background: rgba(255,255,255,0.34);
+  border-left: 2px solid var(--node-color);
+  border-right: 2px solid var(--node-color);
+}
+
+.checkpoint-node strong {
+  padding-top: 14px;
+  border-radius: 18px 18px 0 0;
+  color: var(--mint-ink);
+  font-family: 'Outfit', sans-serif;
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.checkpoint-node em {
+  padding: 4px 0 13px;
+  border-radius: 0 0 18px 18px;
+  color: var(--mint-ink-soft);
+  font-style: normal;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.node-pink { --node-color: #E7A6C8; }
+.node-mint { --node-color: #75B9AF; }
+.node-purple { --node-color: #C8B6E2; }
+
+.schema-pill {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  background: rgba(255,255,255,0.30);
+  border: 2px solid rgba(49,94,88,0.25);
+  border-radius: 18px;
+  color: var(--mint-deep);
+  font-family: 'Outfit', 'Noto Serif TC', sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.preview-stat-row {
+  display: grid;
+  grid-template-columns: 270px 318px;
+  gap: 38px;
+  margin-top: 44px;
+}
+
+.preview-stat {
+  height: 104px;
+  padding: 20px 32px;
+  background: rgba(255,255,255,0.34);
+  border: 2px solid rgba(255,255,255,0.66);
+  border-radius: 22px;
+}
+
+.preview-stat span {
+  display: block;
+  color: var(--mint-deep);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.preview-stat strong {
+  display: block;
+  margin-top: 14px;
+  color: var(--mint-ink);
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.preview-command-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 288px);
+  gap: 24px 38px;
+  margin-top: 48px;
+}
+
+.preview-command {
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  color: var(--mint-ink);
+  background: rgba(255,255,255,0.34);
+  border: 2px solid var(--team-color);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.preview-command.primary {
+  color: #FDFBF2;
+  background: var(--mint-deep);
+  border-color: var(--mint-gold);
+}

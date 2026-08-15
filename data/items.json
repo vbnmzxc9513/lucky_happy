@@ -1,0 +1,42 @@
+{
+  "accelerator": {
+    "name": "⚡ 加速器",
+    "emoji": "⚡",
+    "effect": "boost",
+    "value": 35,
+    "duration": 0,
+    "description": "瞬間獲得強大推進力！"
+  },
+  "obstacle": {
+    "name": "🚧 路障",
+    "emoji": "🚧",
+    "effect": "stun",
+    "value": 0,
+    "duration": 2500,
+    "description": "撞到路障，隊伍停滯 2.5 秒！"
+  },
+  "shield": {
+    "name": "🛡️ 護盾",
+    "emoji": "🛡️",
+    "effect": "shield",
+    "value": 1,
+    "duration": 0,
+    "description": "免疫下一次路障或負面道具效果！"
+  },
+  "magnet": {
+    "name": "🌀 磁鐵",
+    "emoji": "🌀",
+    "effect": "pull_enemy",
+    "value": 50,
+    "duration": 0,
+    "description": "將對手向後拉回 50 像素！"
+  },
+  "mystery": {
+    "name": "❓ 神秘箱",
+    "emoji": "❓",
+    "effect": "random",
+    "value": 0,
+    "duration": 0,
+    "description": "隨機獲得加速或路障效果！"
+  }
+}

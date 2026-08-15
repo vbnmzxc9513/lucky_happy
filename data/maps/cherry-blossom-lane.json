@@ -1,0 +1,51 @@
+{
+  "id": "cherry-blossom-lane",
+  "name": "🌸 櫻花大道",
+  "description": "新手友善，兩個答題關卡，依遊戲進行時間自動觸發",
+  "thumbnail": "🌸",
+  "difficulty": 1,
+  "track": {
+    "length": 15000,
+    "theme": "sakura"
+  },
+  "checkpoints": [
+    {
+      "id": "cp_1",
+      "trigger": {
+        "type": "time_elapsed",
+        "seconds": 10
+      },
+      "quizId": "wc_001",
+      "timeLimit": 10
+    },
+    {
+      "id": "cp_2",
+      "trigger": {
+        "type": "time_elapsed",
+        "seconds": 30
+      },
+      "quizId": "wc_002",
+      "timeLimit": 10
+    }
+  ],
+  "items": {
+    "density": 3,
+    "types": [
+      "accelerator",
+      "obstacle",
+      "shield"
+    ]
+  },
+  "quizPool": [
+    "wc_001",
+    "wc_002",
+    "ft_001",
+    "ft_002"
+  ],
+  "config": {
+    "baseBoost": 0.5,
+    "friction": 0.93,
+    "maxSpeed": 20,
+    "stunDuration": 3000
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "id": "default",
+    "name": "🎉 綜合題庫",
+    "description": "預設混合題庫",
+    "version": "1.1"
+  },
+  "quizzes": [
+    {
+      "id": "def_001",
+      "question": "已知誤差平方和 f(x) = ||Ax - b||²，當 A = [1; 2], b = [3×10⁴; 0] 時，殘差長度簡化後的根型表示式為？",
+      "options": ["12√5 × 10³", "24√2 × 10³", "6√15 × 10⁴", "12√3 × 10³"],
+      "correctAnswer": "12√5 × 10³",
+      "difficulty": "hard",
+      "timeLimit": 10
+    },
+    {
+      "id": "def_002",
+      "question": "新郎最喜歡的運動是？",
+      "options": ["籃球", "游泳", "慢跑", "羽毛球"],
+      "correctAnswer": "籃球",
+      "difficulty": "easy",
+      "timeLimit": 10
+    }
+  ]
+}

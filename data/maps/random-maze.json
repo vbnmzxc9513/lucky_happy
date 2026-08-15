@@ -1,0 +1,52 @@
+{
+  "id": "random-maze",
+  "name": "🎲 隨機迷宮",
+  "description": "充滿驚喜與意外，依全場累計點擊數或進度隨機觸發",
+  "thumbnail": "🎲",
+  "difficulty": 2,
+  "track": {
+    "length": 15000,
+    "theme": "random"
+  },
+  "checkpoints": [
+    {
+      "id": "cp_1",
+      "trigger": {
+        "type": "combined_taps",
+        "count": 300
+      },
+      "quizId": "ft_001",
+      "timeLimit": 8
+    },
+    {
+      "id": "cp_2",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 70
+      },
+      "quizId": "wc_002",
+      "timeLimit": 8
+    }
+  ],
+  "items": {
+    "density": 4,
+    "types": [
+      "mystery",
+      "mystery",
+      "accelerator",
+      "obstacle"
+    ]
+  },
+  "quizPool": [
+    "ft_001",
+    "wc_002",
+    "ft_002",
+    "wc_003"
+  ],
+  "config": {
+    "baseBoost": 0.5,
+    "friction": 0.93,
+    "maxSpeed": 20,
+    "stunDuration": 3000
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "id": "wedding-couples",
+    "name": "👰 新人專屬題庫",
+    "description": "關於新郎新娘的個人小秘密與戀愛故事",
+    "version": "1.1"
+  },
+  "quizzes": [
+    {
+      "id": "wc_001",
+      "question": "新郎最喜歡的食物是？",
+      "options": ["牛排", "壽司", "拉麵", "披薩"],
+      "correctAnswer": "壽司",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wc_002",
+      "question": "新人第一次見面是在哪裡？",
+      "options": ["大學教室", "咖啡廳", "朋友聚會", "線上交友"],
+      "correctAnswer": "朋友聚會",
+      "difficulty": "medium",
+      "timeLimit": 10
+    },
+    {
+      "id": "wc_003",
+      "question": "新娘最怕什麼動物？",
+      "options": ["蟑螂", "蜘蛛", "老鼠", "蛇"],
+      "correctAnswer": "蟑螂",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wc_004",
+      "question": "他們第一次出國度假去哪裡？",
+      "options": ["東京", "首爾", "巴黎", "曼谷"],
+      "correctAnswer": "東京",
+      "difficulty": "medium",
+      "timeLimit": 8
+    }
+  ]
+}

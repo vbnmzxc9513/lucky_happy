@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="100%" height="100%">
+  <defs>
+    <!-- 背景湖水綠雜點與微粒質感濾鏡 -->
+    <filter id="paper-noise" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" result="noise" />
+      <feColorMatrix type="matrix" values="
+        0 0 0 0 0.48
+        0 0 0 0 0.72
+        0 0 0 0 0.69
+        0 0 0 0.12 0" result="coloredNoise" />
+      <feComposite operator="in" in2="SourceGraphic" result="textured" />
+      <feBlend mode="multiply" in="coloredNoise" in2="SourceGraphic" />
+    </filter>
+
+    <!-- 緞帶陰影 -->
+    <filter id="drop-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0a1520" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- 1. 上方專屬黃金手繪感橫幅緞帶 (The Tsai Nieh Wedding Club) -->
+  <g id="Ribbon-Header" transform="translate(180, 50)" filter="url(#drop-shadow)">
+    <!-- 左側燕尾摺痕 -->
+    <path d="M 40,110 L 0,80 L 15,140 L 60,165 Z" fill="#E8B54D" stroke="#161A1E" stroke-width="4" stroke-linejoin="round" />
+    <path d="M 60,165 L 75,115 L 40,110 Z" fill="#D29E38" stroke="#161A1E" stroke-width="4" stroke-linejoin="round" />
+
+    <!-- 右側燕尾摺痕 -->
+    <path d="M 800,110 L 840,80 L 825,140 L 780,165 Z" fill="#E8B54D" stroke="#161A1E" stroke-width="4" stroke-linejoin="round" />
+    <path d="M 780,165 L 765,115 L 800,110 Z" fill="#D29E38" stroke="#161A1E" stroke-width="4" stroke-linejoin="round" />
+
+    <!-- 中央弧形主緞帶 -->
+    <path d="M 50,115 Q 420,20 790,115 L 775,165 Q 420,70 65,165 Z" fill="#FFD670" stroke="#161A1E" stroke-width="4.5" stroke-linejoin="round" />
+
+    <!-- 緞帶內部文字 (The Tsai Nieh Wedding Club) -->
+    <!-- 沿著弧線排列文字 -->
+    <path id="text-path" d="M 85,142 Q 420,48 755,142" fill="none" stroke="none" />
+    <text font-family="'Cinzel', 'Cormorant Garamond', 'Georgia', serif" font-size="38" font-weight="800" fill="#161A1E" letter-spacing="3">
+      <textPath href="#text-path" startOffset="50%" text-anchor="middle">
+        The Tsai Nieh Wedding Club
+      </textPath>
+    </text>
+  </g>
+
+  <!-- 2. 中央俐落黑色奔馬與騎師剪影 (Galloping Jockey Silhouette) -->
+  <g id="Horse-Silhouette" transform="translate(320, 240) scale(1.15)">
+    <!-- 奔騰地面的速度動態線條 -->
+    <ellipse cx="280" cy="340" rx="190" ry="12" fill="rgba(22, 26, 30, 0.12)" />
+    <path d="M 90,340 L 160,340 M 200,342 L 320,342 M 360,340 L 450,340" stroke="#161A1E" stroke-width="3" stroke-linecap="round" opacity="0.4" />
+
+    <!-- 馬尾巴 (飄逸動態) -->
+    <path d="M 85,185 C 40,195 10,210 5,205 C 15,190 55,175 90,165 Z" fill="#161A1E" />
+    <path d="M 90,170 C 45,185 20,200 15,198 C 28,188 60,172 92,160 Z" fill="#161A1E" />
+
+    <!-- 馬匹軀幹與前肢後肢複合剪影 -->
+    <path d="
+      M 110,165 
+      C 130,140 180,125 240,130 
+      C 265,115 285,95 305,70
+      C 315,60 325,58 335,68
+      C 350,85 385,115 425,145
+      C 455,165 470,175 480,170
+      C 490,165 485,185 465,195
+      C 430,210 395,185 375,175
+      C 365,185 360,215 350,245
+      C 340,270 365,285 385,280
+      C 395,278 400,288 390,295
+      C 365,310 325,295 315,260
+      C 310,235 315,205 315,190
+      C 285,195 245,195 215,185
+      C 205,215 195,255 180,285
+      C 170,305 185,315 200,312
+      C 208,310 210,320 200,325
+      C 175,335 145,315 150,280
+      C 155,250 168,215 178,185
+      C 160,180 135,175 110,165 Z" 
+      fill="#161A1E" stroke="#161A1E" stroke-width="2" stroke-linejoin="round" />
+
+    <!-- 騎師 (Jockey Leaning Forward) -->
+    <!-- 騎師軀幹與大腿 -->
+    <path d="
+      M 225,125 
+      C 215,100 230,85 255,80 
+      C 280,75 300,85 315,100 
+      C 320,105 310,115 295,112 
+      C 275,108 260,112 250,125 
+      C 245,135 240,145 235,145 
+      C 230,145 225,135 225,125 Z" fill="#161A1E" />
+    <!-- 騎師安全帽與頭部 -->
+    <circle cx="288" cy="62" r="18" fill="#161A1E" />
+    <path d="M 300,60 L 318,65 L 305,70 Z" fill="#161A1E" />
+    <!-- 手臂與韁繩 -->
+    <path d="M 280,92 L 340,120 L 390,135" stroke="#161A1E" stroke-width="6" stroke-linecap="round" fill="none" />
+  </g>
+
+  <!-- 3. 下方專屬藝術字體日期 (FRIDAY 9TH OCTOBER) -->
+  <g id="Date-Text" transform="translate(600, 680)">
+    <text font-family="'Cinzel', 'Outfit', 'Trebuchet MS', sans-serif" font-size="44" font-weight="700" fill="#161A1E" text-anchor="middle" letter-spacing="8">
+      FRIDAY 9TH OCTOBER
+    </text>
+  </g>
+</svg>

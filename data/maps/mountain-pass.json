@@ -1,0 +1,52 @@
+{
+  "id": "mountain-pass",
+  "name": "🏔️ 險峻山路",
+  "description": "中等難度，高密度路障，依賽道進度自動觸發關卡",
+  "thumbnail": "🏔️",
+  "difficulty": 2,
+  "track": {
+    "length": 15000,
+    "theme": "mountain"
+  },
+  "checkpoints": [
+    {
+      "id": "cp_1",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 30
+      },
+      "quizId": "wc_003",
+      "timeLimit": 10
+    },
+    {
+      "id": "cp_2",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 65
+      },
+      "quizId": "ft_003",
+      "timeLimit": 10
+    }
+  ],
+  "items": {
+    "density": 5,
+    "types": [
+      "obstacle",
+      "obstacle",
+      "accelerator",
+      "magnet"
+    ]
+  },
+  "quizPool": [
+    "wc_003",
+    "ft_003",
+    "wc_001",
+    "ft_001"
+  ],
+  "config": {
+    "baseBoost": 0.5,
+    "friction": 0.92,
+    "maxSpeed": 20,
+    "stunDuration": 3500
+  }
+}

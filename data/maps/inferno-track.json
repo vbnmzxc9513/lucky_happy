@@ -1,0 +1,62 @@
+{
+  "id": "inferno-track",
+  "name": "🌋 火焰地獄",
+  "description": "終極考驗！答題倒數僅 6 秒，落後大於 20% 或進度 50% 時觸發",
+  "thumbnail": "🌋",
+  "difficulty": 3,
+  "track": {
+    "length": 15000,
+    "theme": "inferno"
+  },
+  "checkpoints": [
+    {
+      "id": "cp_1",
+      "trigger": {
+        "type": "leading_gap",
+        "percent": 20
+      },
+      "quizId": "ft_004",
+      "timeLimit": 6
+    },
+    {
+      "id": "cp_2",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 50
+      },
+      "quizId": "wc_004",
+      "timeLimit": 6
+    },
+    {
+      "id": "cp_3",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 80
+      },
+      "quizId": "ft_005",
+      "timeLimit": 6
+    }
+  ],
+  "items": {
+    "density": 6,
+    "types": [
+      "accelerator",
+      "obstacle",
+      "magnet",
+      "mystery",
+      "shield"
+    ]
+  },
+  "quizPool": [
+    "ft_004",
+    "wc_004",
+    "ft_005",
+    "ft_001"
+  ],
+  "config": {
+    "baseBoost": 0.5,
+    "friction": 0.9,
+    "maxSpeed": 20,
+    "stunDuration": 4000
+  }
+}
