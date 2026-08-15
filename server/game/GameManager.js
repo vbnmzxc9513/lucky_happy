@@ -27,6 +27,7 @@ class GameManager {
     this.loopInterval = null;
     this.lastTapTimes = new Map(); // socketId -> last timestamp (防抖)
     this.playerStats = new Map(); // socketId -> personal award statistics
+    this.lastRacePacing = null;
     this.flowToken = 0;
   }
 
@@ -60,8 +61,107 @@ class GameManager {
       activeItems: this.itemManager.getActiveItems(),
       players: Array.from(this.teamManager.players.values()),
       totalPlayers: this.teamManager.players.size,
+      racePacing: this.lastRacePacing,
       config: this.config
     };
+  }
+
+  getRacePacingConfig() {
+    return {
+      enabled: true,
+      targetGameSeconds: 420,
+      targetQuizCount: 3,
+      expectedTapRatePerPlayer: 5,
+      expectedQuizBoostPx: this.config.quizThresholds.LARGE_BOOST,
+      quizPrepareSeconds: 3,
+      quizResultSeconds: 3,
+      finalTransitionSeconds: 5,
+      minTrackLength: 30000,
+      maxTrackLength: 220000,
+      ...(this.config.racePacing || {})
+    };
+  }
+
+  getQuizPrepareSeconds() {
+    return Math.max(0, Number(this.getRacePacingConfig().quizPrepareSeconds) || 3);
+  }
+
+  getQuizResultSeconds() {
+    return Math.max(0, Number(this.getRacePacingConfig().quizResultSeconds) || 3);
+  }
+
+  getFinalTransitionSeconds() {
+    return Math.max(0, Number(this.getRacePacingConfig().finalTransitionSeconds) || 5);
+  }
+
+  estimateTeamSpeedPxPerSecond(teamSize) {
+    const frameSeconds = Math.max(0.001, Number(this.config.positionUpdateRate || 33) / 1000);
+    const friction = Math.max(0, Math.min(0.99, Number(this.config.friction || 0.95)));
+    const baseBoost = Math.max(0.01, Number(this.config.baseBoost || 0.5));
+    const maxSpeed = Math.max(1, Number(this.config.maxSpeed || 20));
+    const pacing = this.getRacePacingConfig();
+    const tapRate = Math.max(0.5, Number(pacing.expectedTapRatePerPlayer || 5));
+    const size = Math.max(1, Number(teamSize || 1));
+    const tapsPerFrame = tapRate * size * frameSeconds;
+    const boostPerTap = baseBoost / Math.sqrt(size);
+    const steadySpeedPerFrame = Math.min(maxSpeed, (tapsPerFrame * boostPerTap) / (1 - friction));
+    return steadySpeedPerFrame / frameSeconds;
+  }
+
+  getCurrentFastestTeamSize() {
+    const sizes = Object.values(this.teamManager.teams).map(team => team.members.size || 0);
+    const maxSize = Math.max(...sizes, 0);
+    if (maxSize > 0) return maxSize;
+    const teamCount = Math.max(1, Object.keys(this.teamManager.teams).length || this.config.teamsCount || 5);
+    return Math.max(1, Math.ceil((this.teamManager.players.size || 0) / teamCount));
+  }
+
+  calculateRecommendedTrackLength(map) {
+    const pacing = this.getRacePacingConfig();
+    const quizCount = Array.isArray(map && map.checkpoints)
+      ? map.checkpoints.length
+      : Number(pacing.targetQuizCount || 3);
+    const targetGameSeconds = Math.max(60, Number(pacing.targetGameSeconds || 420));
+    const quizTimeLimit = Math.max(1, Number(this.config.quizTimeLimit || 10));
+    const overheadSeconds =
+      Math.max(0, Number(this.config.countdownSeconds || 0)) +
+      this.getFinalTransitionSeconds() +
+      quizCount * (this.getQuizPrepareSeconds() + quizTimeLimit + this.getQuizResultSeconds());
+    const targetRacingSeconds = Math.max(60, targetGameSeconds - overheadSeconds);
+    const fastestTeamSize = this.getCurrentFastestTeamSize();
+    const speedPxPerSecond = this.estimateTeamSpeedPxPerSecond(fastestTeamSize);
+    const expectedQuizBoost = quizCount * Math.max(0, Number(pacing.expectedQuizBoostPx || 0));
+    const rawLength = Math.round(targetRacingSeconds * speedPxPerSecond + expectedQuizBoost);
+    const minLength = Math.max(1000, Number(pacing.minTrackLength || 30000));
+    const maxLength = Math.max(minLength, Number(pacing.maxTrackLength || 220000));
+
+    return {
+      trackLength: Math.max(minLength, Math.min(maxLength, rawLength)),
+      targetGameSeconds,
+      targetRacingSeconds,
+      estimatedSpeedPxPerSecond: Math.round(speedPxPerSecond),
+      fastestTeamSize,
+      totalPlayers: this.teamManager.players.size,
+      quizCount,
+      overheadSeconds
+    };
+  }
+
+  applyRacePacing(map) {
+    const pacing = this.getRacePacingConfig();
+    if (!pacing.enabled || !map || !map.track) {
+      this.lastRacePacing = null;
+      return null;
+    }
+
+    const recommendation = this.calculateRecommendedTrackLength(map);
+    map.track.length = recommendation.trackLength;
+    this.config.trackLength = recommendation.trackLength;
+    this.lastRacePacing = {
+      ...recommendation,
+      expectedTapRatePerPlayer: Number(pacing.expectedTapRatePerPlayer || 5)
+    };
+    return this.lastRacePacing;
   }
 
   // 主持人選擇地圖
@@ -84,6 +184,7 @@ class GameManager {
     this.teamManager.autoAssignUnselectedPlayers();
 
     const map = this.mapManager.getCurrentMap();
+    this.applyRacePacing(map);
     console.log(`[GameManager] startRound. Map: ${map.name}, checkpoints: ${map.checkpoints ? map.checkpoints.length : 0}`);
     this.teamManager.resetRoundPositions();
     this.itemManager.generateTrackItems(map);
@@ -202,7 +303,8 @@ class GameManager {
     this.setState('QUIZ');
 
     // 廣播 3 秒準備倒數
-    this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PREPARE, { seconds: 3 });
+    const prepareSeconds = this.getQuizPrepareSeconds();
+    this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PREPARE, { seconds: prepareSeconds });
 
     setTimeout(() => {
       // 若狀態已經改變（例如管理員強制重置），則中斷
@@ -241,7 +343,7 @@ class GameManager {
         options: qData.optionMap || qData.options,
         timeLimit: qData.timeLimit
       });
-    }, 3000);
+    }, prepareSeconds * 1000);
     return true;
   }
 
@@ -290,7 +392,7 @@ class GameManager {
         this.setState('RACING');
         this.startLoop();
       }
-    }, 3000);
+    }, this.getQuizResultSeconds() * 1000);
   }
 
   finishRound(winnerTeamId) {
@@ -314,7 +416,7 @@ class GameManager {
           matchStatus: this.roundManager.getMatchStatus(),
           finalAwards: this.buildFinalAwardsPayload()
         });
-      }, 5000);
+      }, this.getFinalTransitionSeconds() * 1000);
     } else {
       // 5 秒後自動進入下局的大廳 (ROUND_LOBBY)
       setTimeout(() => {
@@ -344,6 +446,7 @@ class GameManager {
     this.roundManager.reset();
     this.lastTapTimes.clear();
     this.playerStats.clear();
+    this.lastRacePacing = null;
     this.teamManager.resetAllPlayersAndTeams();
     this.setState('LOBBY');
     return true;
@@ -376,6 +479,12 @@ class GameManager {
     if (newConfig.totalRounds) {
       this.config.totalRounds = Number(newConfig.totalRounds);
       this.roundManager.totalRounds = this.config.totalRounds;
+    }
+    if (newConfig.racePacing && typeof newConfig.racePacing === 'object') {
+      this.config.racePacing = {
+        ...(this.config.racePacing || {}),
+        ...newConfig.racePacing
+      };
     }
     this.broadcastStateSync();
     this.io.emit(SERVER_TO_CLIENT.ADMIN_CONFIG_UPDATED, this.config);

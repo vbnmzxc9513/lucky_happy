@@ -5,7 +5,7 @@ const config = require('../config');
 class MapManager {
   constructor() {
     this.maps = new Map();
-    this.currentMapId = 'cherry-blossom-lane';
+    this.currentMapId = 'wedding-final-showdown';
     this.loadAllMaps();
   }
 

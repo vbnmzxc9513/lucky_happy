@@ -1,7 +1,7 @@
 const DEFAULT_CONFIG = require('../../shared/game-config');
 
 class RoundManager {
-  constructor(totalRounds = 3, config = DEFAULT_CONFIG) {
+  constructor(totalRounds = DEFAULT_CONFIG.totalRounds || 1, config = DEFAULT_CONFIG) {
     this.totalRounds = totalRounds;
     this.config = config;
     this.currentRound = 1;

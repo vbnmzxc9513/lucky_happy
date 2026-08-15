@@ -1,0 +1,63 @@
+{
+  "id": "wedding-final-showdown",
+  "name": "幸福一戰決勝負",
+  "description": "婚禮正式版預設賽道，單局決勝、約 7 分鐘、三道答題關卡。",
+  "thumbnail": "🏇",
+  "difficulty": 2,
+  "track": {
+    "length": 104000,
+    "theme": "wedding-final"
+  },
+  "checkpoints": [
+    {
+      "id": "final_cp_1",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 25
+      },
+      "quizId": "wc_001",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_2",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 50
+      },
+      "quizId": "wc_002",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_3",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 75
+      },
+      "quizId": "wc_003",
+      "timeLimit": 10
+    }
+  ],
+  "items": {
+    "density": 4,
+    "types": [
+      "accelerator",
+      "obstacle",
+      "shield",
+      "mystery"
+    ]
+  },
+  "quizPool": [
+    "wc_001",
+    "wc_002",
+    "wc_003",
+    "wc_004",
+    "ft_001",
+    "ft_002"
+  ],
+  "config": {
+    "baseBoost": 0.5,
+    "friction": 0.95,
+    "maxSpeed": 20,
+    "stunDuration": 3000
+  }
+}

@@ -3,7 +3,7 @@
  */
 
 const DEFAULT_CONFIG = {
-  trackLength: 15000,
+  trackLength: 104000,
   teamsCount: 5,
   TEAMS: [
     {
@@ -61,7 +61,19 @@ const DEFAULT_CONFIG = {
   positionUpdateRate: 33,      // 伺服器廣播頻率 ms (約 30fps)
   stateSyncRate: 5000,         // 全量狀態校正同步頻率 ms
   countdownSeconds: 3,         // 賽前倒數秒數
-  totalRounds: 3,              // 固定三局制
+  totalRounds: 1,              // 預設一戰決勝負
+  racePacing: {
+    enabled: true,
+    targetGameSeconds: 420,
+    targetQuizCount: 3,
+    expectedTapRatePerPlayer: 5,
+    expectedQuizBoostPx: 1500,
+    quizPrepareSeconds: 3,
+    quizResultSeconds: 3,
+    finalTransitionSeconds: 5,
+    minTrackLength: 30000,
+    maxTrackLength: 220000
+  },
   
   // 答題正確率獎懲門檻
   quizThresholds: {

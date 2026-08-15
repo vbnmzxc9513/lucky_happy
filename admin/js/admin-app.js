@@ -147,6 +147,22 @@ function renderConfigPreviewCommands() {
   });
 }
 
+function setConfigControlValue(id, value) {
+  const el = document.getElementById(id);
+  if (!el || value === undefined || value === null) return;
+  const normalized = String(value);
+  if (el.tagName === 'SELECT') {
+    const hasOption = Array.from(el.options).some(option => option.value === normalized);
+    if (!hasOption) {
+      const option = document.createElement('option');
+      option.value = normalized;
+      option.textContent = id === 'trackLength' ? `${normalized} px` : normalized;
+      el.appendChild(option);
+    }
+  }
+  el.value = normalized;
+}
+
 function normalizeQuizOptions(options) {
   if (Array.isArray(options)) return options;
   if (options && typeof options === 'object') {
@@ -217,10 +233,10 @@ socket.on('connect_error', (err) => {
 socket.on('admin:config_updated', (config) => {
   if (!config) return;
   syncConfig(config);
-  if (config.trackLength) document.getElementById('trackLength').value = config.trackLength;
-  if (config.totalRounds) document.getElementById('totalRounds').value = config.totalRounds;
-  if (config.baseBoost) document.getElementById('baseBoost').value = config.baseBoost;
-  if (config.quizTimeLimit) document.getElementById('quizTimeLimit').value = config.quizTimeLimit;
+  setConfigControlValue('trackLength', config.trackLength);
+  setConfigControlValue('totalRounds', config.totalRounds);
+  setConfigControlValue('baseBoost', config.baseBoost);
+  setConfigControlValue('quizTimeLimit', config.quizTimeLimit);
 });
 
 socket.on('admin:map_list', (mapList) => {
@@ -263,9 +279,9 @@ socket.on('admin:response', (res) => {
 // 3. 賽事配置儲存 (Save Config)
 // ==========================================
 function saveConfig() {
-  const trackLength = Number(document.getElementById('trackLength').value) || 1000;
-  const totalRounds = Number(document.getElementById('totalRounds').value) || 3;
-  const baseBoost = Number(document.getElementById('baseBoost').value) || 2.0;
+  const trackLength = Number(document.getElementById('trackLength').value) || 104000;
+  const totalRounds = Number(document.getElementById('totalRounds').value) || 1;
+  const baseBoost = Number(document.getElementById('baseBoost').value) || 0.5;
   const quizTimeLimit = Number(document.getElementById('quizTimeLimit').value) || 10;
   const teamNames = {};
 

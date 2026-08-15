@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="css/admin.css?v=13">
   <script src="/socket.io/socket.io.js"></script>
   <script src="/shared/events.js?v=12"></script>
-  <script src="/shared/game-config.js?v=12"></script>
+  <script src="/shared/game-config.js?v=13"></script>
 </head>
 <body>
   <div class="luxury-bg-glow"></div>
@@ -63,8 +63,9 @@
               <div class="form-group half">
                 <label>📏 賽道總里程 / 勝利點擊門檻 (px)</label>
                 <select id="trackLength" class="luxury-input">
+                  <option value="104000" selected>104000 px (一戰決勝負 - 約 150 人 / 7 分鐘)</option>
                   <option value="500">500 px (極速閃電戰 - 約 300 次點擊)</option>
-                  <option value="1000" selected>1000 px (標準婚禮宴會 - 約 600 次點擊)</option>
+                  <option value="1000">1000 px (標準婚禮宴會 - 約 600 次點擊)</option>
                   <option value="1500">1500 px (熱血耐力賽 - 約 1000 次點擊)</option>
                   <option value="2000">2000 px (百人千人狂歡 - 約 1500 次點擊)</option>
                 </select>
@@ -72,8 +73,8 @@
               <div class="form-group half">
                 <label>🏆 賽事總局數 (Total Rounds)</label>
                 <select id="totalRounds" class="luxury-input">
-                  <option value="1">1 局定勝負</option>
-                  <option value="3" selected>3 局 2 勝制 (推薦)</option>
+                  <option value="1" selected>1 局定勝負</option>
+                  <option value="3">3 局 2 勝制</option>
                   <option value="5">5 局大對抗</option>
                 </select>
               </div>
@@ -81,7 +82,7 @@
             <div class="form-row">
               <div class="form-group half">
                 <label>⚡ 基礎點擊加速係數 (Base Boost)</label>
-                <input type="number" id="baseBoost" class="luxury-input" step="0.5" value="2.0">
+                <input type="number" id="baseBoost" class="luxury-input" step="0.5" value="0.5">
               </div>
               <div class="form-group half">
                 <label>⏱️ 突襲答題倒數秒數 (Quiz Time)</label>
@@ -292,6 +293,6 @@
       <p>🏇 Lucky Horse v1.1 Wedding Event System — Authoritative State Guardrails & Zero Silent Failures Enabled.</p>
     </footer>
   </div>
-  <script src="js/admin-app.js?v=12"></script>
+  <script src="js/admin-app.js?v=13"></script>
 </body>
 </html>

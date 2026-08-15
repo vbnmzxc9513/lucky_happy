@@ -19,7 +19,7 @@ class ScoreboardUI {
     const isDone = matchStatus.currentRound >= matchStatus.totalRounds
       && matchStatus.history.length >= matchStatus.totalRounds;
 
-    if (isDone) {
+    if (isDone && finalAwards) {
       this.showFinalAwards(finalAwards);
       return;
     }
@@ -83,6 +83,10 @@ class ScoreboardUI {
     const teams = this.getTeams();
     if (title) title.innerText = `🏆 第 ${matchStatus.currentRound} / ${matchStatus.totalRounds} 局 結算報告 🏆`;
 
+    if (title && matchStatus.totalRounds === 1) {
+      title.innerText = '🏆 一戰決勝負 結算報告 🏆';
+    }
+
     const winnerTeam = teams.find(t => t.id === latestWinner);
     if (winnerTeam) {
       winnerName.innerText = `${winnerTeam.name}`;
@@ -110,8 +114,14 @@ class ScoreboardUI {
       }
     }
 
-    if (btnNext) btnNext.style.display = 'inline-block';
-    if (btnReset) btnReset.style.display = 'none';
+    const isFinalRound = matchStatus.currentRound >= matchStatus.totalRounds
+      && matchStatus.history.length >= matchStatus.totalRounds;
+    if (btnNext) btnNext.style.display = isFinalRound ? 'none' : 'inline-block';
+    if (btnReset) {
+      btnReset.style.display = isFinalRound ? 'inline-block' : 'none';
+      if (isFinalRound) btnReset.innerText = '準備最終頒獎中...';
+      btnReset.disabled = isFinalRound;
+    }
   }
 
   showFinalAwards(finalAwards) {

@@ -129,5 +129,25 @@ test('Quiz awards should break ties by average answer speed', () => {
   assert.ok(!wrongAward.ranking.some(player => player.name === '沒作答賓客'));
 });
 
+test('Default pacing should use one round and estimate a 7 minute 150-player game', () => {
+  const gm = new GameManager(new MockIo());
+  const teamIds = Object.keys(gm.teamManager.teams);
+
+  for (let i = 0; i < 150; i++) {
+    const playerId = `p${i}`;
+    gm.teamManager.addPlayer(playerId, `賓客${i}`, `${i}`);
+    gm.teamManager.chooseTeam(playerId, teamIds[i % teamIds.length]);
+  }
+
+  const map = gm.mapManager.getCurrentMap();
+  const recommendation = gm.calculateRecommendedTrackLength(map);
+
+  assert.strictEqual(gm.roundManager.totalRounds, 1);
+  assert.strictEqual(map.id, 'wedding-final-showdown');
+  assert.strictEqual(recommendation.quizCount, 3);
+  assert.ok(recommendation.trackLength >= 100000 && recommendation.trackLength <= 108000);
+  assert.strictEqual(recommendation.targetGameSeconds, 420);
+});
+
 console.log(`\n結果: ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);
