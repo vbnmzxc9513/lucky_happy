@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lucky Horse 主頁選單</title>
+  <style>
+    :root {
+      --mint: #9EDBD0;
+      --mint-soft: #BEE9E1;
+      --deep: #315E58;
+      --ink: #20383B;
+      --gold: #F5D06B;
+      --gold-deep: #D6A742;
+      --white-line: rgba(255, 255, 255, 0.72);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 32px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 50% 12%, rgba(255,255,255,0.34), transparent 42%),
+        radial-gradient(circle at 100% 100%, rgba(49,94,88,0.14), transparent 40%),
+        var(--mint);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(rgba(32, 56, 59, 0.14) 1px, transparent 1px);
+      background-size: 18px 18px;
+      pointer-events: none;
+    }
+
+    main {
+      position: relative;
+      width: min(1180px, 100%);
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 30px;
+      z-index: 1;
+    }
+
+    .brand-panel,
+    .menu-panel {
+      border: 3px solid var(--white-line);
+      border-radius: 24px;
+      background: rgba(159, 213, 204, 0.82);
+      box-shadow: 0 18px 45px rgba(55, 88, 86, 0.20);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand-panel {
+      min-height: 560px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 42px 34px;
+    }
+
+    .brand-kicker {
+      width: fit-content;
+      padding: 9px 18px;
+      border: 2px solid var(--gold-deep);
+      border-radius: 999px;
+      background: var(--gold);
+      color: #3A2A11;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 24px 0 12px;
+      font-size: clamp(42px, 5vw, 70px);
+      line-height: 0.94;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      color: var(--deep);
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .server-note {
+      padding: 16px 18px;
+      border: 2px solid rgba(49, 94, 88, 0.28);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.30);
+      color: var(--deep);
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.5;
+    }
+
+    .menu-panel {
+      min-height: 560px;
+      padding: 42px;
+    }
+
+    .menu-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 26px;
+    }
+
+    h2 {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(30px, 3vw, 44px);
+      line-height: 1;
+    }
+
+    .menu-heading span {
+      color: var(--deep);
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .menu-link {
+      min-height: 130px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 22px;
+      border: 3px solid rgba(255,255,255,0.62);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.30);
+      color: var(--ink);
+      text-decoration: none;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .menu-link:hover,
+    .menu-link:focus-visible {
+      transform: translateY(-3px);
+      border-color: var(--gold);
+      background: rgba(255,255,255,0.42);
+      outline: none;
+    }
+
+    .menu-link.primary {
+      background: var(--deep);
+      border-color: var(--gold);
+      color: #FDFBF2;
+    }
+
+    .menu-link.primary:hover,
+    .menu-link.primary:focus-visible {
+      background: #3E756C;
+    }
+
+    .menu-link strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .menu-link span {
+      display: block;
+      margin-top: 18px;
+      color: inherit;
+      opacity: 0.86;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.45;
+    }
+
+    .quick-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .quick-row a {
+      padding: 10px 16px;
+      border: 2px solid var(--deep);
+      border-radius: 999px;
+      color: var(--deep);
+      background: rgba(255,255,255,0.28);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        overflow: auto;
+      }
+
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .brand-panel,
+      .menu-panel {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 620px) {
+      body {
+        padding: 18px;
+      }
+
+      .menu-panel,
+      .brand-panel {
+        padding: 26px;
+      }
+
+      .menu-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="brand-panel" aria-label="Lucky Horse">
+      <div>
+        <div class="brand-kicker">LUCKY HORSE</div>
+        <h1>婚禮遊戲主頁</h1>
+        <p class="subtitle">選擇要進入的頁面，彩排和正式活動都從這裡開始。</p>
+      </div>
+      <div class="server-note">
+        主持端與後台需要帳號密碼；賓客端公開給手機掃 QR Code 使用。
+      </div>
+    </section>
+
+    <section class="menu-panel" aria-label="Page menu">
+      <div class="menu-heading">
+        <h2>頁面選單</h2>
+        <span>localhost / DigitalOcean 通用</span>
+      </div>
+
+      <nav class="menu-grid" aria-label="Lucky Horse pages">
+        <a class="menu-link primary" href="/host/">
+          <strong>大螢幕主持端</strong>
+          <span>婚禮投影幕畫面，包含大廳、規則、賽馬、答題和最終頒獎。</span>
+        </a>
+        <a class="menu-link" href="/guest/">
+          <strong>賓客手機端</strong>
+          <span>給賓客加入、選隊、點擊加速和回答突發題目。</span>
+        </a>
+        <a class="menu-link" href="/admin/">
+          <strong>後台管理</strong>
+          <span>調整隊名、賽道、題庫、彩排機器人和現場控制。</span>
+        </a>
+        <a class="menu-link" href="/admin/#tab-quiz">
+          <strong>出題編排</strong>
+          <span>新增題目、安排題目順序，並即時計算遊戲時長與獎勵。</span>
+        </a>
+      </nav>
+
+      <div class="quick-row" aria-label="Secondary links">
+        <a href="/docs/">部署說明</a>
+        <a href="/admin/#tab-rehearsal">彩排控台</a>
+        <a href="/admin/#tab-map">賽道關卡</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

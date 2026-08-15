@@ -20,6 +20,8 @@ module.exports = {
     maps: path.join(__dirname, '../data/maps'),
     quizzes: path.join(__dirname, '../data/quizzes'),
     items: path.join(__dirname, '../data/items.json'),
+    home: path.join(__dirname, '../home'),
+    docs: path.join(__dirname, '../docs'),
     host: path.join(__dirname, '../host'),
     guest: path.join(__dirname, '../guest'),
     admin: path.join(__dirname, '../admin'),

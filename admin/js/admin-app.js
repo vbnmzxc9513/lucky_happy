@@ -55,6 +55,10 @@ function switchTab(tabId) {
   else if (tabId === 'tab-map') btns[1].classList.add('active');
   else if (tabId === 'tab-quiz') btns[2].classList.add('active');
   else if (tabId === 'tab-rehearsal') btns[3].classList.add('active');
+
+  if (window.location.hash !== `#${tabId}`) {
+    history.replaceState(null, '', `#${tabId}`);
+  }
 }
 
 function getTeamsConfig() {
@@ -978,5 +982,9 @@ window.addEventListener('DOMContentLoaded', () => {
   syncConfig(currentConfig);
   resetMapForm();
   resetQuizForm();
+  const initialTab = window.location.hash.replace('#', '');
+  if (initialTab && document.getElementById(initialTab)) {
+    switchTab(initialTab);
+  }
   connectPrivilegedSocket('admin');
 });

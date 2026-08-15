@@ -10,7 +10,7 @@ const html = fs.readFileSync(path.join(__dirname, '../admin/index.html'), 'utf8'
 const script = fs.readFileSync(path.join(__dirname, '../admin/js/admin-app.js'), 'utf8');
 const dom = new JSDOM(html, {
   runScripts: 'outside-only',
-  url: 'http://localhost:3000/admin/'
+  url: 'http://localhost:3000/admin/#tab-quiz'
 });
 
 const { window } = dom;
@@ -38,6 +38,8 @@ window.io = () => ({
 
 window.eval(script);
 window.document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
+
+assert.ok(window.document.getElementById('tab-quiz').classList.contains('active'));
 
 handlers['admin:config_updated'](config);
 handlers['admin:map_list']([weddingMap]);

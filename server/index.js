@@ -65,14 +65,15 @@ app.get('/socket-token/:role', basicAuth, (req, res) => {
 });
 
 // 靜態檔案託管
+app.use('/docs', express.static(config.paths.docs));
 app.use('/host', basicAuth, express.static(config.paths.host));
 app.use('/guest', express.static(config.paths.guest));
 app.use('/admin', basicAuth, express.static(config.paths.admin));
 app.use('/shared', express.static(config.paths.shared));
 
-// 首頁自動導向 Host
+// 主頁入口選單
 app.get('/', (req, res) => {
-  res.redirect('/host');
+  res.sendFile(path.join(config.paths.home, 'index.html'));
 });
 
 const server = http.createServer(app);
@@ -109,6 +110,7 @@ server.on('error', (err) => {
     console.log(`⚠️  【連接埠 ${config.port} 已被佔用】`);
     console.log(`💡 系統偵測到您已經有一個 Lucky Horse 遊戲伺服器在其他視窗或背景運作中！`);
     console.log(`👉 您不需要重複執行 npm run dev！請直接打開瀏覽器前往：`);
+    console.log(`   🏠 主頁選單: http://localhost:${config.port}/`);
     console.log(`   http://localhost:${config.port}/host  或  http://localhost:${config.port}/guest`);
     console.log(`   ⚙️ 後台彩排控制台: http://localhost:${config.port}/admin`);
     console.log(`💡 (若您想強制重啟，請至原運行視窗按 Ctrl+C 結束舊進程後再試)`);
@@ -123,6 +125,7 @@ server.on('error', (err) => {
 server.listen(config.port, () => {
   console.log('==================================================');
   console.log(`🏇 Lucky Horse v1.1 遊戲伺服器已啟動！(支援 --watch 熱重載)`);
+  console.log(`🏠 主頁選單:       http://localhost:${config.port}/`);
   console.log(`🖥️  大螢幕主持端: http://localhost:${config.port}/host`);
   console.log(`📱 手機賓客端:   http://localhost:${config.port}/guest`);
   console.log(`⚙️  後台彩排控制台: http://localhost:${config.port}/admin`);
