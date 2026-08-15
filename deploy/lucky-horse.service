@@ -1,0 +1,17 @@
+[Unit]
+Description=Lucky Horse Wedding Game
+After=network.target
+
+[Service]
+Type=simple
+User=luckyhorse
+Group=luckyhorse
+WorkingDirectory=/opt/lucky-horse
+EnvironmentFile=/etc/lucky-horse.env
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+SyslogIdentifier=lucky-horse
+
+[Install]
+WantedBy=multi-user.target

@@ -1,9 +1,17 @@
 const path = require('path');
 
+const isProduction = process.env.NODE_ENV === 'production';
+const adminUser = process.env.ADMIN_USER || (isProduction ? '' : 'admin');
+const adminPass = process.env.ADMIN_PASS || (isProduction ? '' : 'lucky2026');
+
+if (isProduction && (!adminUser || !adminPass)) {
+  throw new Error('ADMIN_USER and ADMIN_PASS must be set in production.');
+}
+
 module.exports = {
   port: process.env.PORT || 3000,
-  adminUser: process.env.ADMIN_USER || 'admin',
-  adminPass: process.env.ADMIN_PASS || 'lucky2026',
+  adminUser,
+  adminPass,
   corsOptions: {
     origin: '*',
     methods: ['GET', 'POST']
