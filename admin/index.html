@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=Noto+Serif+TC:wght@400;600;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=13">
+  <link rel="stylesheet" href="css/admin.css?v=14">
   <script src="/socket.io/socket.io.js"></script>
   <script src="/shared/events.js?v=12"></script>
   <script src="/shared/game-config.js?v=13"></script>
@@ -160,52 +160,68 @@
         </div>
       </section>
 
-      <!-- TAB 3: 互動題庫編輯器 -->
+      <!-- TAB 3: 出題編排中心 -->
       <section id="tab-quiz" class="tab-pane">
-        <div class="card-grid">
-          <div class="luxury-card">
-            <h2 class="card-title">❓ 互動問答題庫 (Question Bank)</h2>
-            <p class="card-desc">點擊題目即可載入右側表單進行修改，或點擊下方新增題目。</p>
-            <div id="quizListContainer" class="list-container">
-              <!-- JS 動態渲染題庫 -->
+        <div class="quiz-workbench-grid">
+          <div class="luxury-card quiz-plan-card">
+            <div class="card-kicker">QUESTION FLOW</div>
+            <h2 class="card-title">出題順序與賽程</h2>
+            <p class="card-desc">安排正式賽會出的題目，增減題數後右側會即時計算整場大約多久。</p>
+            <div class="quiz-plan-toolbar">
+              <select id="quizPlanMapSelect" class="luxury-input" onchange="loadQuizPlanFromSelectedMap()"></select>
+              <button class="btn-secondary" onclick="addQuizPlanRow()">+ 加一題</button>
             </div>
-            <button class="btn-secondary mt-3" onclick="resetQuizForm()">+ 建立全新專屬問答</button>
+            <div id="quizPlanRows" class="quiz-plan-rows">
+              <!-- JS 動態渲染出題順序 -->
+            </div>
+            <div class="quiz-plan-actions">
+              <button class="btn-secondary" onclick="autoSpreadQuizPlan()">平均分配觸發點</button>
+              <button class="cta-gold-btn" onclick="saveQuizPlan()">保存出題順序</button>
+            </div>
           </div>
-          <div class="luxury-card">
-            <h2 class="card-title">📝 題目與選項編輯 (Question Editor)</h2>
+
+          <div class="luxury-card quiz-editor-card">
+            <div class="card-kicker">QUESTION EDITOR</div>
+            <h2 class="card-title">新增 / 編輯題目</h2>
             <form id="quizForm" onsubmit="event.preventDefault(); saveQuiz();">
               <input type="hidden" id="quizEditId">
-              <div class="form-group">
+              <div class="form-row compact-row">
+                <div class="form-group half">
                 <label>題目 ID</label>
                 <input type="text" id="quizIdInput" class="luxury-input" placeholder="例如: q-first-date" required>
               </div>
+                <div class="form-group half">
+                  <label>作答秒數</label>
+                  <input type="number" id="quizTimeLimitInput" class="luxury-input" min="4" max="30" value="10" required>
+                </div>
+              </div>
               <div class="form-group">
                 <label>大螢幕題目文字 (Question)</label>
-                <input type="text" id="quizQuestionInput" class="luxury-input" placeholder="例如: 新郎與新娘第一次約會是去哪裡？" required>
+                <textarea id="quizQuestionInput" class="luxury-input" rows="2" placeholder="例如: 新郎與新娘第一次約會是去哪裡？" required></textarea>
               </div>
               <div class="form-row">
                 <div class="form-group half">
-                  <label class="opt-a">🌸 選項 A</label>
+                  <label class="opt-a">選項 A</label>
                   <input type="text" id="optA" class="luxury-input" placeholder="看電影" required>
                 </div>
                 <div class="form-group half">
-                  <label class="opt-b">💜 選項 B</label>
+                  <label class="opt-b">選項 B</label>
                   <input type="text" id="optB" class="luxury-input" placeholder="吃火鍋" required>
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group half">
-                  <label class="opt-c">🌿 選項 C</label>
+                  <label class="opt-c">選項 C</label>
                   <input type="text" id="optC" class="luxury-input" placeholder="陽明山看夜景" required>
                 </div>
                 <div class="form-group half">
-                  <label class="opt-d">🥂 選項 D</label>
+                  <label class="opt-d">選項 D</label>
                   <input type="text" id="optD" class="luxury-input" placeholder="去海邊吹風" required>
                 </div>
               </div>
               <div class="form-row">
                 <div class="form-group half">
-                  <label>✅ 正確答案 (Correct Answer)</label>
+                  <label>正確答案</label>
                   <select id="correctAns" class="luxury-input">
                     <option value="A">選項 A</option>
                     <option value="B">選項 B</option>
@@ -214,17 +230,55 @@
                   </select>
                 </div>
                 <div class="form-group half">
-                  <label>🎁 答對率 > 70% 衝刺獎勵</label>
-                  <select id="quizReward" class="luxury-input">
-                    <option value="large_boost" selected>衝刺加速 (+150 px)</option>
-                    <option value="small_boost">小幅加速 (+50 px)</option>
+                  <label>題目類型</label>
+                  <select id="quizDifficulty" class="luxury-input">
+                    <option value="easy">新人暖身題</option>
+                    <option value="medium" selected>默契主題題</option>
+                    <option value="hard">壓軸陷阱題</option>
                   </select>
                 </div>
               </div>
+              <label class="inline-check">
+                <input type="checkbox" id="quizAddToPlan" checked>
+                <span>保存後直接加入目前出題順序</span>
+              </label>
               <div class="action-footer mt-4">
-                <button type="submit" class="cta-gold-btn">💾 保存互動問答題目</button>
+                <button type="submit" class="cta-gold-btn">保存題目</button>
+                <button type="button" class="btn-secondary" onclick="resetQuizForm()">清空新增</button>
               </div>
             </form>
+          </div>
+
+          <div class="luxury-card quiz-control-card">
+            <div class="card-kicker">TIME & REWARD</div>
+            <h2 class="card-title">時長與獎勵試算</h2>
+            <div class="pacing-control-row">
+              <label>預估賓客數</label>
+              <input type="number" id="quizExpectedPlayers" class="luxury-input" min="5" max="300" value="150" oninput="updateQuizPacing()">
+            </div>
+            <div class="quiz-metric-grid">
+              <div class="quiz-metric"><span>題目數</span><strong id="quizMetricCount">3 題</strong></div>
+              <div class="quiz-metric"><span>每題流程</span><strong id="quizMetricQuestionSeconds">16 秒</strong></div>
+              <div class="quiz-metric primary"><span>自動配速總長</span><strong id="quizMetricAutoDuration">7:00</strong></div>
+              <div class="quiz-metric"><span>固定賽道估算</span><strong id="quizMetricFixedDuration">6:59</strong></div>
+            </div>
+            <div class="pacing-summary" id="quizPacingSummary">目前設定接近婚禮正式節奏。</div>
+            <div class="question-count-forecast">
+              <h3>題數快算</h3>
+              <div id="questionCountForecast" class="forecast-list"></div>
+            </div>
+            <div class="reward-rule-list">
+              <div><span>答對率 ≥ 70%</span><strong id="rewardLargeBoost">隊伍 +1500px 衝刺</strong></div>
+              <div><span>答對率 ≥ 40%</span><strong id="rewardSmallBoost">隊伍 +500px 小衝刺</strong></div>
+              <div><span>答對率 &lt; 40%</span><strong id="rewardStun">隊伍暈眩 3 秒</strong></div>
+            </div>
+            <div class="quiz-library-header">
+              <h3>題庫清單</h3>
+              <button class="btn-secondary" onclick="resetQuizForm()">+ 新題</button>
+            </div>
+            <div id="quizListContainer" class="list-container quiz-library-list">
+              <!-- JS 動態渲染題庫 -->
+            </div>
           </div>
         </div>
       </section>
@@ -293,6 +347,6 @@
       <p>🏇 Lucky Horse v1.1 Wedding Event System — Authoritative State Guardrails & Zero Silent Failures Enabled.</p>
     </footer>
   </div>
-  <script src="js/admin-app.js?v=13"></script>
+  <script src="js/admin-app.js?v=14"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ const socket = io({ autoConnect: false });
 let allMaps = [];
 let allQuizzes = [];
 let currentConfig = window.GameConfig || {};
+let selectedQuizPlanMapId = 'wedding-final-showdown';
 
 function updateAdminStageScale() {
   const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
@@ -72,6 +73,8 @@ function syncConfig(config) {
   window.GameConfig = currentConfig;
   renderTeamNameInputs();
   renderForceItemButtons();
+  updateRewardRuleLabels();
+  updateQuizPacing();
 }
 
 function renderTeamNameInputs() {
@@ -118,7 +121,7 @@ function renderForceItemButtons() {
     boostBtn.className = 'gm-btn';
     boostBtn.style.background = team.hex || '#D8C3A5';
     boostBtn.style.color = '#fff';
-    boostBtn.textContent = `${team.name} 衝刺賜福 (+150px)`;
+    boostBtn.textContent = `${team.name} 衝刺賜福 (+${getQuizThresholds().LARGE_BOOST}px)`;
     boostBtn.onclick = () => forceTriggerItem(team.id, 'large_boost');
 
     const stunBtn = document.createElement('button');
@@ -187,6 +190,77 @@ function getCorrectAnswerLabel(quiz) {
   return 'A';
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function jsStringLiteral(value) {
+  return JSON.stringify(String(value ?? ''))
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
+function formatSeconds(totalSeconds) {
+  const rounded = Math.round(Number(totalSeconds) || 0);
+  const minutes = Math.floor(rounded / 60);
+  const seconds = rounded % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getRacePacingConfig() {
+  return {
+    enabled: true,
+    targetGameSeconds: 420,
+    targetQuizCount: 3,
+    expectedTapRatePerPlayer: 5,
+    expectedQuizBoostPx: 1500,
+    quizPrepareSeconds: 3,
+    quizResultSeconds: 3,
+    finalTransitionSeconds: 5,
+    minTrackLength: 30000,
+    maxTrackLength: 220000,
+    ...((currentConfig && currentConfig.racePacing) || {})
+  };
+}
+
+function getQuizThresholds() {
+  return {
+    HIGH_CORRECT: 0.7,
+    MED_CORRECT: 0.4,
+    LARGE_BOOST: 1500,
+    SMALL_BOOST: 500,
+    ...((currentConfig && currentConfig.quizThresholds) || {})
+  };
+}
+
+function updateRewardRuleLabels() {
+  const thresholds = getQuizThresholds();
+  const large = document.getElementById('rewardLargeBoost');
+  const small = document.getElementById('rewardSmallBoost');
+  const stun = document.getElementById('rewardStun');
+  if (large) large.textContent = `隊伍 +${thresholds.LARGE_BOOST}px 衝刺`;
+  if (small) small.textContent = `隊伍 +${thresholds.SMALL_BOOST}px 小衝刺`;
+  if (stun) stun.textContent = `隊伍暈眩 ${Math.round((currentConfig.stunDuration || 3000) / 1000)} 秒`;
+}
+
+function estimateTeamSpeedPxPerSecond(teamSize, tapRate) {
+  const frameSeconds = Math.max(0.001, Number(currentConfig.positionUpdateRate || 33) / 1000);
+  const friction = Math.max(0, Math.min(0.99, Number(currentConfig.friction || 0.95)));
+  const baseBoost = Math.max(0.01, Number(currentConfig.baseBoost || 0.5));
+  const maxSpeed = Math.max(1, Number(currentConfig.maxSpeed || 20));
+  const size = Math.max(1, Number(teamSize || 1));
+  const tapsPerFrame = Math.max(0.5, Number(tapRate || 5)) * size * frameSeconds;
+  const boostPerTap = baseBoost / Math.sqrt(size);
+  const steadySpeedPerFrame = Math.min(maxSpeed, (tapsPerFrame * boostPerTap) / (1 - friction));
+  return steadySpeedPerFrame / frameSeconds;
+}
+
 function getCheckpointTriggerValue(cp) {
   if (cp && cp.progress !== undefined) return cp.progress;
   const trigger = cp && cp.trigger ? cp.trigger : {};
@@ -242,17 +316,23 @@ socket.on('admin:config_updated', (config) => {
 socket.on('admin:map_list', (mapList) => {
   allMaps = mapList || [];
   renderMapList();
+  renderQuizPlanMapSelect();
+  renderQuizPlanner();
 });
 
 socket.on('game:map_list', (mapList) => {
   allMaps = mapList || [];
   renderMapList();
+  renderQuizPlanMapSelect();
+  renderQuizPlanner();
 });
 
 socket.on('admin:quiz_list', (quizList) => {
   allQuizzes = quizList || [];
   renderQuizList();
   updateForceQuizDropdown();
+  refreshQuizPlanSelectOptions();
+  updateQuizPacing();
 });
 
 socket.on('admin:simulation_stats', (stats) => {
@@ -447,7 +527,288 @@ function deleteMap(mapId) {
 }
 
 // ==========================================
-// 5. 互動問答題庫編輯與 CRUD
+// 5. 出題順序、時長與獎勵試算
+// ==========================================
+function getSelectedQuizPlanMap() {
+  if (!allMaps.length) return null;
+  return allMaps.find(map => map.id === selectedQuizPlanMapId)
+    || allMaps.find(map => map.id === 'wedding-final-showdown')
+    || allMaps[0];
+}
+
+function renderQuizPlanMapSelect() {
+  const select = document.getElementById('quizPlanMapSelect');
+  if (!select) return;
+  const selectedMap = getSelectedQuizPlanMap();
+  selectedQuizPlanMapId = selectedMap ? selectedMap.id : selectedQuizPlanMapId;
+
+  select.innerHTML = allMaps.map(map => `
+    <option value="${escapeHtml(map.id)}" ${map.id === selectedQuizPlanMapId ? 'selected' : ''}>
+      ${escapeHtml(map.name || map.id)}
+    </option>
+  `).join('');
+}
+
+function loadQuizPlanFromSelectedMap() {
+  const select = document.getElementById('quizPlanMapSelect');
+  if (select && select.value) selectedQuizPlanMapId = select.value;
+  renderQuizPlanner();
+}
+
+function buildQuizSelectOptions(selectedId = '') {
+  const ids = new Set(allQuizzes.map(q => q.id));
+  let html = '<option value="">隨機抽一題</option>';
+  if (selectedId && !ids.has(selectedId)) {
+    html += `<option value="${escapeHtml(selectedId)}" selected>[${escapeHtml(selectedId)}] 題目尚未載入</option>`;
+  }
+  allQuizzes.forEach(q => {
+    const selected = q.id === selectedId ? 'selected' : '';
+    html += `<option value="${escapeHtml(q.id)}" ${selected}>[${escapeHtml(q.id)}] ${escapeHtml((q.question || '').slice(0, 18))}</option>`;
+  });
+  return html;
+}
+
+function refreshQuizPlanSelectOptions() {
+  document.querySelectorAll('.quiz-plan-row .plan-quiz-select').forEach(select => {
+    const value = select.value;
+    select.innerHTML = buildQuizSelectOptions(value);
+    select.value = value;
+  });
+}
+
+function getQuizById(quizId) {
+  return allQuizzes.find(q => q.id === quizId) || null;
+}
+
+function getCheckpointPercent(cp, fallbackIndex, total) {
+  const trigger = cp && cp.trigger ? cp.trigger : {};
+  if (trigger.type === 'team_progress' && trigger.percent !== undefined) return trigger.percent;
+  if (cp && cp.progress !== undefined) return cp.progress;
+  return Math.round(((fallbackIndex + 1) / (total + 1)) * 100);
+}
+
+function renderQuizPlanner() {
+  const container = document.getElementById('quizPlanRows');
+  if (!container) return;
+  const map = getSelectedQuizPlanMap();
+  renderQuizPlanMapSelect();
+  container.innerHTML = '';
+
+  if (!map) {
+    container.innerHTML = '<p class="hint-text">尚未載入賽道資料。</p>';
+    updateQuizPacing();
+    return;
+  }
+
+  const checkpoints = Array.isArray(map.checkpoints) ? map.checkpoints : [];
+  if (!checkpoints.length) {
+    addQuizPlanRow(null, null, false);
+  } else {
+    checkpoints.forEach((cp, index) => addQuizPlanRow(cp, index, false));
+  }
+  updateQuizPacing();
+}
+
+function addQuizPlanRow(cp = null, fallbackIndex = null, shouldUpdate = true) {
+  const container = document.getElementById('quizPlanRows');
+  if (!container) return;
+  const existingRows = container.querySelectorAll('.quiz-plan-row').length;
+  const index = fallbackIndex !== null ? fallbackIndex : existingRows;
+  const total = Math.max(existingRows + 1, (getSelectedQuizPlanMap()?.checkpoints || []).length || 1);
+  const quizId = (cp && cp.quizId) || '';
+  const quiz = getQuizById(quizId);
+  const timeLimit = (cp && cp.timeLimit) || (quiz && quiz.timeLimit) || currentConfig.quizTimeLimit || 10;
+  const percent = getCheckpointPercent(cp, index, total);
+  const row = document.createElement('div');
+  row.className = 'quiz-plan-row';
+  row.innerHTML = `
+    <div class="plan-row-index">${index + 1}</div>
+    <div class="plan-row-main">
+      <label>出題題目</label>
+      <select class="luxury-input plan-quiz-select" onchange="syncPlanRowFromQuiz(this); updateQuizPacing()">
+        ${buildQuizSelectOptions(quizId)}
+      </select>
+    </div>
+    <div class="plan-row-mini">
+      <label>進度%</label>
+      <input type="number" class="luxury-input plan-percent-input" min="5" max="95" value="${escapeHtml(percent)}" oninput="updateQuizPacing()">
+    </div>
+    <div class="plan-row-mini">
+      <label>秒數</label>
+      <input type="number" class="luxury-input plan-time-input" min="4" max="30" value="${escapeHtml(timeLimit)}" oninput="updateQuizPacing()">
+    </div>
+    <div class="plan-row-tools">
+      <button type="button" class="btn-secondary icon-btn" title="上移" onclick="moveQuizPlanRow(this, -1)">↑</button>
+      <button type="button" class="btn-secondary icon-btn" title="下移" onclick="moveQuizPlanRow(this, 1)">↓</button>
+      <button type="button" class="btn-danger icon-btn" title="移除" onclick="removeQuizPlanRow(this)">×</button>
+    </div>
+  `;
+  container.appendChild(row);
+  renumberQuizPlanRows();
+  if (shouldUpdate) updateQuizPacing();
+}
+
+function syncPlanRowFromQuiz(select) {
+  const row = select.closest('.quiz-plan-row');
+  const quiz = getQuizById(select.value);
+  const timeInput = row ? row.querySelector('.plan-time-input') : null;
+  if (quiz && timeInput && quiz.timeLimit) timeInput.value = quiz.timeLimit;
+}
+
+function renumberQuizPlanRows() {
+  document.querySelectorAll('.quiz-plan-row').forEach((row, index) => {
+    const label = row.querySelector('.plan-row-index');
+    if (label) label.textContent = String(index + 1);
+  });
+}
+
+function moveQuizPlanRow(button, direction) {
+  const row = button.closest('.quiz-plan-row');
+  if (!row || direction === 0) return;
+  if (direction < 0 && row.previousElementSibling) {
+    row.parentElement.insertBefore(row, row.previousElementSibling);
+  } else if (direction > 0 && row.nextElementSibling) {
+    row.parentElement.insertBefore(row.nextElementSibling, row);
+  }
+  renumberQuizPlanRows();
+  updateQuizPacing();
+}
+
+function removeQuizPlanRow(button) {
+  const row = button.closest('.quiz-plan-row');
+  if (row) row.remove();
+  renumberQuizPlanRows();
+  updateQuizPacing();
+}
+
+function autoSpreadQuizPlan() {
+  const rows = Array.from(document.querySelectorAll('.quiz-plan-row'));
+  rows.forEach((row, index) => {
+    const input = row.querySelector('.plan-percent-input');
+    if (input) input.value = Math.round(((index + 1) / (rows.length + 1)) * 100);
+  });
+  updateQuizPacing();
+  showToast('已平均分配每題在賽道上的觸發進度');
+}
+
+function getQuizPlanRows() {
+  return Array.from(document.querySelectorAll('.quiz-plan-row')).map((row, index) => {
+    const quizId = row.querySelector('.plan-quiz-select')?.value || '';
+    const percent = Number(row.querySelector('.plan-percent-input')?.value) || Math.round(((index + 1) / 4) * 100);
+    const timeLimit = Number(row.querySelector('.plan-time-input')?.value) || currentConfig.quizTimeLimit || 10;
+    return {
+      id: `final_cp_${index + 1}`,
+      trigger: {
+        type: 'team_progress',
+        percent: Math.max(1, Math.min(95, percent))
+      },
+      quizId: quizId || null,
+      timeLimit: Math.max(1, timeLimit)
+    };
+  });
+}
+
+function saveQuizPlan() {
+  const map = getSelectedQuizPlanMap();
+  if (!map) {
+    showToast('尚未載入賽道，無法保存出題順序。', true);
+    return;
+  }
+  const checkpoints = getQuizPlanRows();
+  const quizPool = checkpoints.map(cp => cp.quizId).filter(Boolean);
+  const mapData = {
+    ...map,
+    checkpoints,
+    quizPool
+  };
+  socket.emit('admin:save_map', mapData);
+  showToast(`正在保存 ${checkpoints.length} 題到「${map.name || map.id}」`);
+}
+
+function updateQuizPacing() {
+  const rows = getQuizPlanRows();
+  const pacing = getRacePacingConfig();
+  const map = getSelectedQuizPlanMap();
+  const playersInput = document.getElementById('quizExpectedPlayers');
+  const expectedPlayers = Number(playersInput && playersInput.value) || 150;
+  const teamCount = Math.max(1, (getTeamsConfig().length || currentConfig.teamsCount || 5));
+  const fastestTeamSize = Math.max(1, Math.ceil(expectedPlayers / teamCount));
+  const speedPxPerSecond = estimateTeamSpeedPxPerSecond(fastestTeamSize, pacing.expectedTapRatePerPlayer);
+  const answerSeconds = rows.reduce((sum, cp) => sum + (Number(cp.timeLimit) || currentConfig.quizTimeLimit || 10), 0);
+  const quizCount = rows.length;
+  const perQuestionFixedSeconds = Number(pacing.quizPrepareSeconds || 3)
+    + Number(currentConfig.quizTimeLimit || 10)
+    + Number(pacing.quizResultSeconds || 3);
+  const overheadSeconds =
+    Number(currentConfig.countdownSeconds || 3)
+    + Number(pacing.finalTransitionSeconds || 5)
+    + quizCount * (Number(pacing.quizPrepareSeconds || 3) + Number(pacing.quizResultSeconds || 3))
+    + answerSeconds;
+  const targetGameSeconds = Math.max(60, Number(pacing.targetGameSeconds || 420));
+  const targetRacingSeconds = Math.max(60, targetGameSeconds - overheadSeconds);
+  const quizBoost = quizCount * Math.max(0, Number(pacing.expectedQuizBoostPx || 0));
+  const minTrack = Math.max(1000, Number(pacing.minTrackLength || 30000));
+  const maxTrack = Math.max(minTrack, Number(pacing.maxTrackLength || 220000));
+  const autoTrackLength = Math.max(minTrack, Math.min(maxTrack, Math.round(targetRacingSeconds * speedPxPerSecond + quizBoost)));
+  const autoTotalSeconds = overheadSeconds + targetRacingSeconds;
+  const fixedTrackLength = Number((map && map.track && map.track.length) || currentConfig.trackLength || 104000);
+  const fixedTotalSeconds = overheadSeconds + Math.max(0, (fixedTrackLength - quizBoost) / Math.max(1, speedPxPerSecond));
+
+  const countEl = document.getElementById('quizMetricCount');
+  const questionEl = document.getElementById('quizMetricQuestionSeconds');
+  const autoEl = document.getElementById('quizMetricAutoDuration');
+  const fixedEl = document.getElementById('quizMetricFixedDuration');
+  const summaryEl = document.getElementById('quizPacingSummary');
+  if (countEl) countEl.textContent = `${quizCount} 題`;
+  if (questionEl) questionEl.textContent = `約 ${Math.round(perQuestionFixedSeconds)} 秒`;
+  if (autoEl) autoEl.textContent = formatSeconds(autoTotalSeconds);
+  if (fixedEl) fixedEl.textContent = formatSeconds(fixedTotalSeconds);
+  if (summaryEl) {
+    const autoTrackText = autoTrackLength.toLocaleString('en-US');
+    if (quizCount === 0) {
+      summaryEl.textContent = '目前沒有排題，遊戲會變成純賽馬衝刺。建議正式版保留 3 題左右。';
+    } else if (autoTotalSeconds > targetGameSeconds + 5) {
+      summaryEl.textContent = `${quizCount} 題會吃掉太多時間，自動配速也需要約 ${formatSeconds(autoTotalSeconds)}；建議減題或縮短作答秒數。`;
+    } else {
+      summaryEl.textContent = `自動配速會把賽道調到約 ${autoTrackText}px，讓 ${expectedPlayers} 人時維持約 ${formatSeconds(autoTotalSeconds)}。`;
+    }
+  }
+  renderQuestionCountForecast({
+    currentCount: quizCount,
+    averageAnswerSeconds: quizCount > 0 ? answerSeconds / quizCount : Number(currentConfig.quizTimeLimit || 10),
+    fixedTrackLength,
+    speedPxPerSecond,
+    pacing
+  });
+}
+
+function renderQuestionCountForecast({ currentCount, averageAnswerSeconds, fixedTrackLength, speedPxPerSecond, pacing }) {
+  const container = document.getElementById('questionCountForecast');
+  if (!container) return;
+  const counts = [2, 3, 4, 5, 6];
+  const prepare = Number(pacing.quizPrepareSeconds || 3);
+  const result = Number(pacing.quizResultSeconds || 3);
+  const finalTransition = Number(pacing.finalTransitionSeconds || 5);
+  const expectedQuizBoost = Math.max(0, Number(pacing.expectedQuizBoostPx || 0));
+  const html = counts.map(count => {
+    const overhead =
+      Number(currentConfig.countdownSeconds || 3)
+      + finalTransition
+      + count * (prepare + result + averageAnswerSeconds);
+    const quizBoost = count * expectedQuizBoost;
+    const fixedTotal = overhead + Math.max(0, (fixedTrackLength - quizBoost) / Math.max(1, speedPxPerSecond));
+    return `
+      <div class="${count === currentCount ? 'active' : ''}">
+        <span>${count} 題</span>
+        <strong>${formatSeconds(fixedTotal)}</strong>
+      </div>
+    `;
+  }).join('');
+  container.innerHTML = html;
+}
+
+// ==========================================
+// 6. 互動問答題庫編輯與 CRUD
 // ==========================================
 function renderQuizList() {
   const container = document.getElementById('quizListContainer');
@@ -459,14 +820,18 @@ function renderQuizList() {
   allQuizzes.forEach(q => {
     const item = document.createElement('div');
     item.className = 'list-item';
+    const options = normalizeQuizOptions(q.options).filter(Boolean);
+    const timeLimit = q.timeLimit || currentConfig.quizTimeLimit || 10;
+    const quizIdLiteral = jsStringLiteral(q.id);
     item.innerHTML = `
       <div>
-        <div class="list-item-title">${q.question}</div>
-        <div class="list-item-sub">ID: ${q.id} | 正解: 選項 ${getCorrectAnswerLabel(q)}</div>
+        <div class="list-item-title">${escapeHtml(q.question)}</div>
+        <div class="list-item-sub">ID: ${escapeHtml(q.id)} | 正解: ${getCorrectAnswerLabel(q)} | ${timeLimit} 秒 | ${options.length} 選項</div>
       </div>
       <div>
-        <button class="btn-secondary" onclick="editQuiz('${q.id}')">✏️ 編輯</button>
-        <button class="btn-danger" onclick="deleteQuiz('${q.id}')">🗑️</button>
+        <button class="btn-secondary" onclick="addQuizPlanRow({ quizId: ${quizIdLiteral}, timeLimit: ${Number(timeLimit)} })">加入</button>
+        <button class="btn-secondary" onclick="editQuiz(${quizIdLiteral})">編輯</button>
+        <button class="btn-danger" onclick="deleteQuiz(${quizIdLiteral})">刪除</button>
       </div>
     `;
     container.appendChild(item);
@@ -478,7 +843,7 @@ function updateForceQuizDropdown() {
   if (!select) return;
   let html = '<option value="">-- 隨機抽選一題 --</option>';
   allQuizzes.forEach(q => {
-    html += `<option value="${q.id}">[${q.id}] ${q.question.substring(0, 15)}...</option>`;
+    html += `<option value="${escapeHtml(q.id)}">[${escapeHtml(q.id)}] ${escapeHtml((q.question || '').substring(0, 15))}...</option>`;
   });
   select.innerHTML = html;
 }
@@ -490,19 +855,24 @@ function editQuiz(quizId) {
   document.getElementById('quizIdInput').value = q.id;
   document.getElementById('quizIdInput').disabled = true;
   document.getElementById('quizQuestionInput').value = q.question || '';
+  document.getElementById('quizTimeLimitInput').value = q.timeLimit || currentConfig.quizTimeLimit || 10;
   const options = normalizeQuizOptions(q.options);
   document.getElementById('optA').value = options[0] || '';
   document.getElementById('optB').value = options[1] || '';
   document.getElementById('optC').value = options[2] || '';
   document.getElementById('optD').value = options[3] || '';
   document.getElementById('correctAns').value = getCorrectAnswerLabel(q);
-  document.getElementById('quizReward').value = q.reward || 'large_boost';
+  document.getElementById('quizDifficulty').value = q.difficulty || 'medium';
+  document.getElementById('quizAddToPlan').checked = false;
 }
 
 function resetQuizForm() {
   document.getElementById('quizForm').reset();
   document.getElementById('quizEditId').value = '';
   document.getElementById('quizIdInput').disabled = false;
+  document.getElementById('quizTimeLimitInput').value = currentConfig.quizTimeLimit || 10;
+  document.getElementById('quizDifficulty').value = 'medium';
+  document.getElementById('quizAddToPlan').checked = true;
 }
 
 function saveQuiz() {
@@ -513,10 +883,12 @@ function saveQuiz() {
   const optC = document.getElementById('optC').value.trim();
   const optD = document.getElementById('optD').value.trim();
   const correctAnswer = document.getElementById('correctAns').value;
-  const reward = document.getElementById('quizReward').value;
+  const timeLimit = Number(document.getElementById('quizTimeLimitInput').value) || currentConfig.quizTimeLimit || 10;
+  const difficulty = document.getElementById('quizDifficulty').value || 'medium';
+  const addToPlan = document.getElementById('quizAddToPlan').checked;
 
-  if (!id || !question || !optA || !optB) {
-    showToast('⚠️ 題目 ID、題目文字與至少前兩選項為必填！', true);
+  if (!id || !question || !optA || !optB || !optC || !optD) {
+    showToast('題目 ID、題目文字與四個選項都要填。', true);
     return;
   }
 
@@ -525,10 +897,14 @@ function saveQuiz() {
     question,
     options: [optA, optB, optC, optD],
     correctAnswer,
-    reward
+    difficulty,
+    timeLimit: Math.max(1, timeLimit)
   };
 
   socket.emit('admin:save_quiz', quizData);
+  if (addToPlan) {
+    addQuizPlanRow({ quizId: id, timeLimit: quizData.timeLimit });
+  }
   resetQuizForm();
 }
 
