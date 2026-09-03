@@ -51,7 +51,7 @@ test('GAME_POSITION_UPDATE should contain all 5 teams', () => {
 test('startRound() should call autoAssignUnselectedPlayers', () => {
   const gm = new GameManager(new MockIo());
   let called = false;
-  gm.teamManager.autoAssignUnselectedPlayers = () => { called = true; return 0; };
+  gm.teamManager.autoAssignUnselectedPlayers = () => { called = true; return { count: 0, assignments: [] }; };
   gm.startRound();
   assert.strictEqual(called, true);
 });
@@ -129,7 +129,7 @@ test('Quiz awards should break ties by average answer speed', () => {
   assert.ok(!wrongAward.ranking.some(player => player.name === '沒作答賓客'));
 });
 
-test('Default pacing should use one round and estimate a 7 minute 150-player game', () => {
+test('Default pacing should use one round and estimate the formal 10-question game', () => {
   const gm = new GameManager(new MockIo());
   const teamIds = Object.keys(gm.teamManager.teams);
 
@@ -144,9 +144,154 @@ test('Default pacing should use one round and estimate a 7 minute 150-player gam
 
   assert.strictEqual(gm.roundManager.totalRounds, 1);
   assert.strictEqual(map.id, 'wedding-final-showdown');
-  assert.strictEqual(recommendation.quizCount, 3);
-  assert.ok(recommendation.trackLength >= 100000 && recommendation.trackLength <= 108000);
-  assert.strictEqual(recommendation.targetGameSeconds, 420);
+  assert.strictEqual(recommendation.quizCount, 10);
+  assert.ok(recommendation.trackLength >= 77000 && recommendation.trackLength <= 78000);
+  assert.strictEqual(recommendation.targetGameSeconds, 390);
+});
+
+test('Checkpoint must trigger before a team can finish the race', () => {
+  const gm = new GameManager(new MockIo());
+  const map = gm.mapManager.getCurrentMap();
+  gm.checkpointEngine.initCheckpoints(map.checkpoints);
+  gm.state = 'RACING';
+  gm.teamManager.teams.red.position = map.track.length + 100;
+  let triggeredQuizId = null;
+  gm.triggerQuiz = (quizId) => {
+    triggeredQuizId = quizId;
+    gm.state = 'QUIZ';
+    return true;
+  };
+
+  gm.update();
+  assert.strictEqual(triggeredQuizId, map.checkpoints[0].quizId);
+  assert.strictEqual(gm.state, 'QUIZ');
+  assert.strictEqual(gm.roundManager.history.length, 0);
+});
+
+test('Reconnect should preserve personal award stats and answer lock', () => {
+  const gm = new GameManager(new MockIo());
+  const sessionId = 'award-session-123456789';
+  gm.teamManager.addPlayer('old-socket', 'Stable Guest', 'S', sessionId);
+  gm.teamManager.chooseTeam('old-socket', 'blue');
+  gm.upsertPlayerStats(gm.teamManager.getPlayer('old-socket'));
+  gm.recordPlayerTap('old-socket');
+  gm.recordPlayerQuizResult('old-socket', true, 900);
+
+  gm.quizManager.startQuiz('wc_001', { blue: 1 });
+  gm.quizManager.handleAnswer('old-socket', 'blue', 'wc_001', 'A');
+  gm.teamManager.setJoinLock(true);
+  gm.teamManager.disconnectPlayer('old-socket', true);
+  const recovered = gm.teamManager.addPlayer('new-socket', 'Stable Guest', 'S', sessionId);
+  gm.migratePlayerConnection(recovered.previousSocketId, 'new-socket');
+
+  assert.ok(!gm.playerStats.has('old-socket'));
+  assert.strictEqual(gm.playerStats.get('new-socket').tapCount, 1);
+  assert.strictEqual(gm.playerStats.get('new-socket').correctCount, 1);
+  const duplicate = gm.quizManager.handleAnswer('new-socket', 'blue', 'wc_001', 'A');
+  assert.strictEqual(duplicate.reason, 'ALREADY_ANSWERED');
+  gm.quizManager.cancelQuiz();
+});
+
+test('Final sprint should clear stuns and multiply tap acceleration', () => {
+  const io = new MockIo();
+  const gm = new GameManager(io);
+  gm.config.tapCooldown = 0;
+  gm.config.finalSprint.tapBoostMultiplier = 2;
+  gm.teamManager.addPlayer('sprinter', 'Sprinter');
+  gm.teamManager.chooseTeam('sprinter', 'red');
+  gm.state = 'RACING';
+  gm.hardFinishAt = Date.now() + 60000;
+  gm.teamManager.teams.red.isStunned = true;
+  gm.teamManager.teams.red.stunUntil = Date.now() + 10000;
+
+  assert.strictEqual(gm.activateFinalSprint(gm.flowToken), true);
+  assert.strictEqual(gm.teamManager.teams.red.isStunned, false);
+  assert.strictEqual(io.lastEvent, 'game:final_sprint');
+  const speedBeforeTap = gm.teamManager.teams.red.speed;
+  assert.strictEqual(gm.handleTap('sprinter', Date.now()).success, true);
+  assert.ok(gm.teamManager.teams.red.speed >= speedBeforeTap + gm.config.baseBoost * 2);
+});
+
+test('Every twentieth accepted tap should be a double critical hit', () => {
+  const gm = new GameManager(new MockIo());
+  gm.config.tapCooldown = 0;
+  gm.teamManager.addPlayer('tapper', 'Tapper');
+  gm.teamManager.chooseTeam('tapper', 'red');
+  gm.state = 'RACING';
+  let result = null;
+  for (let index = 0; index < 20; index++) result = gm.handleTap('tapper', Date.now());
+  assert.strictEqual(result.success, true);
+  assert.strictEqual(result.critical, true);
+  assert.strictEqual(result.multiplier, 2);
+  assert.strictEqual(result.status.tapCount, 20);
+  assert.strictEqual(result.status.nextCriticalIn, 20);
+});
+
+test('Pause and resume should freeze and shift all race deadlines', () => {
+  const gm = new GameManager(new MockIo());
+  const now = Date.now();
+  gm.state = 'RACING';
+  gm.raceStartedAt = now - 1000;
+  gm.hardFinishAt = now + 10000;
+  gm.checkpointEngine.gameStartTime = now - 1000;
+  gm.teamManager.teams.red.stunUntil = now + 2000;
+  gm.scheduleManagedTimeout('test', () => {}, 10000);
+  const originalDeadline = gm.hardFinishAt;
+  assert.ok(gm.pauseGame());
+  gm.pausedAt = now;
+  assert.ok(gm.resumeGame(now + 5000));
+  assert.strictEqual(gm.hardFinishAt, originalDeadline + 5000);
+  assert.strictEqual(gm.teamManager.teams.red.stunUntil, now + 7000);
+  gm.clearAllManagedTimeouts();
+  gm.clearRaceGuard();
+});
+
+test('Race deadline catch-up should preserve all ten checkpoints before finishing', () => {
+  const gm = new GameManager(new MockIo());
+  const map = gm.mapManager.getCurrentMap();
+  gm.checkpointEngine.initCheckpoints(map.checkpoints);
+  gm.state = 'RACING';
+  gm.raceStartedAt = Date.now() - 600000;
+  gm.hardFinishAt = Date.now() - 1;
+  gm.hardFinishRequested = true;
+  const triggeredQuizIds = [];
+  gm.triggerQuiz = (quizId) => {
+    triggeredQuizIds.push(quizId);
+    gm.state = 'QUIZ';
+    return true;
+  };
+
+  for (let index = 0; index < 10; index++) {
+    gm.state = 'RACING';
+    gm.evaluateRaceGuard(gm.flowToken, Date.now());
+  }
+  assert.deepStrictEqual(triggeredQuizIds, map.checkpoints.map(checkpoint => checkpoint.quizId));
+  assert.strictEqual(gm.checkpointEngine.hasTriggeredAll(), true);
+  assert.strictEqual(gm.roundManager.history.length, 0);
+
+  gm.state = 'RACING';
+  gm.teamManager.teams.purple.position = 500;
+  gm.teamManager.teams.red.position = 450;
+  gm.triggerQuiz = GameManager.prototype.triggerQuiz.bind(gm);
+  assert.strictEqual(gm.finishAtRaceDeadline(), true);
+  assert.strictEqual(gm.roundManager.history[0].winner, 'purple');
+});
+
+test('Awards should remain server-locked until the match is finished', () => {
+  const gm = new GameManager(new MockIo());
+  gm.state = 'LOBBY';
+  assert.strictEqual(gm.setPresentationStage('awards'), false);
+  assert.strictEqual(gm.handleAwardAction('reveal'), false);
+  assert.strictEqual(gm.presentation.stage, 'lobby');
+
+  gm.state = 'MATCH_FINISHED';
+  assert.strictEqual(gm.setPresentationStage('awards'), true);
+  assert.strictEqual(gm.handleAwardAction('reveal'), true);
+  assert.deepStrictEqual(gm.presentation.revealedAwardIndexes, [0]);
+  assert.strictEqual(gm.handleAwardAction('reveal'), true);
+  assert.deepStrictEqual(gm.presentation.revealedAwardIndexes, [0]);
+  assert.strictEqual(gm.handleAwardAction('next'), true);
+  assert.strictEqual(gm.presentation.awardIndex, 1);
 });
 
 console.log(`\n結果: ${passed} passed, ${failed} failed`);

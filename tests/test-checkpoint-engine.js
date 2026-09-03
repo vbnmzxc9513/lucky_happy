@@ -54,5 +54,38 @@ test('Should not re-trigger already triggered checkpoints', () => {
   assert.strictEqual(cp2, null);
 });
 
+test('A fast team should still receive all checkpoints in order', () => {
+  const engine = new CheckpointTriggerEngine();
+  const checkpoints = Array.from({ length: 10 }, (_, index) => ({
+    id: `cp${index + 1}`,
+    trigger: { type: 'team_progress', percent: (index + 1) * 9 }
+  }));
+  engine.initCheckpoints(checkpoints);
+  const teams = { red: { position: 1000 } };
+  const triggered = [];
+
+  for (let i = 0; i < checkpoints.length; i++) {
+    triggered.push(engine.checkTriggers(teams, 1000).id);
+  }
+
+  assert.deepStrictEqual(triggered, checkpoints.map(checkpoint => checkpoint.id));
+  assert.strictEqual(engine.checkTriggers(teams, 1000), null);
+});
+
+test('Forced checkpoint catch-up should mark each checkpoint exactly once', () => {
+  const engine = new CheckpointTriggerEngine();
+  const checkpoints = [
+    { id: 'cp1', trigger: { type: 'team_progress', percent: 10 }, quizId: 'q1' },
+    { id: 'cp2', trigger: { type: 'team_progress', percent: 20 }, quizId: 'q2' }
+  ];
+  engine.initCheckpoints(checkpoints);
+
+  assert.strictEqual(engine.takeNextUntriggeredCheckpoint().id, 'cp1');
+  assert.strictEqual(engine.getUntriggeredCheckpoints().length, 1);
+  assert.strictEqual(engine.takeNextUntriggeredCheckpoint().id, 'cp2');
+  assert.strictEqual(engine.takeNextUntriggeredCheckpoint(), null);
+  assert.strictEqual(engine.hasTriggeredAll(), true);
+});
+
 console.log(`\n結果: ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

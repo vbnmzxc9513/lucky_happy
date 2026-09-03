@@ -3,9 +3,7 @@ const SERVER_URL = 'http://localhost:3000';
 const ITERATIONS = 5;
 const GUEST_COUNT = 100;
 const TEAM_IDS = ['red', 'blue', 'yellow', 'pink', 'purple'];
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'lucky2026';
-const BASIC_AUTH = 'Basic ' + Buffer.from(`${ADMIN_USER}:${ADMIN_PASS}`).toString('base64');
+const STAFF_ACCESS_CODE = process.env.STAFF_ACCESS_CODE || '1009';
 
 function log(msg) {
   const ts = new Date().toLocaleTimeString('zh-TW');
@@ -14,23 +12,24 @@ function log(msg) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function getSocketToken(role) {
-  const res = await fetch(`${SERVER_URL}/socket-token/${role}`, {
-    headers: { Authorization: BASIC_AUTH }
+async function getStaffCookie() {
+  const res = await fetch(`${SERVER_URL}/staff-login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: STAFF_ACCESS_CODE, next: '/control/' })
   });
-  if (!res.ok) throw new Error(`無法取得 ${role} socket token: HTTP ${res.status}`);
-  const data = await res.json();
-  return data.token;
+  const cookie = res.headers.get('set-cookie');
+  if (res.status !== 302 || !cookie) throw new Error(`無法建立工作人員連線: HTTP ${res.status}`);
+  return cookie.split(';')[0];
 }
 
 async function runSuperChaos() {
   log(`Setting up Host, Admin, and ${GUEST_COUNT} Guests...`);
-  const [hostToken, adminToken] = await Promise.all([
-    getSocketToken('host'),
-    getSocketToken('admin')
-  ]);
-  const host = io(SERVER_URL, { auth: { role: 'host', token: hostToken } });
-  const admin = io(SERVER_URL, { auth: { role: 'admin', token: adminToken } });
+  const staffCookie = await getStaffCookie();
+  const socketOptions = { extraHeaders: { Cookie: staffCookie } };
+  const host = io(SERVER_URL, { ...socketOptions, auth: { role: 'control' } });
+  const admin = io(SERVER_URL, { ...socketOptions, auth: { role: 'admin' } });
   const guests = Array.from({ length: GUEST_COUNT }, () => io(SERVER_URL));
   
   await sleep(1000); // Wait for connections
@@ -59,11 +58,11 @@ async function runSuperChaos() {
     // 3. Host goes crazy
     const hostSpammer = setInterval(() => {
       const r = Math.random();
-      if (r < 0.2) host.emit('host:start_round');
-      else if (r < 0.4) host.emit('host:pause_game');
-      else if (r < 0.6) host.emit('host:resume_game');
+      if (r < 0.2) host.emit('control:start_round');
+      else if (r < 0.4) host.emit('control:pause_game');
+      else if (r < 0.6) host.emit('control:resume_game');
       else if (r < 0.8) host.emit('host:next_round');
-      else host.emit('host:reset_game'); // RESET GAME CONSTANTLY!
+      else host.emit('control:reset_game'); // RESET GAME CONSTANTLY!
     }, 1500);
 
     await sleep(8000); // Let them wreak havoc for 8 seconds
@@ -73,7 +72,7 @@ async function runSuperChaos() {
     clearInterval(hostSpammer);
 
     log(`🧹 清理階段...`);
-    host.emit('host:reset_game');
+    host.emit('control:reset_game');
     await sleep(1000);
   }
 

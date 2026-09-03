@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lucky Horse 主持控制台</title>
+  <link rel="stylesheet" href="/control/css/control.css?v=1">
+</head>
+<body>
+  <header class="control-header">
+    <div>
+      <span class="eyebrow">LUCKY HORSE LIVE</span>
+      <h1>主持控制台</h1>
+    </div>
+    <div class="header-actions">
+      <span id="connection-status" class="status-pill is-offline">連線中</span>
+      <a class="icon-link" href="/host/" target="_blank" title="另開大螢幕投影" aria-label="另開大螢幕投影">↗</a>
+      <a class="text-link" href="/manage">主頁</a>
+    </div>
+  </header>
+
+  <main class="control-shell">
+    <section class="live-strip" aria-label="即時狀態">
+      <div><span>遊戲狀態</span><strong id="game-state">等待中</strong></div>
+      <div><span>線上賓客</span><strong id="player-count">0</strong></div>
+      <div><span>目前畫面</span><strong id="presentation-state">大廳</strong></div>
+      <div><span>遊戲計時</span><strong id="race-clock">00:00</strong></div>
+      <div><span>題目進度</span><strong id="quiz-state">尚未開始</strong></div>
+    </section>
+
+    <div class="dashboard-grid">
+      <section class="panel show-panel">
+        <div class="panel-heading">
+          <div><span>DISPLAY</span><h2>大螢幕畫面</h2></div>
+          <strong id="paused-badge" class="paused-badge" hidden>已暫停</strong>
+        </div>
+        <div class="segmented-control" id="stage-controls">
+          <button data-stage="lobby">大廳</button>
+          <button data-stage="rules">規則</button>
+          <button data-stage="team-select">選隊</button>
+          <button data-stage="race">賽道</button>
+          <button data-stage="awards">頒獎</button>
+        </div>
+
+        <div class="game-actions">
+          <button id="btn-start" class="command primary">開始比賽</button>
+          <button id="btn-pause" class="command warning">暫停</button>
+          <button id="btn-resume" class="command success">繼續</button>
+          <button id="btn-reset" class="command danger">重置整場</button>
+        </div>
+
+        <label class="field-label" for="map-select">正式賽道</label>
+        <select id="map-select"></select>
+      </section>
+
+      <section class="panel award-panel">
+        <div class="panel-heading">
+          <div><span>AWARDS</span><h2>神秘頒獎</h2></div>
+          <strong id="award-counter">01 / 04</strong>
+        </div>
+        <div class="award-preview">
+          <small id="award-seal-state">尚未揭曉</small>
+          <strong id="award-control-title">幸福總冠軍</strong>
+          <span id="award-control-winner">等待比賽結算</span>
+        </div>
+        <div class="award-actions">
+          <button id="btn-award-prev" class="icon-command" title="上一個獎" aria-label="上一個獎">←</button>
+          <button id="btn-award-reveal" class="command primary">揭曉獎項</button>
+          <button id="btn-award-next" class="icon-command" title="下一個獎" aria-label="下一個獎">→</button>
+        </div>
+      </section>
+
+      <section class="panel teams-panel">
+        <div class="panel-heading">
+          <div><span>LIVE RANKING</span><h2>隊伍即時狀態</h2></div>
+        </div>
+        <div id="team-status-list" class="team-status-list"></div>
+      </section>
+
+      <section class="panel gm-panel">
+        <div class="panel-heading">
+          <div><span>SAFETY TOOLS</span><h2>現場保險控制</h2></div>
+          <label class="switch"><input id="gm-unlock" type="checkbox"><span></span><em>解鎖</em></label>
+        </div>
+        <div id="gm-controls" class="gm-controls is-locked">
+          <label class="field-label" for="quiz-select">強制題目</label>
+          <div class="inline-control">
+            <select id="quiz-select"><option value="">隨機題目</option></select>
+            <button id="btn-force-quiz" class="command warning">立即出題</button>
+          </div>
+          <label class="field-label" for="gm-team-select">指定隊伍效果</label>
+          <div class="inline-control three">
+            <select id="gm-team-select"></select>
+            <button id="btn-force-boost" class="command success">加速</button>
+            <button id="btn-force-stun" class="command danger">暈眩</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="control-toast" class="control-toast" role="status"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/shared/events.js"></script>
+  <script src="/shared/game-config.js"></script>
+  <script src="/control/js/control-app.js?v=1"></script>
+</body>
+</html>

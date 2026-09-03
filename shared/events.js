@@ -14,6 +14,15 @@ const CLIENT_TO_SERVER = {
   HOST_RESUME_GAME: 'host:resume_game',
   HOST_NEXT_ROUND: 'host:next_round',
   HOST_RESET_GAME: 'host:reset_game',
+  CONTROL_SET_PRESENTATION: 'control:set_presentation',
+  CONTROL_SELECT_MAP: 'control:select_map',
+  CONTROL_START_ROUND: 'control:start_round',
+  CONTROL_PAUSE_GAME: 'control:pause_game',
+  CONTROL_RESUME_GAME: 'control:resume_game',
+  CONTROL_RESET_GAME: 'control:reset_game',
+  CONTROL_AWARD_ACTION: 'control:award_action',
+  CONTROL_FORCE_QUIZ: 'control:force_quiz',
+  CONTROL_FORCE_ITEM: 'control:force_item',
   // 後台與彩排專用事件
   ADMIN_UPDATE_CONFIG: 'admin:update_config',
   ADMIN_SAVE_MAP: 'admin:save_map',
@@ -31,16 +40,27 @@ const SERVER_TO_CLIENT = {
   GAME_QUIZ_START: 'game:quiz_start',       // 僅含題目，發給 Host
   GAME_QUIZ_OPTIONS: 'game:quiz_options',   // 僅含選項，發給 Guest
   GAME_QUIZ_ANSWER_ACK: 'game:quiz_answer_ack', // 答案確認/拒絕回饋
+  GAME_QUIZ_PROGRESS: 'game:quiz_progress',
   GAME_QUIZ_RESULT: 'game:quiz_result',
   GAME_ITEM_TRIGGERED: 'game:item_triggered',
   GAME_ROUND_FINISHED: 'game:round_finished',
   GAME_MATCH_FINISHED: 'game:match_finished',
   GAME_ROUND_LOBBY: 'game:round_lobby',
   GAME_JOIN_LOCKED: 'game:join_locked',     // 比賽中拒絕加入
+  GAME_TEAM_FULL: 'game:team_full',
+  GAME_TEAM_ASSIGNED: 'game:team_assigned',
+  GAME_TAP_ACK: 'game:tap_ack',
+  GAME_PLAYER_STATUS: 'game:player_status',
+  GAME_PAUSED: 'game:paused',
+  GAME_RESUMED: 'game:resumed',
+  GAME_PRESENTATION_UPDATED: 'game:presentation_updated',
+  GAME_FINAL_SPRINT: 'game:final_sprint',
   GAME_MAP_SELECTED: 'game:map_selected',
   GAME_MAP_LIST: 'game:map_list',
   GAME_PLAYER_JOINED: 'game:player_joined',
+  GUEST_JOIN_ACK: 'guest:join_ack',
   SYSTEM_ERROR: 'system:error',
+  CONTROL_ACTION_RESULT: 'control:action_result',
   // 後台專用狀態回饋
   ADMIN_CONFIG_UPDATED: 'admin:config_updated',
   ADMIN_SIMULATION_STATS: 'admin:simulation_stats',

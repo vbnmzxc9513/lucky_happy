@@ -7,7 +7,12 @@ const Validators = {
     if (!data || typeof data.nickname !== 'string') return { valid: false, error: '暱稱必須為字串' };
     const nick = data.nickname.trim();
     if (nick.length === 0 || nick.length > 12) return { valid: false, error: '暱稱長度需介於 1~12 個字元' };
-    return { valid: true, nickname: nick };
+    const avatar = typeof data.avatar === 'string' ? data.avatar.trim().slice(0, 16) : '🙂';
+    const sessionId = typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
+    if (sessionId && !/^[A-Za-z0-9_-]{16,128}$/.test(sessionId)) {
+      return { valid: false, error: '連線會話格式錯誤' };
+    }
+    return { valid: true, nickname: nick, avatar: avatar || '🙂', sessionId: sessionId || null };
   },
 
   validateChooseTeam(data) {
@@ -28,7 +33,9 @@ const Validators = {
   },
 
   validateTap(data) {
-    if (!data || typeof data.timestamp !== 'number') return { valid: false, error: '時間戳無效' };
+    if (!data || typeof data.timestamp !== 'number' || !Number.isFinite(data.timestamp)) {
+      return { valid: false, error: '時間戳無效' };
+    }
     return { valid: true, timestamp: data.timestamp };
   },
 
@@ -36,7 +43,12 @@ const Validators = {
     if (!data || typeof data.quizId !== 'string' || typeof data.answer !== 'string') {
       return { valid: false, error: '答題格式錯誤' };
     }
-    return { valid: true, quizId: data.quizId, answer: data.answer };
+    const quizId = data.quizId.trim();
+    const answer = data.answer.trim().toUpperCase();
+    if (!quizId || quizId.length > 128 || !/^[A-H]$/.test(answer)) {
+      return { valid: false, error: '答題格式錯誤' };
+    }
+    return { valid: true, quizId, answer };
   },
 
   validateSelectMap(data) {

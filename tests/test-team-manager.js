@@ -90,5 +90,91 @@ test('addPlayer() should reject when join is locked', () => {
   assert.strictEqual(res.success, false);
 });
 
+test('Only a known stable session should reconnect while join is locked', () => {
+  const tm = new TeamManager();
+  const sessionId = 'known-session-1234567890';
+  tm.addPlayer('old-socket', 'Reconnect Guest', 'R', sessionId);
+  tm.chooseTeam('old-socket', 'pink');
+  tm.setJoinLock(true);
+  tm.disconnectPlayer('old-socket', true);
+
+  const fakeReconnect = tm.addPlayer('intruder', 'Intruder', 'I', 'unknown-session-123456');
+  assert.strictEqual(fakeReconnect.success, false);
+  assert.strictEqual(fakeReconnect.reason, 'RACE_IN_PROGRESS');
+
+  const recovered = tm.addPlayer('new-socket', 'Reconnect Guest', 'R', sessionId);
+  assert.strictEqual(recovered.success, true);
+  assert.strictEqual(recovered.reconnected, true);
+  assert.strictEqual(recovered.previousSocketId, 'old-socket');
+  assert.strictEqual(tm.getPlayer('new-socket').teamId, 'pink');
+  assert.ok(tm.getTeam('pink').members.has('new-socket'));
+  assert.ok(!tm.getTeam('pink').members.has('old-socket'));
+  assert.strictEqual(tm.players.size, 1);
+});
+
+test('Duplicate nicknames should be rejected after Unicode, whitespace and case normalization', () => {
+  const tm = new TeamManager();
+  const first = tm.addPlayer('first-socket', '  ＡPing  ', 'A', 'first-session-123456');
+  const duplicate = tm.addPlayer('second-socket', 'aping', 'B', 'second-session-123456');
+
+  assert.strictEqual(first.success, true);
+  assert.strictEqual(duplicate.success, false);
+  assert.strictEqual(duplicate.reason, 'DUPLICATE_NICKNAME');
+  assert.strictEqual(tm.players.size, 1);
+});
+
+test('The same stable session may reclaim its nickname after reconnecting', () => {
+  const tm = new TeamManager();
+  const sessionId = 'same-guest-session-123456';
+  tm.addPlayer('old-socket', '小聶同學', 'N', sessionId);
+  tm.disconnectPlayer('old-socket', true);
+
+  const recovered = tm.addPlayer('new-socket', '小聶同學', 'N', sessionId);
+  assert.strictEqual(recovered.success, true);
+  assert.strictEqual(recovered.reconnected, true);
+  assert.strictEqual(tm.players.size, 1);
+});
+
+test('A nickname becomes available after a lobby player is removed', () => {
+  const tm = new TeamManager();
+  tm.addPlayer('leaving-socket', '婚禮賓客');
+  tm.removePlayer('leaving-socket');
+
+  const replacement = tm.addPlayer('new-socket', '婚禮賓客');
+  assert.strictEqual(replacement.success, true);
+});
+
+test('A team should reject its 51st member without removing the player from the original team', () => {
+  const config = { ...DEFAULT_CONFIG, maxPlayersPerTeam: 50 };
+  const tm = new TeamManager(config);
+  for (let index = 0; index < 50; index++) {
+    const socketId = `blue-${index}`;
+    tm.addPlayer(socketId, `Blue ${index}`);
+    assert.strictEqual(tm.chooseTeam(socketId, 'blue').success, true);
+  }
+  tm.addPlayer('moving-player', 'Moving Player');
+  tm.chooseTeam('moving-player', 'red');
+
+  const rejected = tm.chooseTeam('moving-player', 'blue');
+  assert.strictEqual(rejected.success, false);
+  assert.strictEqual(rejected.reason, 'TEAM_FULL');
+  assert.strictEqual(rejected.maxPlayersPerTeam, 50);
+  assert.strictEqual(tm.getPlayer('moving-player').teamId, 'red');
+  assert.ok(tm.getTeam('red').members.has('moving-player'));
+  assert.strictEqual(tm.getTeam('blue').members.size, 50);
+  assert.strictEqual(tm.getAllTeamsInfo().find(team => team.id === 'blue').isFull, true);
+});
+
+test('Auto assignment should respect the configured team capacity', () => {
+  const config = { ...DEFAULT_CONFIG, maxPlayersPerTeam: 1 };
+  const tm = new TeamManager(config);
+  for (let index = 0; index < 6; index++) tm.addPlayer(`player-${index}`, `P${index}`);
+  tm.autoAssignUnselectedPlayers();
+
+  const assigned = Array.from(tm.players.values()).filter(player => player.teamId);
+  assert.strictEqual(assigned.length, 5);
+  Object.values(tm.teams).forEach(team => assert.ok(team.members.size <= 1));
+});
+
 console.log(`\n結果: ${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

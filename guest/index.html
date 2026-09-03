@@ -7,9 +7,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/guest/css/guest.css?v=8">
+    <link rel="stylesheet" href="/guest/css/guest.css?v=10">
 </head>
 <body>
+    <div id="final-sprint-mobile" class="final-sprint-mobile" aria-hidden="true">
+        <span class="final-sprint-mobile-label">終極衝刺</span>
+        <strong id="final-sprint-mobile-seconds">60</strong>
+        <span>秒</span>
+    </div>
     <div id="mobile-app">
         <!-- 頂部狀態列 -->
         <header id="mobile-header">
@@ -65,8 +70,9 @@
         <!-- 2. 隊伍選擇畫面 (SCREEN_TEAM_SELECT) -->
         <section id="screen-team-select" class="screen">
             <div class="card-box team-select-box">
-                <h2>選擇您要加入的黑皮陣營</h2>
-                <p class="sub-text">為心儀的黑皮隊伍加油！隨時點擊可更換陣營</p>
+                <h2>選擇你的黑皮陣營</h2>
+                <p class="sub-text">五隊集結，選一隊並肩衝刺</p>
+                <p id="team-select-message" class="team-select-message" aria-live="polite"></p>
 
                 <div class="team-choice-grid" id="dynamic-teams-container">
                     <!-- Teams will be dynamically rendered here by guest-app.js -->
@@ -79,6 +85,16 @@
             <div class="race-control-area">
                 <div class="team-indicator" id="my-team-banner">
                     你現在是 <strong id="my-team-name">🔴 紅隊</strong> 的應援主力！
+                </div>
+
+                <div class="player-live-stats" aria-label="個人與隊伍即時狀態">
+                    <div><span>有效點擊</span><strong id="my-tap-count">0</strong></div>
+                    <div><span>隊伍名次</span><strong id="my-team-rank">--</strong></div>
+                    <div><span>賽道進度</span><strong id="my-team-progress">0%</strong></div>
+                </div>
+                <div class="critical-progress">
+                    <span>距離爆擊還差 <strong id="next-critical-count">20</strong> 次</span>
+                    <i><b id="critical-progress-fill"></b></i>
                 </div>
 
                 <!-- 巨大點擊應援按鈕 -->
@@ -95,7 +111,7 @@
                     <div id="my-stun-alert" class="stun-alert" style="display: none;">
                         ⚠️ 隊伍暈眩停滯中！點擊暫時無效！
                     </div>
-                    <p class="tap-tip">💡 提示：點得越快，隊伍衝得越遠！</p>
+                    <p class="tap-tip">每 20 次有效點擊會觸發 2 倍爆擊</p>
                 </div>
             </div>
         </section>
@@ -128,17 +144,21 @@
             <div class="card-box wait-box">
                 <div class="wait-icon">⏳</div>
                 <h2 id="wait-title">本局賽事進行中或結束</h2>
-                <p id="wait-desc" class="sub-text">請觀看大螢幕投影，精彩賽況揭曉中！<br>下局開始時，您的手機將自動重新開放！</p>
+                <p id="wait-desc" class="sub-text">請觀看大螢幕投影，精彩賽況與最終頒獎即將揭曉！</p>
             </div>
         </section>
     </div>
 
+    <div id="mobile-pause-overlay" class="mobile-pause-overlay" aria-live="assertive">
+        <div><small>GAME PAUSED</small><strong>現場暫停中</strong><span>遊戲時間已凍結，請依主持人指示</span></div>
+    </div>
+
     <!-- 引入 Socket.IO Client 與前端 JS -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/shared/events.js?v=9"></script>
-    <script src="/shared/game-config.js?v=10"></script>
-    <script src="/guest/js/tap-handler.js?v=9"></script>
-    <script src="/guest/js/quiz-ui.js?v=9"></script>
-    <script src="/guest/js/guest-app.js?v=9"></script>
+    <script src="/shared/events.js?v=14"></script>
+    <script src="/shared/game-config.js?v=11"></script>
+    <script src="/guest/js/tap-handler.js?v=10"></script>
+    <script src="/guest/js/quiz-ui.js?v=10"></script>
+    <script src="/guest/js/guest-app.js?v=13"></script>
 </body>
 </html>

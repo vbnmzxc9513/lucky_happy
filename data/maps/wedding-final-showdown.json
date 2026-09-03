@@ -1,11 +1,11 @@
 {
   "id": "wedding-final-showdown",
   "name": "幸福一戰決勝負",
-  "description": "婚禮正式版預設賽道，單局決勝、約 7 分鐘、三道答題關卡。",
+  "description": "婚禮正式版預設賽道，單局決勝、十道答題關卡。",
   "thumbnail": "🏇",
   "difficulty": 2,
   "track": {
-    "length": 104000,
+    "length": 76000,
     "theme": "wedding-final"
   },
   "checkpoints": [
@@ -13,7 +13,7 @@
       "id": "final_cp_1",
       "trigger": {
         "type": "team_progress",
-        "percent": 25
+        "percent": 9
       },
       "quizId": "wc_001",
       "timeLimit": 10
@@ -22,7 +22,7 @@
       "id": "final_cp_2",
       "trigger": {
         "type": "team_progress",
-        "percent": 50
+        "percent": 18
       },
       "quizId": "wc_002",
       "timeLimit": 10
@@ -31,9 +31,72 @@
       "id": "final_cp_3",
       "trigger": {
         "type": "team_progress",
-        "percent": 75
+        "percent": 27
       },
       "quizId": "wc_003",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_4",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 36
+      },
+      "quizId": "wc_004",
+      "timeLimit": 8
+    },
+    {
+      "id": "final_cp_5",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 45
+      },
+      "quizId": "ft_001",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_6",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 54
+      },
+      "quizId": "ft_002",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_7",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 63
+      },
+      "quizId": "ft_003",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_8",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 72
+      },
+      "quizId": "ft_004",
+      "timeLimit": 8
+    },
+    {
+      "id": "final_cp_9",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 81
+      },
+      "quizId": "ft_005",
+      "timeLimit": 8
+    },
+    {
+      "id": "final_cp_10",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 90
+      },
+      "quizId": "ft_006",
       "timeLimit": 10
     }
   ],
@@ -52,7 +115,11 @@
     "wc_003",
     "wc_004",
     "ft_001",
-    "ft_002"
+    "ft_002",
+    "ft_003",
+    "ft_004",
+    "ft_005",
+    "ft_006"
   ],
   "config": {
     "baseBoost": 0.5,

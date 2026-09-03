@@ -7,20 +7,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const raceRenderer = new window.RaceRenderer();
   const quizDisplay = new window.QuizDisplay();
   const scoreboardUI = new window.ScoreboardUI();
+  const gameSound = window.GameSound || {
+    enable: async () => false,
+    isEnabled: () => false,
+    play: () => false
+  };
 
-  async function connectPrivilegedSocket(role) {
+  const soundButton = document.getElementById('btn-enable-sound');
+  if (soundButton) {
+    soundButton.onclick = async () => {
+      soundButton.disabled = true;
+      const ready = await gameSound.enable();
+      if (ready) {
+        gameSound.play('ready');
+        soundButton.classList.add('is-enabled');
+      } else {
+        soundButton.disabled = false;
+        soundButton.querySelector('strong').textContent = '瀏覽器無法播放音效';
+      }
+    };
+  }
+
+  function connectPrivilegedSocket(role) {
     if (typeof socket.connect !== 'function') return;
-    try {
-      const tokenUrl = new URL(`/socket-token/${role}`, window.location.origin);
-      const res = await fetch(tokenUrl.href, { credentials: 'same-origin' });
-      if (!res.ok) throw new Error(`socket token request failed: ${res.status}`);
-      const data = await res.json();
-      socket.auth = { role, token: data.token };
-      socket.connect();
-    } catch (err) {
-      console.error('主持端權限驗證失敗:', err);
-      document.getElementById('game-state-label').innerText = '主持端權限驗證失敗，請重新整理並輸入密碼。';
-    }
+    socket.auth = { role };
+    socket.connect();
   }
   
   const mapSelectUI = new window.MapSelectUI((mapId) => {
@@ -40,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
       clearInterval(window.raceCountdownTimer);
       window.raceCountdownTimer = null;
     }
+    hideFinalSprint();
   };
   const showScreen = (screenId) => {
     if (screenId === 'screen-lobby') cleanupTransientOverlays();
@@ -175,33 +187,123 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 追蹤伺服器當前狀態 (用於防止主持人在比賽中誤觸跳離)
   let currentServerState = 'LOBBY';
+  let currentPresentation = { stage: 'lobby', awardIndex: 0, revealedAwardIndexes: [] };
+  let latestMatchData = null;
+  const revealedAwardIndexes = new Set();
+
+  function rememberAwardReveals(presentation, announce) {
+    const nextReveals = Array.isArray(presentation && presentation.revealedAwardIndexes)
+      ? presentation.revealedAwardIndexes.map(Number).filter(Number.isFinite)
+      : [];
+    const hasNewReveal = announce && nextReveals.some(index => !revealedAwardIndexes.has(index));
+    revealedAwardIndexes.clear();
+    nextReveals.forEach(index => revealedAwardIndexes.add(index));
+    if (hasNewReveal) gameSound.play('award');
+  }
+
+  function showPausedOverlay(visible) {
+    let overlay = document.getElementById('host-pause-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'host-pause-overlay';
+      overlay.innerHTML = '<div><span>GAME PAUSED</span><strong>現場暫停中</strong><p>請依主持人指示，遊戲時間已凍結</p></div>';
+      document.body.appendChild(overlay);
+    }
+    overlay.classList.toggle('active', !!visible);
+  }
+
+  function showPresentationStage(stage) {
+    if (stage === 'rules') showScreen('screen-rules');
+    else if (stage === 'team-select') showScreen('screen-team-select');
+    else showScreen('screen-lobby');
+  }
   window.selectCountdownTimer = null;
+  let finalSprintCountdownTimer = null;
+  let finalSprintCompactTimer = null;
+
+  function hideFinalSprint() {
+    const overlay = document.getElementById('final-sprint-overlay');
+    if (finalSprintCountdownTimer) clearInterval(finalSprintCountdownTimer);
+    if (finalSprintCompactTimer) clearTimeout(finalSprintCompactTimer);
+    finalSprintCountdownTimer = null;
+    finalSprintCompactTimer = null;
+    document.body.classList.remove('final-sprint-active');
+    if (overlay) {
+      overlay.classList.remove('active', 'compact');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function showFinalSprint(data, announce = true) {
+    const overlay = document.getElementById('final-sprint-overlay');
+    const secondsEl = document.getElementById('final-sprint-seconds');
+    if (!overlay || !secondsEl) return;
+    const hardFinishAt = Number(data && data.hardFinishAt) ||
+      (Date.now() + Math.max(0, Number(data && data.durationSeconds) || 60) * 1000);
+
+    if (finalSprintCountdownTimer) clearInterval(finalSprintCountdownTimer);
+    if (finalSprintCompactTimer) clearTimeout(finalSprintCompactTimer);
+    document.body.classList.add('final-sprint-active');
+    overlay.classList.add('active');
+    overlay.classList.toggle('compact', !announce);
+    overlay.setAttribute('aria-hidden', 'false');
+
+    const updateCountdown = () => {
+      secondsEl.innerText = String(Math.max(0, Math.ceil((hardFinishAt - Date.now()) / 1000)));
+    };
+    updateCountdown();
+    finalSprintCountdownTimer = setInterval(updateCountdown, 250);
+
+    if (announce) {
+      finalSprintCompactTimer = setTimeout(() => {
+        overlay.classList.add('compact');
+      }, 3500);
+    }
+  }
+
+  async function loadJoinInfo() {
+    const qrContainer = document.getElementById('qr-placeholder');
+    const joinUrlText = document.getElementById('join-url-text');
+    const joinUrlStatus = document.getElementById('join-url-status');
+    if (!qrContainer || !joinUrlText) return;
+
+    qrContainer.innerHTML = '<div class="qr-code-loading">正在產生報到 QR Code...</div>';
+    try {
+      const response = await fetch('/api/join-info', { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (!data.joinUrl || !data.qrDataUrl) throw new Error('Invalid join information');
+
+      const image = document.createElement('img');
+      image.src = data.qrDataUrl;
+      image.alt = `手機報到 QR Code：${data.joinUrl}`;
+      image.decoding = 'async';
+      qrContainer.replaceChildren(image);
+      joinUrlText.textContent = data.joinUrl;
+      if (joinUrlStatus) {
+        joinUrlStatus.textContent = data.warning || '手機與主機連上同一個網路即可掃碼加入';
+        joinUrlStatus.classList.toggle('warning', !!data.warning);
+      }
+    } catch (error) {
+      console.error('無法載入報到 QR Code:', error);
+      qrContainer.innerHTML = '<div class="qr-code-error">QR Code 暫時無法產生<br>請重新整理大螢幕</div>';
+      joinUrlText.textContent = '報到網址載入失敗';
+      if (joinUrlStatus) {
+        joinUrlStatus.textContent = '請確認伺服器與網路設定';
+        joinUrlStatus.classList.add('warning');
+      }
+    }
+  }
 
   // 1. 初始化連線
   socket.on('connect', () => {
     console.log('主控端已連線:', socket.id);
-    
-    const joinUrl = `${window.location.origin}/guest`;
-    document.getElementById('join-url-text').innerText = joinUrl;
-    
-    // 產生動態 QR Code
-    const qrContainer = document.getElementById('qr-placeholder');
-    qrContainer.innerHTML = ''; // 清除舊的
-    if (typeof QRCode !== 'undefined') {
-      new QRCode(qrContainer, {
-        text: joinUrl,
-        width: 200,
-        height: 200,
-        colorDark : "#000000",
-        colorLight : "#ffffff",
-        correctLevel : QRCode.CorrectLevel.H
-      });
-    }
+    loadJoinInfo();
   });
 
   socket.on('connect_error', (err) => {
     console.error('主控端連線驗證失敗:', err.message);
-    document.getElementById('game-state-label').innerText = '主持端連線驗證失敗，請重新整理並輸入密碼。';
+    document.getElementById('game-state-label').innerText = '主持端驗證失敗，請回到工作人員選單重新輸入驗證碼。';
   });
 
   socket.on('game:map_list', (list) => {
@@ -212,7 +314,19 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, (state) => {
     console.log('狀態同步:', state);
     currentServerState = state.state;
+    currentPresentation = state.presentation || currentPresentation;
+    rememberAwardReveals(currentPresentation, false);
+    if (typeof scoreboardUI.setPresentation === 'function') {
+      scoreboardUI.setPresentation(currentPresentation, false);
+    }
+    showPausedOverlay(!!state.paused);
     syncGameConfig(state.config);
+    if (state.finalSprint && state.finalSprint.active) {
+      const overlay = document.getElementById('final-sprint-overlay');
+      if (!overlay || !overlay.classList.contains('active')) showFinalSprint(state.finalSprint, false);
+    } else if (state.state !== 'RACING' && state.state !== 'QUIZ') {
+      hideFinalSprint();
+    }
     
     // 更新局數標籤
     if (state.roundStatus) {
@@ -221,20 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 處理不同狀態畫面
     if (state.state === 'LOBBY' || state.state === 'MAP_SELECT' || state.state === 'ROUND_LOBBY') {
-      const currentActive = document.querySelector('.screen.active');
-      const currentId = currentActive ? currentActive.id : null;
-      // 若主持端正在操作規則或選隊畫面，不強制拉回 lobby
-      // 若主持端正在操作規則或選隊畫面，不強制拉回 lobby
-      if (currentId !== 'screen-rules' && currentId !== 'screen-team-select') {
-        showScreen('screen-lobby');
-      } else if (state.state === 'LOBBY') {
-        // 如果伺服器回到初始大廳，強制中斷選隊倒數
-        if (window.selectCountdownTimer) {
-          clearInterval(window.selectCountdownTimer);
-          window.selectCountdownTimer = null;
-        }
-        showScreen('screen-lobby');
-      }
+      showPresentationStage(currentPresentation.stage);
       document.getElementById('game-state-label').innerText = state.state === 'ROUND_LOBBY' ? '🔄 局間休息（可換隊/加入）' : '等候賓客選隊中...';
       if (state.currentMap && currentMapList.length > 0) {
         mapSelectUI.render(currentMapList, state.currentMap.id);
@@ -258,14 +359,17 @@ document.addEventListener('DOMContentLoaded', () => {
           overlay.style.display = 'flex';
           let left = 3;
           bigNum.innerText = left;
+          gameSound.play('countdown');
           
           if (window.raceCountdownTimer) clearInterval(window.raceCountdownTimer);
           window.raceCountdownTimer = setInterval(() => {
             left--;
             if (left > 0) {
               bigNum.innerText = left;
+              gameSound.play('countdown');
             } else if (left === 0) {
               bigNum.innerText = 'GO!';
+              gameSound.play('go');
             } else {
               clearInterval(window.raceCountdownTimer);
               window.raceCountdownTimer = null;
@@ -295,7 +399,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (state.state === 'ROUND_FINISHED' || state.state === 'MATCH_FINISHED') {
       showScreen('screen-scoreboard');
       if (state.state === 'MATCH_FINISHED' && state.roundStatus) {
-        scoreboardUI.render(state.roundStatus, state.finalWinner, state.finalAwards);
+        latestMatchData = {
+          matchStatus: state.roundStatus,
+          finalWinner: state.finalWinner,
+          finalAwards: state.finalAwards
+        };
+        scoreboardUI.render(state.roundStatus, state.finalWinner, state.finalAwards, currentPresentation);
       }
     }
 
@@ -310,6 +419,28 @@ document.addEventListener('DOMContentLoaded', () => {
       updateTeamInfo(state.teams);
     }
   });
+
+  socket.on(SERVER_TO_CLIENT.GAME_PRESENTATION_UPDATED, (presentation) => {
+    rememberAwardReveals(presentation, true);
+    currentPresentation = presentation || currentPresentation;
+    if (typeof scoreboardUI.setPresentation === 'function') {
+      scoreboardUI.setPresentation(currentPresentation);
+    }
+    if (currentServerState === 'LOBBY' || currentServerState === 'MAP_SELECT' || currentServerState === 'ROUND_LOBBY') {
+      showPresentationStage(currentPresentation.stage);
+    } else if (currentServerState === 'MATCH_FINISHED' && latestMatchData) {
+      showScreen('screen-scoreboard');
+      scoreboardUI.render(
+        latestMatchData.matchStatus,
+        latestMatchData.finalWinner,
+        latestMatchData.finalAwards,
+        currentPresentation
+      );
+    }
+  });
+
+  socket.on(SERVER_TO_CLIENT.GAME_PAUSED, () => showPausedOverlay(true));
+  socket.on(SERVER_TO_CLIENT.GAME_RESUMED, () => showPausedOverlay(false));
 
   socket.on(SERVER_TO_CLIENT.GAME_MAP_SELECTED, (mapData) => {
     if (currentMapList.length > 0) {
@@ -327,6 +458,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.totalPlayers !== undefined) updateTotalPlayersCount(data.totalPlayers);
     if (data.teams) updateTeamInfo(data.teams);
     if (data.player) addRosterBubble(data.player);
+  });
+
+  socket.on(SERVER_TO_CLIENT.GAME_FINAL_SPRINT, (data) => {
+    gameSound.play('sprint');
+    showFinalSprint(data, true);
+    const ticker = document.getElementById('ticker-text');
+    if (ticker) ticker.innerText = '終極衝刺！最後一分鐘，所有隊伍全力加速！';
   });
 
   const joinedPlayersSet = new Set();
@@ -365,9 +503,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     for (const t of teams) {
       const pct = Math.round(((t.memberCount || 0) / safeTotal) * 100);
+      const maxMembers = Number(t.maxMembers || (window.GameConfig && window.GameConfig.maxPlayersPerTeam) || 50);
+      const memberCount = Number(t.memberCount || 0);
       // 大廳與賽道數量更新
       const elLobbyCount = document.getElementById(`lobby-${t.id}-count`);
-      if (elLobbyCount) elLobbyCount.innerText = `${t.memberCount || 0} 人`;
+      if (elLobbyCount) elLobbyCount.innerText = `${memberCount} / ${maxMembers} 人`;
       const elRaceCount = document.getElementById(`race-${t.id}-count`);
       if (elRaceCount) elRaceCount.innerText = `${t.memberCount || 0}`;
       const elScore = document.getElementById(`lobby-${t.id}-score`);
@@ -376,12 +516,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // 選隊畫面 (screen-team-select) 數量與比例更新：當有實際玩家才覆蓋展示資料
       if (totalInTeams > 0) {
         const elSelectCount = document.getElementById(`select-${t.id}-count`);
-        if (elSelectCount) elSelectCount.innerText = `${t.memberCount || 0}`;
+        if (elSelectCount) elSelectCount.innerText = `${memberCount} / ${maxMembers}${t.isFull ? '・已滿' : ''}`;
         const elSelectPct = document.getElementById(`select-${t.id}-pct`);
         if (elSelectPct) elSelectPct.innerText = `${pct}%`;
         const elSelectBar = document.getElementById(`select-${t.id}-bar`);
         if (elSelectBar) elSelectBar.style.width = `${pct}%`;
       }
+      const selectCard = document.getElementById(`select-${t.id}-count`)?.closest('.team-select-card');
+      if (selectCard) selectCard.classList.toggle('is-full', !!t.isFull);
     }
   }
 
@@ -409,6 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('ticker-text').innerText = text;
 
     if (data.effect === 'boost' || data.effect === 'large_boost') {
+      gameSound.play('boost');
       window.EffectsController.triggerBoostEffect(data.teamId);
       window.EffectsController.showFloatingText(data.teamId, '⚡加速!');
     } else if (data.effect === 'stun') {
@@ -430,8 +573,14 @@ document.addEventListener('DOMContentLoaded', () => {
     quizDisplay.showQuiz(data.question, data.options, data.timeLimit);
   });
 
+  socket.on(SERVER_TO_CLIENT.GAME_QUIZ_PROGRESS, (data) => {
+    quizDisplay.updateTeamProgress(data);
+  });
+
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, (data) => {
     if (currentServerState !== 'QUIZ') return;
+    const teamResults = Object.values((data && data.teamResults) || {});
+    gameSound.play(teamResults.some(result => result && result.isCorrect) ? 'correct' : 'wrong');
     quizDisplay.showResult(data);
   });
 
@@ -444,7 +593,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   socket.on(SERVER_TO_CLIENT.GAME_MATCH_FINISHED, (data) => {
     showScreen('screen-scoreboard');
-    scoreboardUI.render(data.matchStatus, data.finalWinner, data.finalAwards);
+    latestMatchData = data;
+    scoreboardUI.render(data.matchStatus, data.finalWinner, data.finalAwards, currentPresentation);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_ROUND_LOBBY, (data) => {
@@ -500,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { btnNextRound.disabled = false; }, 2000);
   };
   document.getElementById('btn-reset-match').onclick = () => {
-    if (confirm('確定要重新開始全新的三局賽事嗎？')) {
+    if (confirm('確定要重新開始全新的一戰決勝賽事嗎？')) {
       currentServerState = 'LOBBY';
       cleanupTransientOverlays();
       socket.emit(CLIENT_TO_SERVER.HOST_RESET_GAME);
@@ -509,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFinalReset = document.getElementById('btn-final-reset-match');
   if (btnFinalReset) {
     btnFinalReset.onclick = () => {
-      if (confirm('確定要重新開始全新的三局賽事嗎？')) {
+      if (confirm('確定要重新開始全新的一戰決勝賽事嗎？')) {
         currentServerState = 'LOBBY';
         cleanupTransientOverlays();
         socket.emit(CLIENT_TO_SERVER.HOST_RESET_GAME);

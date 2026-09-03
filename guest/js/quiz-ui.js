@@ -113,6 +113,43 @@ class QuizUI {
     }
   }
 
+  showAnswerAck(result) {
+    const lockMsg = document.getElementById('quiz-lock-msg');
+    if (!lockMsg) return;
+    lockMsg.classList.remove('is-correct', 'is-wrong');
+    lockMsg.style.display = 'block';
+
+    if (!result || !result.success) {
+      const reason = result && result.reason;
+      lockMsg.innerText = reason === 'GAME_PAUSED'
+        ? '現場暫停中，恢復後再作答'
+        : '答案未送出，請留意大螢幕狀態';
+      return;
+    }
+
+    lockMsg.classList.add(result.isCorrect ? 'is-correct' : 'is-wrong');
+    lockMsg.innerHTML = result.isCorrect
+      ? '<strong>答對了！</strong><span>漂亮命中，等待隊伍多數決</span>'
+      : '<strong>差一點！</strong><span>答案已計入隊伍多數決</span>';
+  }
+
+  showTeamResult(teamResult) {
+    const lockMsg = document.getElementById('quiz-lock-msg');
+    if (!lockMsg || !teamResult) return;
+    lockMsg.classList.remove('is-correct', 'is-wrong');
+    lockMsg.classList.add(teamResult.isCorrect ? 'is-correct' : 'is-wrong');
+    lockMsg.style.display = 'block';
+    if (teamResult.noAnswer) {
+      lockMsg.innerHTML = '<strong>本隊未作答</strong><span>這題沒有形成隊伍答案</span>';
+    } else if (teamResult.hasTie) {
+      lockMsg.innerHTML = '<strong>隊內票數平手</strong><span>這題沒有形成唯一答案</span>';
+    } else {
+      lockMsg.innerHTML = teamResult.isCorrect
+        ? '<strong>隊伍答對！</strong><span>多數決成功，獲得大幅加速</span>'
+        : `<strong>隊伍答錯</strong><span>多數選擇 ${teamResult.teamAnswer || '--'}</span>`;
+    }
+  }
+
   disableAll() {
     document.querySelectorAll('.opt-btn').forEach(btn => {
       btn.disabled = true;

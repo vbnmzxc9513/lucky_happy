@@ -21,6 +21,25 @@ class CheckpointTriggerEngine {
     this.totalTaps++;
   }
 
+  shiftTimeline(milliseconds) {
+    const offset = Math.max(0, Number(milliseconds) || 0);
+    if (this.gameStartTime) this.gameStartTime += offset;
+  }
+
+  getUntriggeredCheckpoints() {
+    return this.checkpoints.filter(cp => cp && cp.id && !this.triggeredIds.has(cp.id));
+  }
+
+  takeNextUntriggeredCheckpoint() {
+    const checkpoint = this.getUntriggeredCheckpoints()[0] || null;
+    if (checkpoint) this.triggeredIds.add(checkpoint.id);
+    return checkpoint;
+  }
+
+  hasTriggeredAll() {
+    return this.getUntriggeredCheckpoints().length === 0;
+  }
+
   /**
    * 每次遊戲迴圈或點擊時呼叫，檢查是否滿足關卡觸發條件
    */

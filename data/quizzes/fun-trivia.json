@@ -45,6 +45,14 @@
       "correctAnswer": "黑天鵝",
       "difficulty": "medium",
       "timeLimit": 8
+    },
+    {
+      "id": "ft_006",
+      "question": "婚禮中交換戒指通常象徵什麼？",
+      "options": ["承諾與永恆", "財富與地位", "旅行與自由", "工作與責任"],
+      "correctAnswer": "承諾與永恆",
+      "difficulty": "easy",
+      "timeLimit": 10
     }
   ]
 }

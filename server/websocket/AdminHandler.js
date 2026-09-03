@@ -71,7 +71,7 @@ class AdminHandler {
     socket.on(CLIENT_TO_SERVER.ADMIN_FORCE_TRIGGER, (data) => {
       let res = false;
       if (data && data.type === 'QUIZ') {
-        res = this.gameManager.forceTriggerQuiz(data.targetId);
+        res = this.gameManager.forceTriggerQuiz(data.targetId, data.timeLimit);
       } else if (data && data.type === 'ITEM') {
         res = this.gameManager.forceTriggerItem(data.teamId || 'red', data.itemType || 'large_boost');
       }

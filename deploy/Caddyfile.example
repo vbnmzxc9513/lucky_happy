@@ -1,0 +1,12 @@
+__DOMAIN__ {
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        -Server
+    }
+
+    reverse_proxy 127.0.0.1:__PORT__
+}

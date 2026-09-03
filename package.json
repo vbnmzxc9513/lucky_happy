@@ -3,10 +3,19 @@
   "version": "1.1.0",
   "description": "Lucky Horse wedding realtime game",
   "main": "server/index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node test-simulation.js",
+    "test": "node scripts/run-confidence-tests.js",
+    "test:confidence": "node scripts/run-confidence-tests.js --full",
+    "test:simulation": "node test-simulation.js",
+    "test:operations": "node scripts/test-wedding-operations.js",
+    "deploy:check": "node scripts/check-deployment-readiness.js",
+    "security:check": "npm audit --audit-level=moderate",
+    "preflight": "node scripts/wedding-preflight.js",
     "stress": "node scripts/stress-wedding-game.js"
   },
   "keywords": [
@@ -19,11 +28,15 @@
   ],
   "author": "Antigravity & AI Project",
   "license": "MIT",
+  "overrides": {
+    "qs": "6.16.0"
+  },
   "dependencies": {
     "canvas": "^3.2.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "jsdom": "^29.1.1",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.7.5",
     "socket.io-client": "^4.7.5"
   }

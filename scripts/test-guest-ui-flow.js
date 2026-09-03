@@ -17,7 +17,15 @@ const dom = new JSDOM(htmlContent, {
 
 dom.window.GameEvents = {
   CLIENT_TO_SERVER: { GUEST_JOIN: 'guest:join', GUEST_CHOOSE_TEAM: 'guest:choose_team', GUEST_TAP: 'guest:tap', GUEST_QUIZ_ANSWER: 'guest:quiz_answer' },
-  SERVER_TO_CLIENT: { GAME_STATE_SYNC: 'game:state_sync', GAME_TEAM_UPDATED: 'game:team_updated', SYSTEM_ERROR: 'system:error', GAME_JOIN_LOCKED: 'game:join_locked' }
+  SERVER_TO_CLIENT: {
+    GAME_STATE_SYNC: 'game:state_sync',
+    GAME_TEAM_UPDATED: 'game:team_updated',
+    GUEST_JOIN_ACK: 'guest:join_ack',
+    SYSTEM_ERROR: 'system:error',
+    GAME_JOIN_LOCKED: 'game:join_locked',
+    GAME_TEAM_FULL: 'game:team_full',
+    GAME_FINAL_SPRINT: 'game:final_sprint'
+  }
 };
 dom.window.GameConfig = {
   TEAMS: [
@@ -27,6 +35,7 @@ dom.window.GameConfig = {
 };
 dom.window.TapHandler = class { init() {} stop() {} };
 dom.window.QuizUI = class { init() {} showOptions() {} hide() {} };
+dom.window.alert = () => {};
 dom.window.io = () => {
   const socket = {
     handlers: {},
@@ -66,20 +75,30 @@ function runTests() {
   socket.trigger('game:state_sync', { state: 'LOBBY', teams: [] });
   assertActiveScreen('screen-login');
 
-  console.log("\n--- TEST 2: Guest Login ---");
+  console.log("\n--- TEST 2: Duplicate nickname is explained before entering team selection ---");
+  dom.window.document.getElementById('input-nickname').value = "Taken Name";
+  dom.window.document.getElementById('btn-join').click();
+  assertActiveScreen('screen-login');
+  socket.trigger('guest:join_ack', {
+    success: false,
+    reason: 'DUPLICATE_NICKNAME',
+    nickname: 'Taken Name'
+  });
+  const duplicateMessage = String(dom.window.document.getElementById('login-error').innerText || '');
+  if (!duplicateMessage.includes('已有人使用')) {
+    console.error('❌ ASSERTION FAILED: duplicate nickname should have a clear message.');
+    process.exit(1);
+  }
+  assertActiveScreen('screen-login');
+
+  console.log("\n--- TEST 3: Unique guest login waits for server acceptance ---");
   dom.window.document.getElementById('input-nickname').value = "Test User";
   dom.window.document.getElementById('btn-join').click();
-  
-  // Pretend server accepted
-  socket.trigger('game:team_updated', {
-    teamId: null,
-    playerInfo: { nickname: 'Test User', avatar: '😎', joinedAt: Date.now() },
-    teamScores: { red: 0, blue: 0 }
-  });
-  // Without a teamId, should go to team select
+  assertActiveScreen('screen-login');
+  socket.trigger('guest:join_ack', { success: true, teamId: null });
   assertActiveScreen('screen-team-select');
 
-  console.log("\n--- TEST 3: Choose Team ---");
+  console.log("\n--- TEST 4: Choose Team ---");
   const redBtn = dom.window.document.querySelector('.team-btn[data-team="red"]');
   if (redBtn) redBtn.click();
   
@@ -93,15 +112,41 @@ function runTests() {
   // Should STILL be on team select because the game state is LOBBY
   assertActiveScreen('screen-team-select');
 
-  console.log("\n--- TEST 4: Race Starts ---");
+  console.log("\n--- TEST 5: Full Team Is Disabled ---");
+  socket.trigger('game:team_updated', {
+    teams: [
+      { id: 'red', name: 'Red Team', memberCount: 1, maxMembers: 50, isFull: false },
+      { id: 'blue', name: 'Blue Team', memberCount: 50, maxMembers: 50, isFull: true }
+    ]
+  });
+  const blueCard = dom.window.document.querySelector('.team-choice-card[data-team="blue"]');
+  if (!blueCard.classList.contains('is-full') || !blueCard.querySelector('button').disabled) {
+    console.error('❌ ASSERTION FAILED: full team should be disabled.');
+    process.exit(1);
+  }
+  socket.trigger('game:team_full', { teamId: 'blue', maxPlayersPerTeam: 50 });
+  if (!String(dom.window.document.getElementById('team-select-message').innerText || '').includes('50')) {
+    console.error('❌ ASSERTION FAILED: full-team message should show the capacity.');
+    process.exit(1);
+  }
+  console.log('✅ Verified full team is disabled and explained');
+
+  console.log("\n--- TEST 6: Race Starts ---");
   socket.trigger('game:state_sync', { state: 'RACING', teams: [] });
   assertActiveScreen('screen-racing');
 
-  console.log("\n--- TEST 5: Return to Lobby (HOST_RESET_GAME) ---");
+  socket.trigger('game:final_sprint', { hardFinishAt: Date.now() + 60000, durationSeconds: 60 });
+  if (!dom.window.document.getElementById('final-sprint-mobile').classList.contains('active')) {
+    console.error('❌ ASSERTION FAILED: mobile final sprint banner should be active.');
+    process.exit(1);
+  }
+  console.log('✅ Verified mobile final sprint banner is active');
+
+  console.log("\n--- TEST 7: Return to Lobby (HOST_RESET_GAME) ---");
   socket.trigger('game:state_sync', { state: 'LOBBY', teams: [] });
   assertActiveScreen('screen-team-select');
 
-  console.log("\n--- TEST 6: Next Round Start ---");
+  console.log("\n--- TEST 8: Next Round Start ---");
   socket.trigger('game:state_sync', { state: 'COUNTDOWN', teams: [] });
   assertActiveScreen('screen-racing');
 

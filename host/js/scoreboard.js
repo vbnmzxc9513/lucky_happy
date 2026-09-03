@@ -1,20 +1,22 @@
 /**
- * 三局積分板與最終神秘頒獎流程渲染
+ * 單局決勝積分板與最終神秘頒獎流程渲染
  */
 class ScoreboardUI {
   constructor() {
     this.awards = [];
     this.currentAwardIndex = 0;
+    this.presentation = { awardIndex: 0, revealedAwardIndexes: [] };
     this.matchStatus = null;
     this.finalWinner = null;
     this.bindAwardControls();
     this.setupPresentationViewport();
   }
 
-  render(matchStatus, latestWinner, finalAwards = null) {
+  render(matchStatus, latestWinner, finalAwards = null, presentation = null) {
     if (!matchStatus) return;
     this.matchStatus = matchStatus;
     this.finalWinner = latestWinner;
+    if (presentation) this.setPresentation(presentation, false);
 
     const isDone = matchStatus.currentRound >= matchStatus.totalRounds
       && matchStatus.history.length >= matchStatus.totalRounds;
@@ -25,6 +27,21 @@ class ScoreboardUI {
     }
 
     this.showRoundScoreboard(matchStatus, latestWinner);
+  }
+
+  setPresentation(presentation, rerender = true) {
+    if (!presentation) return;
+    this.presentation = {
+      ...this.presentation,
+      ...presentation,
+      revealedAwardIndexes: Array.isArray(presentation.revealedAwardIndexes)
+        ? [...presentation.revealedAwardIndexes]
+        : this.presentation.revealedAwardIndexes
+    };
+    if (Number.isInteger(Number(this.presentation.awardIndex))) {
+      this.currentAwardIndex = Math.max(0, Number(this.presentation.awardIndex));
+    }
+    if (rerender && this.awards.length) this.renderCurrentAward();
   }
 
   bindAwardControls() {
@@ -143,29 +160,31 @@ class ScoreboardUI {
   renderCurrentAward() {
     if (!this.awards.length) return;
     const award = this.awards[this.currentAwardIndex];
+    const isRevealed = this.presentation.revealedAwardIndexes.includes(this.currentAwardIndex);
     const winner = award.winner || {};
     const team = this.getAwardTeam(award, winner);
     const stepText = `${String(this.currentAwardIndex + 1).padStart(2, '0')} / ${String(this.awards.length).padStart(2, '0')}`;
 
     this.setText('award-step-label', `AWARD ${stepText}`);
-    this.setText('award-tag-label', award.tag || 'MYSTERY AWARD');
-    this.setText('award-title', award.title || '神秘獎');
-    this.setText('award-prompt', award.prompt || '得獎者即將揭曉');
-    this.setText('award-metric-label', award.metricLabel || '成績');
-    this.setText('award-metric-value', this.formatMetric(winner.value || 0, award.unit));
-    this.setText('award-congrats', this.getCongratsText(award, winner, team));
-    this.setText('award-description', award.description || '');
-    this.setText('award-ranking-title', `${award.scope === 'player' ? '個人' : ''}${award.metricLabel || '成績'}排行榜`);
+    this.setText('award-tag-label', isRevealed ? (award.tag || 'MYSTERY AWARD') : 'MYSTERY AWARD');
+    this.setText('award-title', isRevealed ? (award.title || '神秘獎') : `第 ${String(this.currentAwardIndex + 1).padStart(2, '0')} 個神秘獎`);
+    this.setText('award-prompt', isRevealed ? (award.prompt || '得獎者揭曉') : '答案就在現場，準備一起倒數揭曉');
+    this.setText('award-metric-label', isRevealed ? (award.metricLabel || '成績') : '神秘成績');
+    this.setText('award-metric-value', isRevealed ? this.formatMetric(winner.value || 0, award.unit) : '保密中');
+    this.setText('award-congrats', isRevealed ? this.getCongratsText(award, winner, team) : '得獎者尚未公布');
+    this.setText('award-description', isRevealed ? (award.description || '') : '請看大螢幕，獎項名稱與得獎者即將同時揭曉');
+    this.setText('award-ranking-title', isRevealed ? `${award.scope === 'player' ? '個人' : ''}${award.metricLabel || '成績'}排行榜` : '神秘排行榜');
 
     const card = document.getElementById('award-current-card');
     if (card) {
+      card.classList.toggle('is-sealed', !isRevealed);
       card.style.setProperty('--award-color', team.hex || '#315E58');
       card.style.setProperty('--award-soft-color', this.hexToRgba(team.hex || '#315E58', 0.2));
     }
 
     this.renderProgress();
-    this.renderWinnerIdentity(award, winner, team);
-    this.renderRanking(award);
+    this.renderWinnerIdentity(award, isRevealed ? winner : {}, team, isRevealed);
+    this.renderRanking(award, isRevealed);
     this.renderButtons();
   }
 
@@ -177,12 +196,12 @@ class ScoreboardUI {
     this.awards.forEach((award, index) => {
       const item = document.createElement('div');
       const active = index === this.currentAwardIndex;
-      const revealed = index < this.currentAwardIndex;
+      const revealed = this.presentation.revealedAwardIndexes.includes(index);
       item.className = `award-progress-item ${active ? 'active' : ''} ${revealed ? 'revealed' : ''}`;
-      const label = active || revealed
+      const label = revealed
         ? award.title
         : `第 ${String(index + 1).padStart(2, '0')} 個神秘獎`;
-      const state = revealed ? '已公布' : active ? '目前揭曉' : '保密中';
+      const state = revealed ? '已公布' : active ? '等待揭曉' : '保密中';
       item.innerHTML = `
         <span class="award-progress-dot"></span>
         <span class="award-progress-copy">
@@ -195,9 +214,14 @@ class ScoreboardUI {
     });
   }
 
-  renderWinnerIdentity(award, winner, team) {
+  renderWinnerIdentity(award, winner, team, isRevealed = true) {
     const box = document.getElementById('award-winner-identity');
     if (!box) return;
+
+    if (!isRevealed) {
+      box.innerHTML = '<div class="award-sealed-mark"><strong>?</strong><span>WHO IS IT</span></div>';
+      return;
+    }
 
     const isPlayerAward = award.scope === 'player';
     const avatar = winner.avatar || (winner.name ? winner.name.charAt(0) : '？');
@@ -222,9 +246,14 @@ class ScoreboardUI {
     `;
   }
 
-  renderRanking(award) {
+  renderRanking(award, isRevealed = true) {
     const list = document.getElementById('award-ranking-list');
     if (!list) return;
+
+    if (!isRevealed) {
+      list.innerHTML = '<div class="award-empty-ranking">公布後顯示完整排行榜</div>';
+      return;
+    }
 
     const ranking = Array.isArray(award.ranking) ? award.ranking : [];
     const max = Math.max(...ranking.map(item => Number(item.value || 0)), 1);
@@ -312,7 +341,7 @@ class ScoreboardUI {
       tag: 'TEAM WINNER',
       title: '幸福總冠軍',
       prompt: '哪個隊伍贏得最終勝利',
-      description: '三局累計分數最高，獲得新人親頒幸福榮耀盃',
+      description: '單局一戰決勝，最快衝過終點的隊伍獲得幸福榮耀',
       metricLabel: '總積分',
       unit: '分',
       winner,

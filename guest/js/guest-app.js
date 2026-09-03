@@ -4,9 +4,64 @@
 document.addEventListener('DOMContentLoaded', () => {
   const socket = io();
   const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = window.GameEvents;
-  
-  let myPlayerInfo = { nickname: '', avatar: '🥳', teamId: null, isJoined: false };
+
+  const SESSION_STORAGE_KEY = 'luckyHorseGuestSessionV1';
+  const createSessionId = () => {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return `guest_${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+  };
+  const loadSavedPlayer = () => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) || 'null');
+      if (saved && typeof saved.sessionId === 'string' && saved.sessionId.length >= 16) {
+        return {
+          nickname: typeof saved.nickname === 'string' ? saved.nickname : '',
+          avatar: typeof saved.avatar === 'string' ? saved.avatar : '🥳',
+          teamId: typeof saved.teamId === 'string' ? saved.teamId : null,
+          isJoined: saved.isJoined === true,
+          sessionId: saved.sessionId
+        };
+      }
+    } catch (err) {
+      console.warn('無法讀取賓客連線會話:', err);
+    }
+    return { nickname: '', avatar: '🥳', teamId: null, isJoined: false, sessionId: createSessionId() };
+  };
+
+  let myPlayerInfo = loadSavedPlayer();
+  let registrationPending = false;
   let currentGameState = 'LOBBY';
+  let finalSprintCountdownTimer = null;
+  let finalSprintCompactTimer = null;
+
+  const persistPlayer = () => {
+    try {
+      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(myPlayerInfo));
+    } catch (err) {
+      console.warn('無法儲存賓客連線會話:', err);
+    }
+  };
+
+  const setJoinPending = (pending) => {
+    const button = document.getElementById('btn-join');
+    if (!button) return;
+    button.disabled = pending;
+    button.innerText = pending ? '正在確認名稱...' : '🎉 確定名稱，進入選隊';
+  };
+
+  const emitJoin = (allowUnjoined = false) => {
+    if ((!myPlayerInfo.isJoined && !allowUnjoined) || !myPlayerInfo.nickname || registrationPending) return;
+    registrationPending = true;
+    setJoinPending(true);
+    socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, {
+      nickname: myPlayerInfo.nickname,
+      avatar: myPlayerInfo.avatar,
+      sessionId: myPlayerInfo.sessionId,
+      teamId: myPlayerInfo.teamId
+    });
+  };
 
   const tapHandler = new window.TapHandler((timestamp) => {
     socket.emit(CLIENT_TO_SERVER.GUEST_TAP, { timestamp });
@@ -20,7 +75,75 @@ document.addEventListener('DOMContentLoaded', () => {
   const showScreen = (screenId) => {
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
     const target = document.getElementById(screenId);
-    if (target) target.classList.add('active');
+    if (target) {
+      target.classList.add('active');
+      target.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+  };
+
+  const showTeamSelectMessage = (message = '') => {
+    const messageEl = document.getElementById('team-select-message');
+    if (messageEl) messageEl.innerText = message;
+  };
+
+  const showPauseOverlay = (visible) => {
+    const overlay = document.getElementById('mobile-pause-overlay');
+    if (overlay) overlay.classList.toggle('active', !!visible);
+  };
+
+  const updatePlayerStatus = (status) => {
+    if (!status) return;
+    const tapCount = Number(status.tapCount || 0);
+    const rank = status.teamRank ? `第 ${status.teamRank}` : '--';
+    const progress = Math.min(100, Math.max(0, Number(status.teamProgressPercent || 0)));
+    const nextCritical = Number(status.nextCriticalIn || 20);
+    const tapEl = document.getElementById('my-tap-count');
+    const rankEl = document.getElementById('my-team-rank');
+    const progressEl = document.getElementById('my-team-progress');
+    const criticalEl = document.getElementById('next-critical-count');
+    const criticalFill = document.getElementById('critical-progress-fill');
+    if (tapEl) tapEl.innerText = tapCount.toLocaleString('zh-TW');
+    if (rankEl) rankEl.innerText = rank;
+    if (progressEl) progressEl.innerText = `${progress.toFixed(0)}%`;
+    if (criticalEl) criticalEl.innerText = nextCritical;
+    if (criticalFill) criticalFill.style.width = `${(tapCount % 20) / 20 * 100}%`;
+    showPauseOverlay(!!status.paused);
+  };
+
+  const hideFinalSprint = () => {
+    const banner = document.getElementById('final-sprint-mobile');
+    if (finalSprintCountdownTimer) clearInterval(finalSprintCountdownTimer);
+    if (finalSprintCompactTimer) clearTimeout(finalSprintCompactTimer);
+    finalSprintCountdownTimer = null;
+    finalSprintCompactTimer = null;
+    if (banner) {
+      banner.classList.remove('active', 'compact');
+      banner.setAttribute('aria-hidden', 'true');
+    }
+  };
+
+  const showFinalSprint = (data, announce = true) => {
+    const banner = document.getElementById('final-sprint-mobile');
+    const secondsEl = document.getElementById('final-sprint-mobile-seconds');
+    if (!banner || !secondsEl) return;
+    const hardFinishAt = Number(data && data.hardFinishAt) ||
+      (Date.now() + Math.max(0, Number(data && data.durationSeconds) || 60) * 1000);
+
+    if (finalSprintCountdownTimer) clearInterval(finalSprintCountdownTimer);
+    if (finalSprintCompactTimer) clearTimeout(finalSprintCompactTimer);
+    banner.classList.add('active');
+    banner.classList.toggle('compact', !announce);
+    banner.setAttribute('aria-hidden', 'false');
+
+    const updateCountdown = () => {
+      secondsEl.innerText = String(Math.max(0, Math.ceil((hardFinishAt - Date.now()) / 1000)));
+    };
+    updateCountdown();
+    finalSprintCountdownTimer = setInterval(updateCountdown, 250);
+    if (announce) {
+      finalSprintCompactTimer = setTimeout(() => banner.classList.add('compact'), 3000);
+    }
   };
 
   // 1. 頭像選擇邏輯
@@ -29,6 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.avatar-opt').forEach(opt => opt.classList.remove('selected'));
       el.classList.add('selected');
       myPlayerInfo.avatar = el.getAttribute('data-val');
+      persistPlayer();
     };
   });
 
@@ -40,9 +164,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     myPlayerInfo.nickname = nick;
-    myPlayerInfo.isJoined = true;
-    socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, { nickname: nick, avatar: myPlayerInfo.avatar });
-    showScreen('screen-team-select');
+    myPlayerInfo.isJoined = false;
+    persistPlayer();
+    registrationPending = false;
+    document.getElementById('login-error').innerText = '';
+    emitJoin(true);
   };
 
   // 3. 動態產生選隊卡片與邏輯
@@ -53,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (window.GameConfig && window.GameConfig.TEAMS) {
       window.GameConfig.TEAMS.forEach(team => {
+        const maxMembers = Number(window.GameConfig.maxPlayersPerTeam || 50);
         const card = document.createElement('div');
         card.className = `team-choice-card ${team.color}-choice`;
         card.setAttribute('data-team', team.id);
@@ -66,12 +193,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
             <div class="choice-card-footer">
-                <span id="choice-${team.id}-count" class="member-count-tag">👥 已就位：0 人</span>
-                <button class="btn-select bg-${team.color}" style="background-color: ${team.hex}">✨ 加入 ${team.name}</button>
+                <span id="choice-${team.id}-count" class="member-count-tag">👥 0 / ${maxMembers}</span>
+                <button class="btn-select bg-${team.color}" style="background-color: ${team.hex}">加入</button>
             </div>
         `;
         
         card.onclick = () => {
+          if (card.classList.contains('is-full') && myPlayerInfo.teamId !== team.id) {
+            showTeamSelectMessage(`${team.name} 已達 ${maxMembers} 人上限，請選擇其他隊伍。`);
+            return;
+          }
+          showTeamSelectMessage('');
           socket.emit(CLIENT_TO_SERVER.GUEST_CHOOSE_TEAM, { teamId: team.id });
         };
         container.appendChild(card);
@@ -98,18 +230,53 @@ document.addEventListener('DOMContentLoaded', () => {
     // 斷線重連機制 (Auto-Healing)
     if (myPlayerInfo.isJoined) {
       console.log('🔄 偵測到斷線重連，正在還原連線會話...');
-      socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, { 
-        nickname: myPlayerInfo.nickname, 
-        avatar: myPlayerInfo.avatar,
-        isReconnect: true,
-        teamId: myPlayerInfo.teamId 
-      });
+      registrationPending = false;
+      emitJoin();
+    }
+  });
+
+  socket.on(SERVER_TO_CLIENT.GUEST_JOIN_ACK, (data) => {
+    registrationPending = false;
+    setJoinPending(false);
+    if (data && data.success) {
+      myPlayerInfo.isJoined = true;
+      if (data.teamId) myPlayerInfo.teamId = data.teamId;
+      persistPlayer();
+      updateHeader();
+      document.getElementById('login-error').innerText = '';
+      if (currentGameState === 'LOBBY' || currentGameState === 'MAP_SELECT' || currentGameState === 'ROUND_LOBBY') {
+        showScreen('screen-team-select');
+      }
+      return;
+    }
+
+    myPlayerInfo.isJoined = false;
+    if (data && data.reason === 'DUPLICATE_NICKNAME') {
+      myPlayerInfo.teamId = null;
+      persistPlayer();
+      showScreen('screen-login');
+      const nicknameInput = document.getElementById('input-nickname');
+      const rejectedName = (data.nickname || myPlayerInfo.nickname || '').trim();
+      document.getElementById('login-error').innerText = `「${rejectedName}」已有人使用，請換一個更好認的稱呼。`;
+      if (nicknameInput) {
+        nicknameInput.focus();
+        nicknameInput.select();
+      }
+    } else if (data && data.reason !== 'RACE_IN_PROGRESS') {
+      document.getElementById('login-error').innerText = '目前無法完成報到，請稍後再試。';
     }
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, (state) => {
     currentGameState = state.state;
     syncGameConfig(state.config);
+    showPauseOverlay(!!state.paused);
+    if (state.finalSprint && state.finalSprint.active) {
+      const banner = document.getElementById('final-sprint-mobile');
+      if (!banner || !banner.classList.contains('active')) showFinalSprint(state.finalSprint, false);
+    } else if (currentGameState !== 'RACING' && currentGameState !== 'QUIZ') {
+      hideFinalSprint();
+    }
     updateHeader();
 
     // 確保如果系統被強制中斷或離開答題，能清空背景計時器與介面
@@ -118,6 +285,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (currentGameState === 'LOBBY' || currentGameState === 'MAP_SELECT' || currentGameState === 'ROUND_LOBBY') {
+      const registeredOnServer = Array.isArray(state.players)
+        ? state.players.some(player => player && player.socketId === socket.id)
+        : true;
+      if (myPlayerInfo.isJoined && !registeredOnServer && !registrationPending) {
+        emitJoin();
+      }
       if (myPlayerInfo.isJoined) {
         showScreen('screen-team-select');
       } else {
@@ -134,26 +307,42 @@ document.addEventListener('DOMContentLoaded', () => {
         // 尚未選隊則顯示鎖定等候
         showScreen('screen-waiting');
         document.getElementById('wait-title').innerText = '⏳ 比賽正火爆進行中！';
-        document.getElementById('wait-desc').innerText = '開始遊戲後還沒加入的玩家不能再加入，\n請觀看大螢幕，等待下局開放加入與選隊！';
+        document.getElementById('wait-desc').innerText = '本場遊戲已開始，請觀看大螢幕等待最終結果。';
       }
     } else if (currentGameState === 'ROUND_FINISHED' || currentGameState === 'MATCH_FINISHED') {
       showScreen('screen-waiting');
       document.getElementById('wait-title').innerText = '🏆 本局賽事結算中！';
-      document.getElementById('wait-desc').innerText = '請觀看大螢幕精彩戰績結算！\n即將為您開放下局換隊與加入！';
+      document.getElementById('wait-desc').innerText = '請觀看大螢幕，精彩戰績與最終頒獎即將揭曉！';
     }
 
     if (state.teams) updateTeamsCount(state.teams);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_JOIN_LOCKED, (data) => {
+    registrationPending = false;
+    setJoinPending(false);
     showScreen('screen-waiting');
     document.getElementById('wait-title').innerText = '🔒 抱歉，比賽已開始！';
-    document.getElementById('wait-desc').innerText = '根據遊戲規則：開始遊戲後還沒加入的玩家不能再加入！\n請觀看大螢幕投影，等待下局開放重新加入！';
+    document.getElementById('wait-desc').innerText = '本場遊戲已開始，請觀看大螢幕等待最終結果。';
+  });
+
+  socket.on(SERVER_TO_CLIENT.GAME_TEAM_FULL, (data) => {
+    registrationPending = false;
+    const team = (window.GameConfig && window.GameConfig.TEAMS || [])
+      .find(item => item.id === data.teamId);
+    const teamName = team ? team.name : '這個隊伍';
+    const maxMembers = Number(data.maxPlayersPerTeam || 50);
+    showScreen('screen-team-select');
+    showTeamSelectMessage(`${teamName} 已達 ${maxMembers} 人上限，請選擇其他隊伍。`);
+    const card = document.querySelector(`.team-choice-card[data-team="${data.teamId}"]`);
+    if (card && myPlayerInfo.teamId !== data.teamId) card.classList.add('is-full');
   });
 
   socket.on('guest:team_chosen', (data) => {
     myPlayerInfo.teamId = data.teamId;
+    persistPlayer();
     updateHeader();
+    showTeamSelectMessage('');
     
     // 更新應援橫幅
     const banner = document.getElementById('my-team-banner');
@@ -175,30 +364,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 更新選隊按鈕文字顯示當前狀態
     document.querySelectorAll('.team-choice-card button').forEach(btn => {
-      const card = btn.closest('.team-choice-card');
-      const tId = card ? card.getAttribute('data-team') : '';
-      let tName = tId;
-      if (window.GameConfig && window.GameConfig.TEAMS) {
-        const tConf = window.GameConfig.TEAMS.find(t => t.id === tId);
-        if (tConf) tName = tConf.name;
-      }
-      btn.innerText = `👉 加入 ${tName}`;
+      btn.innerText = '加入';
       btn.style.opacity = '0.7';
     });
     const chosenBtn = document.querySelector(`.team-choice-card[data-team="${data.teamId}"] button`);
     if (chosenBtn) {
-      chosenBtn.innerText = `✅ 已成功加入 ${teamNameStr}！(可重新選隊)`;
+      chosenBtn.innerText = '✓ 已加入';
       chosenBtn.style.opacity = '1';
     }
 
     if (currentGameState === 'RACING' || currentGameState === 'COUNTDOWN') {
       showScreen('screen-racing');
     } else {
-      alert(`🎉 成功加入 ${teamNameStr}！準備開跑！`);
+      showTeamSelectMessage(`已加入 ${teamNameStr}，準備開跑！`);
     }
   });
 
+  socket.on(SERVER_TO_CLIENT.GAME_TEAM_ASSIGNED, (data) => {
+    if (!data || !data.teamId) return;
+    myPlayerInfo.teamId = data.teamId;
+    persistPlayer();
+    updateHeader();
+    const teamConf = ((window.GameConfig && window.GameConfig.TEAMS) || []).find(team => team.id === data.teamId);
+    const banner = document.getElementById('my-team-banner');
+    const nameEl = document.getElementById('my-team-name');
+    if (teamConf && banner && nameEl) {
+      nameEl.innerText = teamConf.name;
+      banner.style.borderColor = teamConf.hex;
+      banner.style.background = `${teamConf.hex}26`;
+    }
+    showTeamSelectMessage(`系統已自動分配至 ${teamConf ? teamConf.name : data.teamId}`);
+    if (currentGameState === 'COUNTDOWN' || currentGameState === 'RACING') showScreen('screen-racing');
+  });
+
+  socket.on(SERVER_TO_CLIENT.GAME_TAP_ACK, (result) => {
+    tapHandler.showAckFeedback(result);
+    if (result && result.status) updatePlayerStatus(result.status);
+  });
+
+  socket.on(SERVER_TO_CLIENT.GAME_PLAYER_STATUS, updatePlayerStatus);
+  socket.on(SERVER_TO_CLIENT.GAME_PAUSED, () => showPauseOverlay(true));
+  socket.on(SERVER_TO_CLIENT.GAME_RESUMED, () => showPauseOverlay(false));
+
   socket.on(SERVER_TO_CLIENT.SYSTEM_ERROR, (err) => {
+    registrationPending = false;
+    setJoinPending(false);
     alert('⚠️ 系統提示：' + (err.message || '操作發生錯誤'));
   });
 
@@ -209,10 +419,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.teams) updateTeamsCount(data.teams);
   });
 
+  socket.on(SERVER_TO_CLIENT.GAME_FINAL_SPRINT, (data) => {
+    showFinalSprint(data, true);
+  });
+
   function updateTeamsCount(teams) {
     for (const t of teams) {
+      const maxMembers = Number(t.maxMembers || (window.GameConfig && window.GameConfig.maxPlayersPerTeam) || 50);
+      const isCurrentTeam = myPlayerInfo.teamId === t.id;
+      const isFull = !!t.isFull || Number(t.memberCount || 0) >= maxMembers;
       const el = document.getElementById(`choice-${t.id}-count`);
-      if (el) el.innerText = `已就位：${t.memberCount} 人`;
+      if (el) el.innerText = `👥 ${t.memberCount} / ${maxMembers}${isFull ? '・已滿' : ''}`;
+      const card = document.querySelector(`.team-choice-card[data-team="${t.id}"]`);
+      const button = card ? card.querySelector('.btn-select') : null;
+      if (card) {
+        card.classList.toggle('is-full', isFull && !isCurrentTeam);
+        card.classList.toggle('is-current-team', isCurrentTeam);
+      }
+      if (button) {
+        button.disabled = isFull && !isCurrentTeam;
+        if (isCurrentTeam) button.innerText = '✓ 已加入';
+        else if (isFull) button.innerText = '已額滿';
+        else button.innerText = '加入';
+      }
     }
   }
 
@@ -242,19 +471,23 @@ document.addEventListener('DOMContentLoaded', () => {
     quizUI.showOptions(data.options, data.timeLimit);
   });
 
-  socket.on(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, () => {
+  socket.on(SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK, (result) => {
+    quizUI.showAnswerAck(result);
+  });
+
+  socket.on(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, (data) => {
     quizUI.stopTimer();
-    if (myPlayerInfo.isJoined) {
-      showScreen('screen-racing');
-    }
+    const teamResult = data && data.teamResults ? data.teamResults[myPlayerInfo.teamId] : null;
+    quizUI.showTeamResult(teamResult);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_ROUND_FINISHED, () => {
+    hideFinalSprint();
     quizUI.stopTimer();
     if (myPlayerInfo.isJoined) {
       showScreen('screen-waiting');
       document.getElementById('wait-title').innerText = '🏆 本局賽事結算中！';
-      document.getElementById('wait-desc').innerText = '請觀看大螢幕精彩戰績結算！\n即將為您開放下局換隊與加入！';
+      document.getElementById('wait-desc').innerText = '請觀看大螢幕，精彩戰績與最終頒獎即將揭曉！';
     }
   });
 

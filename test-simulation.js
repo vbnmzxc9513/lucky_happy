@@ -7,12 +7,11 @@
  */
 const { io } = require('socket.io-client');
 
-const SERVER_URL = 'http://localhost:3000';
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 const BOT_COUNT = 20;
+const ROUND_FINISH_TIMEOUT_MS = Number(process.env.TEST_ROUND_TIMEOUT_MS || 120000);
 const TEAM_IDS = ['red', 'blue', 'yellow', 'pink', 'purple'];
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'lucky2026';
-const BASIC_AUTH = 'Basic ' + Buffer.from(`${ADMIN_USER}:${ADMIN_PASS}`).toString('base64');
+const STAFF_ACCESS_CODE = process.env.STAFF_ACCESS_CODE || '1009';
 const NICKNAMES = [
   '大表哥', '小美', '阿姨', '舅舅', '堂弟',
   '花花', '阿寶', '小強', '美美', '大叔',
@@ -47,21 +46,25 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function getSocketToken(role) {
-  const res = await fetch(`${SERVER_URL}/socket-token/${role}`, {
-    headers: { Authorization: BASIC_AUTH }
+async function getStaffCookie() {
+  const res = await fetch(`${SERVER_URL}/staff-login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: STAFF_ACCESS_CODE, next: '/host/' })
   });
-  if (!res.ok) {
-    throw new Error(`無法取得 ${role} socket token: HTTP ${res.status}`);
+  if (res.status !== 302) {
+    throw new Error(`無法取得工作人員 session: HTTP ${res.status}`);
   }
-  const data = await res.json();
-  return data.token;
+  const setCookie = res.headers.get('set-cookie');
+  if (!setCookie) throw new Error('登入成功但沒有收到 session cookie');
+  return setCookie.split(';')[0];
 }
 
 // ========== Phase 1: 主持端連線 ==========
 async function phase1_hostConnect() {
   log('=== Phase 1: 主持端連線 ===');
-  const hostToken = await getSocketToken('host');
+  const staffCookie = await getStaffCookie();
   return new Promise((resolve) => {
     let resolved = false;
     const finish = (state) => {
@@ -75,7 +78,10 @@ async function phase1_hostConnect() {
       finish(null);
     }, 5000);
 
-    hostSocket = io(SERVER_URL, { auth: { role: 'host', token: hostToken } });
+    hostSocket = io(SERVER_URL, {
+      auth: { role: 'control' },
+      extraHeaders: { Cookie: staffCookie }
+    });
     
     hostSocket.on('connect', () => {
       assert(true, '主持端成功連線 (socket.id=' + hostSocket.id + ')');
@@ -165,8 +171,8 @@ async function phase3_startRound() {
     };
     
     hostSocket.on('game:state_sync', stateHandler);
-    hostSocket.emit('host:start_round');
-    log('已發送 HOST_START_ROUND');
+    hostSocket.emit('control:start_round');
+    log('已發送 CONTROL_START_ROUND');
     
     setTimeout(() => {
       if (!racingReceived) {
@@ -248,8 +254,8 @@ async function phase5_quizTrigger() {
       if (data.teamResults) {
         const teamNames = { red: '牛仔隊', blue: '氣球隊', yellow: '生日隊', pink: '公主隊', purple: '格格隊' };
         for (const [tid, res] of Object.entries(data.teamResults)) {
-          const ratePct = Math.round(res.rate * 100);
-          log(`  ${teamNames[tid] || tid}: 答對率 ${ratePct}%, 效果=${res.effect} (${res.val})`);
+          const responsePct = Math.round((Number(res.responseRate) || 0) * 100);
+          log(`  ${teamNames[tid] || tid}: ${res.answeredCount}/${res.totalCount} 已作答 (${responsePct}%), 效果=${res.effect} (${res.val})`);
         }
       }
       
@@ -290,7 +296,7 @@ async function phase5_quizTrigger() {
 
 // ========== Phase 6: 等待比賽結束 ==========
 async function phase6_roundFinish() {
-  log('\n=== Phase 6: 等待比賽結束 ===');
+  log('\n=== Phase 6: 短時間觀察比賽是否自然完賽 ===');
   
   return new Promise((resolve) => {
     // 繼續點擊直到比賽結束
@@ -325,15 +331,19 @@ async function phase6_roundFinish() {
     
     setTimeout(() => {
       clearInterval(tapInterval);
-      log('120 秒未結束比賽', 'WARN');
+      log(`正式版目標約 7 分鐘；短測試等待 ${Math.round(ROUND_FINISH_TIMEOUT_MS / 1000)} 秒未完賽屬正常`, 'INFO');
       resolve(null);
-    }, 120000);
+    }, ROUND_FINISH_TIMEOUT_MS);
   });
 }
 
 // ========== 清理 ==========
-function cleanup() {
+async function cleanup() {
   log('\n=== 清理連線 ===');
+  if (hostSocket && hostSocket.connected) {
+    hostSocket.emit('control:reset_game');
+    await sleep(250);
+  }
   guestSockets.forEach(g => g.disconnect());
   if (hostSocket) hostSocket.disconnect();
   guestSockets = [];
@@ -376,7 +386,7 @@ async function runFullTest() {
     log(`測試過程發生異常: ${err.message}`, 'FAIL');
     console.error(err);
   } finally {
-    cleanup();
+    await cleanup();
   }
 
   // 輸出最終報告

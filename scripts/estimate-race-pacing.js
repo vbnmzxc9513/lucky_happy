@@ -33,7 +33,7 @@ function estimateFixedDuration(gameManager, map, fixedTrackLength) {
   };
 }
 
-function estimate(totalPlayers, fixedTrackLength = 104000) {
+function estimate(totalPlayers, fixedTrackLength = 76000) {
   const dynamicGame = new GameManager(new MockIo());
   addPlayersEvenly(dynamicGame, totalPlayers);
   const dynamicMap = dynamicGame.mapManager.getCurrentMap();
@@ -52,9 +52,9 @@ function main() {
   const playerCounts = totals.length ? totals : [30, 50, 80, 100, 150, 200];
   const rows = playerCounts.map(count => estimate(count));
 
-  console.log('Assumptions: 5 teams, about 5 taps/sec/player, 3 questions, 10 sec/question, 3 sec prepare, 3 sec result.');
+  console.log('Assumptions: 5 teams, about 5 taps/sec/player, at least 10 questions, 10 sec/question, 3 sec prepare, 3 sec result.');
   console.log('');
-  console.log('| Players | Per team | Auto track | Auto total | Fixed 104000 total | Questions |');
+  console.log('| Players | Per team | Auto track | Auto total | Fixed 76000 total | Questions |');
   console.log('|---:|---:|---:|---:|---:|---:|');
   for (const row of rows) {
     console.log([

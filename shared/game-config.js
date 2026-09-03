@@ -3,8 +3,9 @@
  */
 
 const DEFAULT_CONFIG = {
-  trackLength: 104000,
+  trackLength: 76000,
   teamsCount: 5,
+  maxPlayersPerTeam: 50,
   TEAMS: [
     {
       id: "red",
@@ -12,8 +13,8 @@ const DEFAULT_CONFIG = {
       color: "red",
       hex: "#ef4444",
       slogan: "⚡ 西部狂野 奔馳無敵 ⚡",
-      imgPath: "/host/assets/heipi_cowboy_nobg.png",
-      runImgPath: "/host/assets/heipi_cowboy_run.png"
+      imgPath: "/assets/heipi_cowboy_nobg.png",
+      runImgPath: "/assets/heipi_cowboy_run.png"
     },
     {
       id: "blue",
@@ -21,8 +22,8 @@ const DEFAULT_CONFIG = {
       color: "blue",
       hex: "#3b82f6",
       slogan: "💨 一飛沖天 直達雲端 💨",
-      imgPath: "/host/assets/heipi_balloon_nobg.png",
-      runImgPath: "/host/assets/heipi_balloon_run.png"
+      imgPath: "/assets/heipi_balloon_nobg.png",
+      runImgPath: "/assets/heipi_balloon_run.png"
     },
     {
       id: "yellow",
@@ -30,8 +31,8 @@ const DEFAULT_CONFIG = {
       color: "yellow",
       hex: "#f59e0b",
       slogan: "🎂 慶祝派對 幸運滿分 🎂",
-      imgPath: "/host/assets/heipi_birthday_nobg.png",
-      runImgPath: "/host/assets/heipi_birthday_run.png"
+      imgPath: "/assets/heipi_birthday_nobg.png",
+      runImgPath: "/assets/heipi_birthday_run.png"
     },
     {
       id: "pink",
@@ -39,8 +40,8 @@ const DEFAULT_CONFIG = {
       color: "pink",
       hex: "#ec4899",
       slogan: "👑 閃亮登場 甜美致勝 👑",
-      imgPath: "/host/assets/heipi_pink_nobg.png",
-      runImgPath: "/host/assets/heipi_princess_run.png"
+      imgPath: "/assets/heipi_pink_nobg.png",
+      runImgPath: "/assets/heipi_princess_run.png"
     },
     {
       id: "purple",
@@ -48,8 +49,8 @@ const DEFAULT_CONFIG = {
       color: "purple",
       hex: "#8b5cf6",
       slogan: "🌸 皇阿瑪駕到 所向披靡 🌸",
-      imgPath: "/host/assets/heipi_purple_nobg.png",
-      runImgPath: "/host/assets/heipi_gege_run.png"
+      imgPath: "/assets/heipi_purple_nobg.png",
+      runImgPath: "/assets/heipi_gege_run.png"
     }
   ],
   quizTimeLimit: 10,           // 答題秒數
@@ -64,8 +65,10 @@ const DEFAULT_CONFIG = {
   totalRounds: 1,              // 預設一戰決勝負
   racePacing: {
     enabled: true,
-    targetGameSeconds: 420,
-    targetQuizCount: 3,
+    targetGameSeconds: 390,
+    targetQuizCount: 10,
+    expectedPlayers: 150,
+    triggerFrequencyPercent: 9,
     expectedTapRatePerPlayer: 5,
     expectedQuizBoostPx: 1500,
     quizPrepareSeconds: 3,
@@ -73,6 +76,14 @@ const DEFAULT_CONFIG = {
     finalTransitionSeconds: 5,
     minTrackLength: 30000,
     maxTrackLength: 220000
+  },
+  finalSprint: {
+    enabled: true,
+    startAfterSeconds: 540,
+    hardFinishAfterSeconds: 600,
+    tapBoostMultiplier: 2,
+    initialTeamSpeed: 10,
+    checkpointCatchupBufferSeconds: 3
   },
   
   // 答題正確率獎懲門檻

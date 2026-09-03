@@ -152,6 +152,16 @@ class QuizDisplay {
     });
   }
 
+  updateTeamProgress(progress) {
+    if (!progress || !progress.teamId) return;
+    const answered = Number(progress.answeredCount || 0);
+    const total = Number(progress.totalCount || 0);
+    const el = document.getElementById(`quiz-${progress.teamId}-answered`);
+    const barEl = document.getElementById(`quiz-${progress.teamId}-bar`);
+    if (el) el.innerText = `${answered} / ${total}`;
+    if (barEl) barEl.style.width = `${total > 0 ? Math.round(answered / total * 100) : 0}%`;
+  }
+
   showResult(resultData) {
     if (this.timerInterval) clearInterval(this.timerInterval);
     const resBox = document.getElementById('quiz-result-section');
@@ -175,11 +185,17 @@ class QuizDisplay {
     teams.forEach(t => {
       const res = resultData.teamResults[t.id];
       if (!res) return;
-      const ratePct = Math.round(res.rate * 100);
+      const votes = res.voteCounts || {};
+      const topVotes = res.teamAnswer ? Number(votes[res.teamAnswer] || 0) : 0;
+      const decision = res.noAnswer
+        ? '未作答'
+        : res.hasTie
+          ? '票數平手'
+          : `多數選 ${res.teamAnswer} · ${topVotes} 票`;
       const html = `
         <div class="quiz-res-card" style="border-top: 4px solid ${t.hex};">
-            <h4 style="color: ${t.hex};">${t.name}答對率</h4>
-            <div class="rate-val">${ratePct}%</div>
+            <h4 style="color: ${t.hex};">${t.name}隊伍答案</h4>
+            <div class="rate-val">${decision}</div>
             <div class="effect-badge">${getEffectText(res.effect, res.val)}</div>
         </div>
       `;

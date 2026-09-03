@@ -8,6 +8,10 @@ let allMaps = [];
 let allQuizzes = [];
 let currentConfig = window.GameConfig || {};
 let selectedQuizPlanMapId = 'wedding-final-showdown';
+const MIN_FORMAL_QUIZ_COUNT = 10;
+const DEFAULT_EXPECTED_PLAYERS = 150;
+const DEFAULT_FORMAL_TRACK_LENGTH = 76000;
+const DEFAULT_TRIGGER_FREQUENCY_PERCENT = 9;
 
 function updateAdminStageScale() {
   const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
@@ -19,24 +23,10 @@ function setupAdminPresentationViewport() {
   window.addEventListener('resize', updateAdminStageScale);
 }
 
-async function connectPrivilegedSocket(role) {
+function connectPrivilegedSocket(role) {
   if (typeof socket.connect !== 'function') return;
-  try {
-    const tokenUrl = new URL(`/socket-token/${role}`, window.location.origin);
-    const res = await fetch(tokenUrl.href, { credentials: 'same-origin' });
-    if (!res.ok) throw new Error(`socket token request failed: ${res.status}`);
-    const data = await res.json();
-    socket.auth = { role, token: data.token };
-    socket.connect();
-  } catch (err) {
-    const badge = document.getElementById('connectionStatus');
-    if (badge) {
-      badge.textContent = '🔴 後台權限驗證失敗，請重新整理並輸入密碼';
-      badge.style.borderColor = '#B86B53';
-      badge.style.color = '#B86B53';
-    }
-    console.error('後台權限驗證失敗:', err);
-  }
+  socket.auth = { role };
+  socket.connect();
 }
 
 // ==========================================
@@ -78,6 +68,7 @@ function syncConfig(config) {
   renderTeamNameInputs();
   renderForceItemButtons();
   updateRewardRuleLabels();
+  syncPacingControlsFromConfig();
   updateQuizPacing();
 }
 
@@ -220,8 +211,9 @@ function formatSeconds(totalSeconds) {
 function getRacePacingConfig() {
   return {
     enabled: true,
-    targetGameSeconds: 420,
-    targetQuizCount: 3,
+    targetGameSeconds: 390,
+    targetQuizCount: MIN_FORMAL_QUIZ_COUNT,
+    expectedPlayers: DEFAULT_EXPECTED_PLAYERS,
     expectedTapRatePerPlayer: 5,
     expectedQuizBoostPx: 1500,
     quizPrepareSeconds: 3,
@@ -230,6 +222,66 @@ function getRacePacingConfig() {
     minTrackLength: 30000,
     maxTrackLength: 220000,
     ...((currentConfig && currentConfig.racePacing) || {})
+  };
+}
+
+function clampNumber(value, min, max, fallback) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(min, Math.min(max, num));
+}
+
+function getControlNumber(id, min, max, fallback) {
+  const el = document.getElementById(id);
+  return clampNumber(el ? el.value : undefined, min, max, fallback);
+}
+
+function getTargetQuizCount() {
+  const pacing = getRacePacingConfig();
+  const fallback = Math.max(MIN_FORMAL_QUIZ_COUNT, Number(pacing.targetQuizCount || MIN_FORMAL_QUIZ_COUNT));
+  return Math.round(getControlNumber('quizTargetQuestionCount', MIN_FORMAL_QUIZ_COUNT, 20, fallback));
+}
+
+function getQuizTrackLength() {
+  const map = getSelectedQuizPlanMap();
+  const fallback = Number((map && map.track && map.track.length) || currentConfig.trackLength || DEFAULT_FORMAL_TRACK_LENGTH);
+  return Math.round(getControlNumber('quizTrackLengthInput', 1000, 300000, fallback));
+}
+
+function getQuizTriggerFrequency() {
+  return Math.round(getControlNumber('quizTriggerFrequency', 5, 20, DEFAULT_TRIGGER_FREQUENCY_PERCENT));
+}
+
+function isAutoPacingEnabled() {
+  const auto = document.getElementById('quizAutoPacingEnabled');
+  if (auto) return auto.checked;
+  return getRacePacingConfig().enabled !== false;
+}
+
+function syncPacingControlsFromConfig() {
+  const pacing = getRacePacingConfig();
+  const targetCount = Math.max(MIN_FORMAL_QUIZ_COUNT, Number(pacing.targetQuizCount || MIN_FORMAL_QUIZ_COUNT));
+  setConfigControlValue('quizExpectedPlayers', pacing.expectedPlayers || DEFAULT_EXPECTED_PLAYERS);
+  setConfigControlValue('quizTargetQuestionCount', targetCount);
+  setConfigControlValue('quizTriggerFrequency', pacing.triggerFrequencyPercent || DEFAULT_TRIGGER_FREQUENCY_PERCENT);
+  const auto = document.getElementById('quizAutoPacingEnabled');
+  if (auto) auto.checked = pacing.enabled !== false;
+  syncQuizTrackLengthFromSelectedMap();
+}
+
+function syncQuizTrackLengthFromSelectedMap() {
+  const map = getSelectedQuizPlanMap();
+  const length = Number((map && map.track && map.track.length) || currentConfig.trackLength || DEFAULT_FORMAL_TRACK_LENGTH);
+  setConfigControlValue('quizTrackLengthInput', length);
+}
+
+function getRacePacingPayload() {
+  return {
+    ...getRacePacingConfig(),
+    enabled: isAutoPacingEnabled(),
+    targetQuizCount: getTargetQuizCount(),
+    expectedPlayers: getControlNumber('quizExpectedPlayers', 5, 300, DEFAULT_EXPECTED_PLAYERS),
+    triggerFrequencyPercent: getQuizTriggerFrequency()
   };
 }
 
@@ -302,7 +354,7 @@ socket.on('disconnect', () => {
 
 socket.on('connect_error', (err) => {
   const badge = document.getElementById('connectionStatus');
-  badge.textContent = '🔴 後台連線驗證失敗，請重新整理並輸入密碼';
+  badge.textContent = '🔴 後台驗證失敗，請回到工作人員主頁輸入驗證碼';
   badge.style.borderColor = '#B86B53';
   badge.style.color = '#B86B53';
   console.error('後台連線驗證失敗:', err.message);
@@ -363,7 +415,7 @@ socket.on('admin:response', (res) => {
 // 3. 賽事配置儲存 (Save Config)
 // ==========================================
 function saveConfig() {
-  const trackLength = Number(document.getElementById('trackLength').value) || 104000;
+  const trackLength = Number(document.getElementById('trackLength').value) || DEFAULT_FORMAL_TRACK_LENGTH;
   const totalRounds = Number(document.getElementById('totalRounds').value) || 1;
   const baseBoost = Number(document.getElementById('baseBoost').value) || 0.5;
   const quizTimeLimit = Number(document.getElementById('quizTimeLimit').value) || 10;
@@ -379,7 +431,8 @@ function saveConfig() {
     trackLength,
     totalRounds,
     baseBoost,
-    quizTimeLimit
+    quizTimeLimit,
+    racePacing: getRacePacingPayload()
   };
 
   socket.emit('admin:update_config', newConfig);
@@ -551,11 +604,13 @@ function renderQuizPlanMapSelect() {
       ${escapeHtml(map.name || map.id)}
     </option>
   `).join('');
+  syncQuizTrackLengthFromSelectedMap();
 }
 
 function loadQuizPlanFromSelectedMap() {
   const select = document.getElementById('quizPlanMapSelect');
   if (select && select.value) selectedQuizPlanMapId = select.value;
+  syncQuizTrackLengthFromSelectedMap();
   renderQuizPlanner();
 }
 
@@ -591,11 +646,33 @@ function getCheckpointPercent(cp, fallbackIndex, total) {
   return Math.round(((fallbackIndex + 1) / (total + 1)) * 100);
 }
 
+function getDefaultQuizIdForPlan(index, map) {
+  const pool = Array.isArray(map && map.quizPool) ? map.quizPool.filter(Boolean) : [];
+  if (pool.length > 0) return pool[index % pool.length];
+  if (allQuizzes.length > 0) return allQuizzes[index % allQuizzes.length].id;
+  return '';
+}
+
+function createDefaultQuizPlanCheckpoint(index, total, map) {
+  const quizId = getDefaultQuizIdForPlan(index, map);
+  const quiz = getQuizById(quizId);
+  return {
+    id: `final_cp_${index + 1}`,
+    trigger: {
+      type: 'team_progress',
+      percent: Math.round(((index + 1) / (total + 1)) * 100)
+    },
+    quizId: quizId || null,
+    timeLimit: (quiz && quiz.timeLimit) || currentConfig.quizTimeLimit || 10
+  };
+}
+
 function renderQuizPlanner() {
   const container = document.getElementById('quizPlanRows');
   if (!container) return;
   const map = getSelectedQuizPlanMap();
   renderQuizPlanMapSelect();
+  syncQuizTrackLengthFromSelectedMap();
   container.innerHTML = '';
 
   if (!map) {
@@ -604,12 +681,13 @@ function renderQuizPlanner() {
     return;
   }
 
-  const checkpoints = Array.isArray(map.checkpoints) ? map.checkpoints : [];
-  if (!checkpoints.length) {
-    addQuizPlanRow(null, null, false);
-  } else {
-    checkpoints.forEach((cp, index) => addQuizPlanRow(cp, index, false));
+  const targetCount = getTargetQuizCount();
+  const checkpoints = Array.isArray(map.checkpoints) ? [...map.checkpoints] : [];
+  const renderCount = Math.max(targetCount, checkpoints.length);
+  for (let index = checkpoints.length; index < renderCount; index++) {
+    checkpoints.push(createDefaultQuizPlanCheckpoint(index, renderCount, map));
   }
+  checkpoints.forEach((cp, index) => addQuizPlanRow(cp, index, false));
   updateQuizPacing();
 }
 
@@ -618,7 +696,7 @@ function addQuizPlanRow(cp = null, fallbackIndex = null, shouldUpdate = true) {
   if (!container) return;
   const existingRows = container.querySelectorAll('.quiz-plan-row').length;
   const index = fallbackIndex !== null ? fallbackIndex : existingRows;
-  const total = Math.max(existingRows + 1, (getSelectedQuizPlanMap()?.checkpoints || []).length || 1);
+  const total = Math.max(existingRows + 1, getTargetQuizCount(), (getSelectedQuizPlanMap()?.checkpoints || []).length || 1);
   const quizId = (cp && cp.quizId) || '';
   const quiz = getQuizById(quizId);
   const timeLimit = (cp && cp.timeLimit) || (quiz && quiz.timeLimit) || currentConfig.quizTimeLimit || 10;
@@ -649,6 +727,29 @@ function addQuizPlanRow(cp = null, fallbackIndex = null, shouldUpdate = true) {
   `;
   container.appendChild(row);
   renumberQuizPlanRows();
+  if (shouldUpdate) updateQuizPacing();
+}
+
+function setQuizPlanRowCount(desiredCount) {
+  const container = document.getElementById('quizPlanRows');
+  if (!container) return;
+  const count = Math.max(MIN_FORMAL_QUIZ_COUNT, Math.min(20, Math.round(Number(desiredCount) || MIN_FORMAL_QUIZ_COUNT)));
+  let rows = Array.from(container.querySelectorAll('.quiz-plan-row'));
+  while (rows.length > count) {
+    rows[rows.length - 1].remove();
+    rows = Array.from(container.querySelectorAll('.quiz-plan-row'));
+  }
+  const map = getSelectedQuizPlanMap();
+  while (rows.length < count) {
+    addQuizPlanRow(createDefaultQuizPlanCheckpoint(rows.length, count, map), rows.length, false);
+    rows = Array.from(container.querySelectorAll('.quiz-plan-row'));
+  }
+  setConfigControlValue('quizTargetQuestionCount', count);
+  renumberQuizPlanRows();
+}
+
+function ensureMinimumQuizRows(desiredCount = getTargetQuizCount(), shouldUpdate = true) {
+  setQuizPlanRowCount(Math.max(MIN_FORMAL_QUIZ_COUNT, desiredCount));
   if (shouldUpdate) updateQuizPacing();
 }
 
@@ -685,20 +786,56 @@ function removeQuizPlanRow(button) {
   updateQuizPacing();
 }
 
-function autoSpreadQuizPlan() {
+function autoSpreadQuizPlan(shouldToast = true) {
   const rows = Array.from(document.querySelectorAll('.quiz-plan-row'));
   rows.forEach((row, index) => {
     const input = row.querySelector('.plan-percent-input');
     if (input) input.value = Math.round(((index + 1) / (rows.length + 1)) * 100);
   });
   updateQuizPacing();
-  showToast('已平均分配每題在賽道上的觸發進度');
+  if (shouldToast) showToast('已平均分配每題在賽道上的觸發進度');
+}
+
+function applyQuizFrequencyPlan() {
+  const frequency = getQuizTriggerFrequency();
+  const countByFrequency = Math.floor(95 / Math.max(1, frequency));
+  const desiredCount = Math.max(MIN_FORMAL_QUIZ_COUNT, getTargetQuizCount(), countByFrequency);
+  setQuizPlanRowCount(desiredCount);
+
+  const rows = Array.from(document.querySelectorAll('.quiz-plan-row'));
+  const canUseExactFrequency = frequency * rows.length <= 95;
+  rows.forEach((row, index) => {
+    const input = row.querySelector('.plan-percent-input');
+    if (!input) return;
+    input.value = canUseExactFrequency
+      ? frequency * (index + 1)
+      : Math.round(((index + 1) / (rows.length + 1)) * 100);
+  });
+
+  setConfigControlValue('quizTargetQuestionCount', rows.length);
+  updateQuizPacing();
+  showToast(canUseExactFrequency
+    ? `已依每 ${frequency}% 進度出題，排成 ${rows.length} 題。`
+    : `為了至少 ${MIN_FORMAL_QUIZ_COUNT} 題，已改用平均分配。`);
+}
+
+function applyRecommendedQuizPacing() {
+  setConfigControlValue('quizExpectedPlayers', DEFAULT_EXPECTED_PLAYERS);
+  setConfigControlValue('quizTrackLengthInput', DEFAULT_FORMAL_TRACK_LENGTH);
+  setConfigControlValue('quizTargetQuestionCount', MIN_FORMAL_QUIZ_COUNT);
+  setConfigControlValue('quizTriggerFrequency', DEFAULT_TRIGGER_FREQUENCY_PERCENT);
+  const auto = document.getElementById('quizAutoPacingEnabled');
+  if (auto) auto.checked = true;
+  setQuizPlanRowCount(MIN_FORMAL_QUIZ_COUNT);
+  applyQuizFrequencyPlan();
+  showToast('已套用正式版：150 人、10 題、約 7~8 分鐘節奏。');
 }
 
 function getQuizPlanRows() {
-  return Array.from(document.querySelectorAll('.quiz-plan-row')).map((row, index) => {
+  const rows = Array.from(document.querySelectorAll('.quiz-plan-row'));
+  return rows.map((row, index) => {
     const quizId = row.querySelector('.plan-quiz-select')?.value || '';
-    const percent = Number(row.querySelector('.plan-percent-input')?.value) || Math.round(((index + 1) / 4) * 100);
+    const percent = Number(row.querySelector('.plan-percent-input')?.value) || Math.round(((index + 1) / (rows.length + 1)) * 100);
     const timeLimit = Number(row.querySelector('.plan-time-input')?.value) || currentConfig.quizTimeLimit || 10;
     return {
       id: `final_cp_${index + 1}`,
@@ -718,45 +855,58 @@ function saveQuizPlan() {
     showToast('尚未載入賽道，無法保存出題順序。', true);
     return;
   }
+  ensureMinimumQuizRows(getTargetQuizCount(), false);
   const checkpoints = getQuizPlanRows();
   const quizPool = checkpoints.map(cp => cp.quizId).filter(Boolean);
+  const trackLength = getQuizTrackLength();
+  const racePacing = getRacePacingPayload();
   const mapData = {
     ...map,
+    track: {
+      ...(map.track || {}),
+      length: trackLength
+    },
     checkpoints,
     quizPool
   };
+  socket.emit('admin:update_config', {
+    trackLength,
+    racePacing
+  });
   socket.emit('admin:save_map', mapData);
-  showToast(`正在保存 ${checkpoints.length} 題到「${map.name || map.id}」`);
+  showToast(`正在保存 ${checkpoints.length} 題、${trackLength.toLocaleString('en-US')}px 到「${map.name || map.id}」`);
 }
 
 function updateQuizPacing() {
   const rows = getQuizPlanRows();
   const pacing = getRacePacingConfig();
-  const map = getSelectedQuizPlanMap();
   const playersInput = document.getElementById('quizExpectedPlayers');
-  const expectedPlayers = Number(playersInput && playersInput.value) || 150;
+  const expectedPlayers = Number(playersInput && playersInput.value) || pacing.expectedPlayers || DEFAULT_EXPECTED_PLAYERS;
   const teamCount = Math.max(1, (getTeamsConfig().length || currentConfig.teamsCount || 5));
   const fastestTeamSize = Math.max(1, Math.ceil(expectedPlayers / teamCount));
   const speedPxPerSecond = estimateTeamSpeedPxPerSecond(fastestTeamSize, pacing.expectedTapRatePerPlayer);
   const answerSeconds = rows.reduce((sum, cp) => sum + (Number(cp.timeLimit) || currentConfig.quizTimeLimit || 10), 0);
   const quizCount = rows.length;
+  const averageAnswerSeconds = quizCount > 0 ? answerSeconds / quizCount : Number(currentConfig.quizTimeLimit || 10);
   const perQuestionFixedSeconds = Number(pacing.quizPrepareSeconds || 3)
-    + Number(currentConfig.quizTimeLimit || 10)
+    + averageAnswerSeconds
     + Number(pacing.quizResultSeconds || 3);
   const overheadSeconds =
     Number(currentConfig.countdownSeconds || 3)
     + Number(pacing.finalTransitionSeconds || 5)
     + quizCount * (Number(pacing.quizPrepareSeconds || 3) + Number(pacing.quizResultSeconds || 3))
     + answerSeconds;
-  const targetGameSeconds = Math.max(60, Number(pacing.targetGameSeconds || 420));
+  const targetGameSeconds = Math.max(60, Number(pacing.targetGameSeconds || 390));
   const targetRacingSeconds = Math.max(60, targetGameSeconds - overheadSeconds);
   const quizBoost = quizCount * Math.max(0, Number(pacing.expectedQuizBoostPx || 0));
   const minTrack = Math.max(1000, Number(pacing.minTrackLength || 30000));
   const maxTrack = Math.max(minTrack, Number(pacing.maxTrackLength || 220000));
   const autoTrackLength = Math.max(minTrack, Math.min(maxTrack, Math.round(targetRacingSeconds * speedPxPerSecond + quizBoost)));
   const autoTotalSeconds = overheadSeconds + targetRacingSeconds;
-  const fixedTrackLength = Number((map && map.track && map.track.length) || currentConfig.trackLength || 104000);
+  const fixedTrackLength = getQuizTrackLength();
   const fixedTotalSeconds = overheadSeconds + Math.max(0, (fixedTrackLength - quizBoost) / Math.max(1, speedPxPerSecond));
+  const frequency = getQuizTriggerFrequency();
+  const autoEnabled = isAutoPacingEnabled();
 
   const countEl = document.getElementById('quizMetricCount');
   const questionEl = document.getElementById('quizMetricQuestionSeconds');
@@ -769,17 +919,25 @@ function updateQuizPacing() {
   if (fixedEl) fixedEl.textContent = formatSeconds(fixedTotalSeconds);
   if (summaryEl) {
     const autoTrackText = autoTrackLength.toLocaleString('en-US');
-    if (quizCount === 0) {
-      summaryEl.textContent = '目前沒有排題，遊戲會變成純賽馬衝刺。建議正式版保留 3 題左右。';
+    const fixedTrackText = fixedTrackLength.toLocaleString('en-US');
+    if (quizCount < MIN_FORMAL_QUIZ_COUNT) {
+      summaryEl.textContent = `目前只有 ${quizCount} 題，正式版至少需要 ${MIN_FORMAL_QUIZ_COUNT} 題；保存時會自動補足。`;
     } else if (autoTotalSeconds > targetGameSeconds + 5) {
       summaryEl.textContent = `${quizCount} 題會吃掉太多時間，自動配速也需要約 ${formatSeconds(autoTotalSeconds)}；建議減題或縮短作答秒數。`;
+    } else if (autoEnabled) {
+      summaryEl.textContent = `自動配速開啟：開賽會依 ${expectedPlayers} 人估算，把場地微調到約 ${autoTrackText}px，總長約 ${formatSeconds(autoTotalSeconds)}。`;
     } else {
-      summaryEl.textContent = `自動配速會把賽道調到約 ${autoTrackText}px，讓 ${expectedPlayers} 人時維持約 ${formatSeconds(autoTotalSeconds)}。`;
+      summaryEl.textContent = `固定場地模式：目前 ${fixedTrackText}px、${expectedPlayers} 人時，預估總長約 ${formatSeconds(fixedTotalSeconds)}。`;
     }
+  }
+  const hintEl = document.getElementById('quizFrequencyHint');
+  if (hintEl) {
+    const avgSpacing = quizCount > 0 ? Math.round(100 / (quizCount + 1)) : frequency;
+    hintEl.textContent = `目前 ${quizCount} 題，平均約每 ${avgSpacing}% 出 1 題；套用頻率會以 ${frequency}% 為目標，並保留至少 ${MIN_FORMAL_QUIZ_COUNT} 題。`;
   }
   renderQuestionCountForecast({
     currentCount: quizCount,
-    averageAnswerSeconds: quizCount > 0 ? answerSeconds / quizCount : Number(currentConfig.quizTimeLimit || 10),
+    averageAnswerSeconds,
     fixedTrackLength,
     speedPxPerSecond,
     pacing
@@ -789,7 +947,10 @@ function updateQuizPacing() {
 function renderQuestionCountForecast({ currentCount, averageAnswerSeconds, fixedTrackLength, speedPxPerSecond, pacing }) {
   const container = document.getElementById('questionCountForecast');
   if (!container) return;
-  const counts = [2, 3, 4, 5, 6];
+  const counts = Array.from(new Set([MIN_FORMAL_QUIZ_COUNT, 8, 9, 10, 12, currentCount]))
+    .filter(count => count >= MIN_FORMAL_QUIZ_COUNT && count <= 20)
+    .sort((a, b) => a - b)
+    .slice(0, 6);
   const prepare = Number(pacing.quizPrepareSeconds || 3);
   const result = Number(pacing.quizResultSeconds || 3);
   const finalTransition = Number(pacing.finalTransitionSeconds || 5);
@@ -978,7 +1139,6 @@ function showToast(message, isError = false) {
 
 // 頁面初次載入完成後預設載入一筆新題表單
 window.addEventListener('DOMContentLoaded', () => {
-  setupAdminPresentationViewport();
   syncConfig(currentConfig);
   resetMapForm();
   resetQuizForm();

@@ -3,9 +3,7 @@ const SERVER_URL = 'http://localhost:3000';
 const ITERATIONS = 10;
 const GUEST_COUNT = 30;
 const TEAM_IDS = ['red', 'blue', 'yellow', 'pink', 'purple'];
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'lucky2026';
-const BASIC_AUTH = 'Basic ' + Buffer.from(`${ADMIN_USER}:${ADMIN_PASS}`).toString('base64');
+const STAFF_ACCESS_CODE = process.env.STAFF_ACCESS_CODE || '1009';
 
 let hostSocket = null;
 let adminSocket = null;
@@ -20,23 +18,24 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function getSocketToken(role) {
-  const res = await fetch(`${SERVER_URL}/socket-token/${role}`, {
-    headers: { Authorization: BASIC_AUTH }
+async function getStaffCookie() {
+  const res = await fetch(`${SERVER_URL}/staff-login`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: STAFF_ACCESS_CODE, next: '/control/' })
   });
-  if (!res.ok) throw new Error(`無法取得 ${role} socket token: HTTP ${res.status}`);
-  const data = await res.json();
-  return data.token;
+  const cookie = res.headers.get('set-cookie');
+  if (res.status !== 302 || !cookie) throw new Error(`無法建立工作人員連線: HTTP ${res.status}`);
+  return cookie.split(';')[0];
 }
 
 async function setup() {
   log('Setting up Host and Admin...');
-  const [hostToken, adminToken] = await Promise.all([
-    getSocketToken('host'),
-    getSocketToken('admin')
-  ]);
-  hostSocket = io(SERVER_URL, { auth: { role: 'host', token: hostToken } });
-  adminSocket = io(SERVER_URL, { auth: { role: 'admin', token: adminToken } });
+  const staffCookie = await getStaffCookie();
+  const socketOptions = { extraHeaders: { Cookie: staffCookie } };
+  hostSocket = io(SERVER_URL, { ...socketOptions, auth: { role: 'control' } });
+  adminSocket = io(SERVER_URL, { ...socketOptions, auth: { role: 'admin' } });
 
   await new Promise(r => {
     let connected = 0;
@@ -72,7 +71,7 @@ async function runIteration(iteration) {
 
   // 2. 主持人開始比賽
   log('Host starts round...');
-  hostSocket.emit('host:start_round');
+  hostSocket.emit('control:start_round');
   await sleep(1000);
 
   // 3. 混亂階段：賽跑中
@@ -120,7 +119,7 @@ async function runIteration(iteration) {
     const rand = Math.random();
     if (rand < 0.1) {
       log('🚨 Random Event: Host 惡意重置遊戲！');
-      hostSocket.emit('host:reset_game');
+      hostSocket.emit('control:reset_game');
     } else if (rand < 0.2) {
       log('🚨 Random Event: Host 惡意跳下一局！');
       hostSocket.emit('host:next_round');
@@ -137,7 +136,7 @@ async function runIteration(iteration) {
 
   // 正常清理回合
   log('清理回合，準備下一局');
-  hostSocket.emit('host:reset_game');
+  hostSocket.emit('control:reset_game');
   await sleep(1000);
   log(`第 ${iteration} 次極限測試結束，伺服器存活。`);
 }

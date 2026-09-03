@@ -1523,6 +1523,70 @@ body {
   font-size: 13px;
 }
 
+.pacing-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pacing-control {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.pacing-control span {
+  color: var(--mint-deep);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.pacing-control .luxury-input {
+  height: 36px;
+  padding: 7px 10px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.pacing-auto-check {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.pacing-auto-check input {
+  flex: 0 0 auto;
+}
+
+.pacing-action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pacing-action-row .btn-secondary {
+  padding: 8px 10px;
+  border-radius: 16px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pacing-hint {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  color: var(--mint-deep);
+  background: rgba(255,255,255,0.26);
+  border: 2px solid rgba(255,255,255,0.48);
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
 .quiz-metric-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1530,8 +1594,8 @@ body {
 }
 
 .quiz-metric {
-  min-height: 82px;
-  padding: 14px;
+  min-height: 74px;
+  padding: 12px;
   background: rgba(255,255,255,0.28);
   border: 2px solid rgba(255,255,255,0.56);
   border-radius: 18px;
@@ -1557,10 +1621,10 @@ body {
 
 .quiz-metric strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 7px;
   color: var(--mint-ink);
   font-family: 'Outfit', sans-serif;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1;
   font-weight: 900;
 }
@@ -1570,8 +1634,8 @@ body {
 }
 
 .pacing-summary {
-  margin-top: 12px;
-  padding: 12px 14px;
+  margin-top: 10px;
+  padding: 10px 12px;
   color: var(--mint-ink);
   background: rgba(245, 208, 107, 0.32);
   border: 2px solid rgba(214, 167, 66, 0.55);
@@ -1582,7 +1646,7 @@ body {
 }
 
 .question-count-forecast {
-  margin-top: 10px;
+  margin-top: 9px;
 }
 
 .question-count-forecast h3 {
@@ -1641,8 +1705,8 @@ body {
 
 .reward-rule-list {
   display: grid;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 7px;
+  margin-top: 10px;
 }
 
 .reward-rule-list div {
@@ -1650,7 +1714,7 @@ body {
   grid-template-columns: 100px 1fr;
   gap: 8px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: rgba(255,255,255,0.25);
   border: 2px solid rgba(255,255,255,0.52);
   border-radius: 16px;
@@ -1725,4 +1789,50 @@ body {
   padding: 7px 8px;
   border-radius: 14px;
   font-size: 12px;
+}
+
+/* The administration tool is a working surface, so it scrolls normally. */
+html,
+body {
+  width: 100%;
+  height: auto !important;
+  min-height: 100%;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.admin-container {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  width: min(1440px, 100%) !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  margin: 0 auto !important;
+  padding: 28px 24px 56px !important;
+  transform: none !important;
+  overflow: visible !important;
+}
+
+.admin-header {
+  width: auto !important;
+}
+
+.admin-tabs {
+  height: auto !important;
+}
+
+.tab-content-area,
+.tab-pane,
+.tab-pane.active,
+.card-grid,
+.luxury-card {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.status-badge {
+  position: static !important;
+  width: auto !important;
 }

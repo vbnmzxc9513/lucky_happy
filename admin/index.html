@@ -7,10 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=Noto+Serif+TC:wght@400;600;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=14">
+  <link rel="stylesheet" href="css/admin.css?v=16">
   <script src="/socket.io/socket.io.js"></script>
   <script src="/shared/events.js?v=12"></script>
-  <script src="/shared/game-config.js?v=13"></script>
+  <script src="/shared/game-config.js?v=15"></script>
 </head>
 <body>
   <div class="luxury-bg-glow"></div>
@@ -63,7 +63,9 @@
               <div class="form-group half">
                 <label>📏 賽道總里程 / 勝利點擊門檻 (px)</label>
                 <select id="trackLength" class="luxury-input">
-                  <option value="104000" selected>104000 px (一戰決勝負 - 約 150 人 / 7 分鐘)</option>
+                  <option value="76000" selected>76000 px (正式 10 題 - 約 150 人 / 7~8 分鐘)</option>
+                  <option value="93000">93000 px (長版 10 題 - 約 150 人 / 8 分鐘以上)</option>
+                  <option value="104000">104000 px (長版耐力賽 - 約 150 人 / 9 分鐘以上)</option>
                   <option value="500">500 px (極速閃電戰 - 約 300 次點擊)</option>
                   <option value="1000">1000 px (標準婚禮宴會 - 約 600 次點擊)</option>
                   <option value="1500">1500 px (熱血耐力賽 - 約 1000 次點擊)</option>
@@ -251,13 +253,36 @@
 
           <div class="luxury-card quiz-control-card">
             <div class="card-kicker">TIME & REWARD</div>
-            <h2 class="card-title">時長與獎勵試算</h2>
-            <div class="pacing-control-row">
-              <label>預估賓客數</label>
-              <input type="number" id="quizExpectedPlayers" class="luxury-input" min="5" max="300" value="150" oninput="updateQuizPacing()">
+            <h2 class="card-title">節奏控制與時長試算</h2>
+            <div class="pacing-control-grid">
+              <label class="pacing-control">
+                <span>預估賓客數</span>
+                <input type="number" id="quizExpectedPlayers" class="luxury-input" min="5" max="300" value="150" oninput="updateQuizPacing()">
+              </label>
+              <label class="pacing-control">
+                <span>場地大小 px</span>
+                <input type="number" id="quizTrackLengthInput" class="luxury-input" min="1000" max="300000" step="1000" value="76000" oninput="updateQuizPacing()">
+              </label>
+              <label class="pacing-control">
+                <span>每回合題數</span>
+                <input type="number" id="quizTargetQuestionCount" class="luxury-input" min="10" max="20" value="10" onchange="ensureMinimumQuizRows(); autoSpreadQuizPlan(false); updateQuizPacing()">
+              </label>
+              <label class="pacing-control">
+                <span>出題頻率 %</span>
+                <input type="number" id="quizTriggerFrequency" class="luxury-input" min="5" max="20" value="9" oninput="updateQuizPacing()">
+              </label>
             </div>
+            <label class="inline-check pacing-auto-check">
+              <input type="checkbox" id="quizAutoPacingEnabled" checked onchange="updateQuizPacing()">
+              <span>開賽時依實際人數自動微調場地，維持約 7 分鐘</span>
+            </label>
+            <div class="pacing-action-row">
+              <button class="btn-secondary" onclick="applyRecommendedQuizPacing()">正式版 10 題</button>
+              <button class="btn-secondary" onclick="applyQuizFrequencyPlan()">套用頻率</button>
+            </div>
+            <div class="pacing-hint" id="quizFrequencyHint">每約 9% 賽道進度出 1 題，至少保留 10 題。</div>
             <div class="quiz-metric-grid">
-              <div class="quiz-metric"><span>題目數</span><strong id="quizMetricCount">3 題</strong></div>
+              <div class="quiz-metric"><span>題目數</span><strong id="quizMetricCount">10 題</strong></div>
               <div class="quiz-metric"><span>每題流程</span><strong id="quizMetricQuestionSeconds">16 秒</strong></div>
               <div class="quiz-metric primary"><span>自動配速總長</span><strong id="quizMetricAutoDuration">7:00</strong></div>
               <div class="quiz-metric"><span>固定賽道估算</span><strong id="quizMetricFixedDuration">6:59</strong></div>
@@ -347,6 +372,6 @@
       <p>🏇 Lucky Horse v1.1 Wedding Event System — Authoritative State Guardrails & Zero Silent Failures Enabled.</p>
     </footer>
   </div>
-  <script src="js/admin-app.js?v=14"></script>
+  <script src="js/admin-app.js?v=16"></script>
 </body>
 </html>

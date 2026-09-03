@@ -13,9 +13,9 @@ class GameManager {
   constructor(io) {
     this.io = io;
     this.state = 'LOBBY'; // LOBBY -> MAP_SELECT -> ROUND_LOBBY -> COUNTDOWN -> RACING -> QUIZ -> ROUND_FINISHED -> MATCH_FINISHED
-    this.config = DEFAULT_CONFIG;
+    this.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
     
-    this.teamManager = new TeamManager();
+    this.teamManager = new TeamManager(this.config);
     this.physicsEngine = new PhysicsEngine(this.config);
     this.itemManager = new ItemManager();
     this.checkpointEngine = new CheckpointTriggerEngine();
@@ -29,6 +29,21 @@ class GameManager {
     this.playerStats = new Map(); // socketId -> personal award statistics
     this.lastRacePacing = null;
     this.flowToken = 0;
+    this.pendingQuiz = null;
+    this.raceGuardInterval = null;
+    this.raceStartedAt = null;
+    this.finalSprintActive = false;
+    this.finalSprintStartedAt = null;
+    this.hardFinishAt = null;
+    this.hardFinishRequested = false;
+    this.isPaused = false;
+    this.pausedAt = null;
+    this.managedTimeouts = new Map();
+    this.presentation = {
+      stage: 'lobby',
+      awardIndex: 0,
+      revealedAwardIndexes: []
+    };
   }
 
   setState(newState) {
@@ -37,6 +52,58 @@ class GameManager {
     const lock = (newState === 'COUNTDOWN' || newState === 'RACING' || newState === 'QUIZ');
     this.teamManager.setJoinLock(lock);
     this.broadcastStateSync();
+  }
+
+  getPresentationState() {
+    return {
+      stage: this.presentation.stage,
+      awardIndex: this.presentation.awardIndex,
+      revealedAwardIndexes: [...this.presentation.revealedAwardIndexes]
+    };
+  }
+
+  setPresentationStage(stage = 'lobby') {
+    const allowedStages = new Set(['lobby', 'rules', 'team-select', 'race', 'scoreboard', 'awards']);
+    const nextStage = allowedStages.has(stage) ? stage : 'lobby';
+    if (nextStage === 'awards' && this.state !== 'MATCH_FINISHED') return false;
+    this.presentation.stage = nextStage;
+    this.emitPresentationUpdate();
+    return true;
+  }
+
+  emitPresentationUpdate() {
+    const payload = this.getPresentationState();
+    this.io.emit(SERVER_TO_CLIENT.GAME_PRESENTATION_UPDATED, payload);
+    this.broadcastStateSync();
+    return payload;
+  }
+
+  handleAwardAction(action = 'next') {
+    if (this.state !== 'MATCH_FINISHED') return false;
+    const awardsPayload = this.buildFinalAwardsPayload();
+    const awardsCount = awardsPayload && Array.isArray(awardsPayload.awards)
+      ? awardsPayload.awards.length
+      : 0;
+    if (awardsCount <= 0) return false;
+
+    if (action === 'prev') {
+      this.presentation.awardIndex = Math.max(0, this.presentation.awardIndex - 1);
+    } else if (action === 'next') {
+      this.presentation.awardIndex = Math.min(awardsCount - 1, this.presentation.awardIndex + 1);
+    } else if (action === 'reveal') {
+      const revealed = new Set(this.presentation.revealedAwardIndexes);
+      revealed.add(this.presentation.awardIndex);
+      this.presentation.revealedAwardIndexes = [...revealed].sort((a, b) => a - b);
+    } else if (action === 'hide') {
+      this.presentation.revealedAwardIndexes = this.presentation.revealedAwardIndexes
+        .filter(index => index !== this.presentation.awardIndex);
+    } else {
+      return false;
+    }
+
+    this.presentation.stage = 'awards';
+    this.emitPresentationUpdate();
+    return true;
   }
 
   broadcastStateSync() {
@@ -59,18 +126,36 @@ class GameManager {
       },
       teams: this.teamManager.getAllTeamsInfo(),
       activeItems: this.itemManager.getActiveItems(),
-      players: Array.from(this.teamManager.players.values()),
+      players: Array.from(this.teamManager.players.values()).map(player => this.getPublicPlayer(player)),
       totalPlayers: this.teamManager.players.size,
       racePacing: this.lastRacePacing,
+      finalSprint: this.getFinalSprintState(),
+      paused: this.isPaused,
+      pausedAt: this.pausedAt,
+      presentation: this.getPresentationState(),
       config: this.config
+    };
+  }
+
+  getPublicPlayer(player) {
+    if (!player) return null;
+    return {
+      socketId: player.socketId,
+      nickname: player.nickname,
+      avatar: player.avatar,
+      teamId: player.teamId,
+      joinedAt: player.joinedAt,
+      connected: player.connected !== false
     };
   }
 
   getRacePacingConfig() {
     return {
       enabled: true,
-      targetGameSeconds: 420,
-      targetQuizCount: 3,
+      targetGameSeconds: 390,
+      targetQuizCount: 10,
+      expectedPlayers: 150,
+      triggerFrequencyPercent: 9,
       expectedTapRatePerPlayer: 5,
       expectedQuizBoostPx: this.config.quizThresholds.LARGE_BOOST,
       quizPrepareSeconds: 3,
@@ -82,16 +167,283 @@ class GameManager {
     };
   }
 
+  getFinalSprintConfig() {
+    return {
+      enabled: true,
+      startAfterSeconds: 540,
+      hardFinishAfterSeconds: 600,
+      tapBoostMultiplier: 2,
+      initialTeamSpeed: 10,
+      checkpointCatchupBufferSeconds: 3,
+      ...(this.config.finalSprint || {})
+    };
+  }
+
+  getFinalSprintState() {
+    const referenceNow = this.isPaused && this.pausedAt ? this.pausedAt : Date.now();
+    const remainingSeconds = this.hardFinishAt
+      ? Math.max(0, Math.ceil((this.hardFinishAt - referenceNow) / 1000))
+      : null;
+    return {
+      active: this.finalSprintActive,
+      raceStartedAt: this.raceStartedAt,
+      startedAt: this.finalSprintStartedAt,
+      hardFinishAt: this.hardFinishAt,
+      remainingSeconds,
+      hardFinishRequested: this.hardFinishRequested
+    };
+  }
+
+  clearRaceGuard(resetState = true) {
+    if (this.raceGuardInterval) {
+      clearInterval(this.raceGuardInterval);
+      this.raceGuardInterval = null;
+    }
+    if (resetState) {
+      this.raceStartedAt = null;
+      this.finalSprintActive = false;
+      this.finalSprintStartedAt = null;
+      this.hardFinishAt = null;
+      this.hardFinishRequested = false;
+    }
+  }
+
+  startRaceGuardInterval(flowToken = this.flowToken) {
+    if (this.raceGuardInterval) clearInterval(this.raceGuardInterval);
+    this.raceGuardInterval = setInterval(() => {
+      this.evaluateRaceGuard(flowToken);
+    }, 500);
+  }
+
+  clearManagedTimeout(key) {
+    const entry = this.managedTimeouts.get(key);
+    if (!entry) return false;
+    if (entry.timer) clearTimeout(entry.timer);
+    this.managedTimeouts.delete(key);
+    return true;
+  }
+
+  clearAllManagedTimeouts() {
+    for (const entry of this.managedTimeouts.values()) {
+      if (entry.timer) clearTimeout(entry.timer);
+    }
+    this.managedTimeouts.clear();
+  }
+
+  armManagedTimeout(entry) {
+    if (!entry || this.isPaused) return;
+    entry.dueAt = Date.now() + entry.remainingMs;
+    entry.timer = setTimeout(() => {
+      this.managedTimeouts.delete(entry.key);
+      entry.timer = null;
+      entry.callback();
+    }, entry.remainingMs);
+  }
+
+  scheduleManagedTimeout(key, callback, delayMs) {
+    this.clearManagedTimeout(key);
+    const entry = {
+      key,
+      callback,
+      timer: null,
+      dueAt: null,
+      remainingMs: Math.max(0, Number(delayMs) || 0)
+    };
+    this.managedTimeouts.set(key, entry);
+    this.armManagedTimeout(entry);
+    return entry;
+  }
+
+  pauseManagedTimeouts(now = Date.now()) {
+    for (const entry of this.managedTimeouts.values()) {
+      if (entry.timer) {
+        clearTimeout(entry.timer);
+        entry.timer = null;
+      }
+      if (entry.dueAt) entry.remainingMs = Math.max(0, entry.dueAt - now);
+      entry.dueAt = null;
+    }
+  }
+
+  resumeManagedTimeouts() {
+    for (const entry of this.managedTimeouts.values()) this.armManagedTimeout(entry);
+  }
+
+  pauseGame() {
+    const pausableStates = new Set(['COUNTDOWN', 'RACING', 'QUIZ', 'ROUND_FINISHED']);
+    if (this.isPaused || !pausableStates.has(this.state)) return false;
+
+    const now = Date.now();
+    this.isPaused = true;
+    this.pausedAt = now;
+    this.stopLoop();
+    this.clearRaceGuard(false);
+    this.pauseManagedTimeouts(now);
+    this.quizManager.pauseTimer(now);
+    const payload = { pausedAt: now, state: this.state };
+    this.io.emit(SERVER_TO_CLIENT.GAME_PAUSED, payload);
+    this.broadcastStateSync();
+    return payload;
+  }
+
+  resumeGame(now = Date.now()) {
+    if (!this.isPaused || !this.pausedAt) return false;
+
+    const pausedDuration = Math.max(0, now - this.pausedAt);
+    if (this.raceStartedAt) this.raceStartedAt += pausedDuration;
+    if (this.finalSprintStartedAt) this.finalSprintStartedAt += pausedDuration;
+    if (this.hardFinishAt) this.hardFinishAt += pausedDuration;
+    if (this.pendingQuiz && this.pendingQuiz.prepareEndsAt) {
+      this.pendingQuiz.prepareEndsAt += pausedDuration;
+    }
+    for (const team of Object.values(this.teamManager.teams)) {
+      if (team.stunUntil) team.stunUntil += pausedDuration;
+    }
+    this.checkpointEngine.shiftTimeline(pausedDuration);
+
+    this.isPaused = false;
+    this.pausedAt = null;
+    this.quizManager.resumeTimer(now);
+    this.resumeManagedTimeouts();
+    if (this.raceStartedAt && this.getFinalSprintConfig().enabled) {
+      this.startRaceGuardInterval(this.flowToken);
+    }
+    if (this.state === 'RACING') this.startLoop();
+
+    const payload = { resumedAt: now, pausedDuration, state: this.state };
+    this.io.emit(SERVER_TO_CLIENT.GAME_RESUMED, payload);
+    this.broadcastStateSync();
+    return payload;
+  }
+
+  beginRaceGuard(flowToken = this.flowToken) {
+    this.clearRaceGuard();
+    const config = this.getFinalSprintConfig();
+    if (!config.enabled) return;
+
+    const startAfterSeconds = Math.max(1, Number(config.startAfterSeconds) || 540);
+    const hardFinishAfterSeconds = Math.max(startAfterSeconds + 1, Number(config.hardFinishAfterSeconds) || 600);
+    this.raceStartedAt = Date.now();
+    this.hardFinishAt = this.raceStartedAt + hardFinishAfterSeconds * 1000;
+    this.startRaceGuardInterval(flowToken);
+  }
+
+  getCheckpointFlowSeconds(checkpoint) {
+    const quiz = checkpoint && checkpoint.quizId
+      ? this.quizLoader.getQuizById(checkpoint.quizId)
+      : null;
+    const requested = Number(
+      (checkpoint && checkpoint.timeLimit) ||
+      (quiz && quiz.timeLimit) ||
+      this.config.quizTimeLimit ||
+      10
+    );
+    const answerSeconds = Math.max(1, Number.isFinite(requested) ? requested : 10);
+    return this.getQuizPrepareSeconds() + answerSeconds + this.getQuizResultSeconds();
+  }
+
+  getRemainingCheckpointFlowSeconds() {
+    return this.checkpointEngine.getUntriggeredCheckpoints()
+      .reduce((total, checkpoint) => total + this.getCheckpointFlowSeconds(checkpoint), 0);
+  }
+
+  shouldForceCheckpointCatchup(now = Date.now()) {
+    if (this.state !== 'RACING' || !this.hardFinishAt) return false;
+    const remaining = this.getRemainingCheckpointFlowSeconds();
+    if (remaining <= 0) return false;
+    const buffer = Math.max(0, Number(this.getFinalSprintConfig().checkpointCatchupBufferSeconds) || 0);
+    const secondsUntilHardFinish = Math.max(0, (this.hardFinishAt - now) / 1000);
+    return this.finalSprintActive || secondsUntilHardFinish <= remaining + buffer;
+  }
+
+  activateFinalSprint(flowToken = this.flowToken, now = Date.now()) {
+    if (this.flowToken !== flowToken || this.finalSprintActive) return false;
+    if (this.state !== 'RACING' && this.state !== 'QUIZ') return false;
+
+    const config = this.getFinalSprintConfig();
+    this.finalSprintActive = true;
+    this.finalSprintStartedAt = now;
+    const minimumSpeed = Math.max(0, Number(config.initialTeamSpeed) || 0);
+    for (const team of Object.values(this.teamManager.teams)) {
+      team.isStunned = false;
+      team.stunUntil = 0;
+      team.speed = Math.max(team.speed, minimumSpeed);
+    }
+
+    const payload = {
+      startedAt: this.finalSprintStartedAt,
+      hardFinishAt: this.hardFinishAt,
+      durationSeconds: Math.max(0, Math.ceil((this.hardFinishAt - now) / 1000)),
+      tapBoostMultiplier: Math.max(1, Number(config.tapBoostMultiplier) || 1)
+    };
+    this.broadcastStateSync();
+    this.io.emit(SERVER_TO_CLIENT.GAME_FINAL_SPRINT, payload);
+    return true;
+  }
+
+  forceNextScheduledCheckpoint() {
+    if (this.state !== 'RACING') return false;
+    const checkpoint = this.checkpointEngine.takeNextUntriggeredCheckpoint();
+    if (!checkpoint) return false;
+    return this.triggerQuiz(checkpoint.quizId || null, checkpoint.timeLimit);
+  }
+
+  getDeadlineLeader() {
+    const ranked = Object.values(this.teamManager.teams)
+      .map(team => ({ id: team.id, position: Number(team.position) || 0 }))
+      .sort((a, b) => b.position - a.position);
+    if (ranked.length === 0) return 'tie';
+    if (ranked.length > 1 && Math.abs(ranked[0].position - ranked[1].position) < 0.5) return 'tie';
+    return ranked[0].id;
+  }
+
+  finishAtRaceDeadline() {
+    if (this.state !== 'RACING' || !this.checkpointEngine.hasTriggeredAll()) return false;
+    this.finishRound(this.getDeadlineLeader(), 'time_limit');
+    return true;
+  }
+
+  evaluateRaceGuard(flowToken = this.flowToken, now = Date.now()) {
+    if (this.flowToken !== flowToken) return false;
+    if (this.isPaused) return false;
+    if (this.state !== 'RACING' && this.state !== 'QUIZ') return false;
+
+    const config = this.getFinalSprintConfig();
+    const sprintAt = this.raceStartedAt + Math.max(1, Number(config.startAfterSeconds) || 540) * 1000;
+    if (!this.finalSprintActive && this.raceStartedAt && now >= sprintAt) {
+      this.activateFinalSprint(flowToken, now);
+    }
+
+    if (this.hardFinishAt && now >= this.hardFinishAt) {
+      this.hardFinishRequested = true;
+    }
+
+    if (this.state === 'RACING' && this.shouldForceCheckpointCatchup(now)) {
+      return this.forceNextScheduledCheckpoint();
+    }
+
+    if (this.hardFinishRequested && this.state === 'RACING') {
+      if (!this.checkpointEngine.hasTriggeredAll()) {
+        return this.forceNextScheduledCheckpoint();
+      }
+      return this.finishAtRaceDeadline();
+    }
+    return false;
+  }
+
   getQuizPrepareSeconds() {
-    return Math.max(0, Number(this.getRacePacingConfig().quizPrepareSeconds) || 3);
+    const seconds = Number(this.getRacePacingConfig().quizPrepareSeconds);
+    return Math.max(0, Number.isFinite(seconds) ? seconds : 3);
   }
 
   getQuizResultSeconds() {
-    return Math.max(0, Number(this.getRacePacingConfig().quizResultSeconds) || 3);
+    const seconds = Number(this.getRacePacingConfig().quizResultSeconds);
+    return Math.max(0, Number.isFinite(seconds) ? seconds : 3);
   }
 
   getFinalTransitionSeconds() {
-    return Math.max(0, Number(this.getRacePacingConfig().finalTransitionSeconds) || 5);
+    const seconds = Number(this.getRacePacingConfig().finalTransitionSeconds);
+    return Math.max(0, Number.isFinite(seconds) ? seconds : 5);
   }
 
   estimateTeamSpeedPxPerSecond(teamSize) {
@@ -120,13 +472,26 @@ class GameManager {
     const pacing = this.getRacePacingConfig();
     const quizCount = Array.isArray(map && map.checkpoints)
       ? map.checkpoints.length
-      : Number(pacing.targetQuizCount || 3);
-    const targetGameSeconds = Math.max(60, Number(pacing.targetGameSeconds || 420));
-    const quizTimeLimit = Math.max(1, Number(this.config.quizTimeLimit || 10));
+      : Number(pacing.targetQuizCount || 10);
+    const targetGameSeconds = Math.max(60, Number(pacing.targetGameSeconds || 390));
+    const checkpoints = Array.isArray(map && map.checkpoints) ? map.checkpoints : [];
+    const quizSeconds = checkpoints.reduce((total, checkpoint) => {
+      const quiz = checkpoint && checkpoint.quizId
+        ? this.quizLoader.getQuizById(checkpoint.quizId)
+        : null;
+      const seconds = Number(
+        (checkpoint && checkpoint.timeLimit) ||
+        (quiz && quiz.timeLimit) ||
+        this.config.quizTimeLimit ||
+        10
+      );
+      return total + Math.max(1, Number.isFinite(seconds) ? seconds : 10);
+    }, 0);
     const overheadSeconds =
       Math.max(0, Number(this.config.countdownSeconds || 0)) +
       this.getFinalTransitionSeconds() +
-      quizCount * (this.getQuizPrepareSeconds() + quizTimeLimit + this.getQuizResultSeconds());
+      quizCount * (this.getQuizPrepareSeconds() + this.getQuizResultSeconds()) +
+      (checkpoints.length > 0 ? quizSeconds : quizCount * Math.max(1, Number(this.config.quizTimeLimit || 10)));
     const targetRacingSeconds = Math.max(60, targetGameSeconds - overheadSeconds);
     const fastestTeamSize = this.getCurrentFastestTeamSize();
     const speedPxPerSecond = this.estimateTeamSpeedPxPerSecond(fastestTeamSize);
@@ -179,9 +544,31 @@ class GameManager {
   startRound() {
     if (this.state !== 'LOBBY' && this.state !== 'ROUND_LOBBY' && this.state !== 'MAP_SELECT') return false;
     const flowToken = ++this.flowToken;
+    this.clearAllManagedTimeouts();
+    this.clearRaceGuard();
+    this.isPaused = false;
+    this.pausedAt = null;
+    this.presentation.stage = 'race';
+    this.presentation.awardIndex = 0;
+    this.presentation.revealedAwardIndexes = [];
     
     // 自動將未選隊的賓客均衡分配
-    this.teamManager.autoAssignUnselectedPlayers();
+    const assignmentResult = this.teamManager.autoAssignUnselectedPlayers() || {};
+    const assignments = Array.isArray(assignmentResult.assignments) ? assignmentResult.assignments : [];
+    for (const assignment of assignments) {
+      this.upsertPlayerStats(assignment.player);
+      this.emitToSocket(assignment.socketId, SERVER_TO_CLIENT.GAME_TEAM_ASSIGNED, {
+        teamId: assignment.teamId,
+        player: this.getPublicPlayer(assignment.player)
+      });
+      this.emitPlayerStatus(assignment.socketId);
+    }
+    if (Number(assignmentResult.count || assignments.length) > 0) {
+      this.io.emit(SERVER_TO_CLIENT.GAME_TEAM_UPDATED, {
+        teams: this.teamManager.getAllTeamsInfo(),
+        totalPlayers: this.teamManager.players.size
+      });
+    }
 
     const map = this.mapManager.getCurrentMap();
     this.applyRacePacing(map);
@@ -192,8 +579,9 @@ class GameManager {
 
     this.setState('COUNTDOWN');
 
-    setTimeout(() => {
+    this.scheduleManagedTimeout('countdown', () => {
       if (this.flowToken === flowToken && this.state === 'COUNTDOWN') {
+        this.beginRaceGuard(flowToken);
         this.setState('RACING');
         this.startLoop();
       }
@@ -203,6 +591,7 @@ class GameManager {
   }
 
   startLoop() {
+    if (this.isPaused) return;
     if (this.loopInterval) clearInterval(this.loopInterval);
     this.loopInterval = setInterval(() => {
       this.update();
@@ -217,7 +606,7 @@ class GameManager {
   }
 
   update() {
-    if (this.state !== 'RACING') return;
+    if (this.state !== 'RACING' || this.isPaused) return;
 
     const teams = this.teamManager.teams;
 
@@ -240,7 +629,7 @@ class GameManager {
     // 檢查關卡自動觸發
     const cp = this.checkpointEngine.checkTriggers(teams, trackLen);
     if (cp) {
-      this.triggerQuiz(cp.quizId || null);
+      this.triggerQuiz(cp.quizId || null, cp.timeLimit);
       return;
     }
 
@@ -271,32 +660,56 @@ class GameManager {
   }
 
   handleTap(socketId, timestamp) {
-    if (this.state !== 'RACING') return false;
+    const reject = (reason) => ({
+      success: false,
+      reason,
+      status: this.buildPlayerStatus(socketId)
+    });
+    if (this.isPaused) return reject('GAME_PAUSED');
+    if (this.state !== 'RACING') return reject('NOT_RACING');
     
     // 檢查冷卻 (防刷)
     const now = Date.now();
     const lastTap = this.lastTapTimes.get(socketId) || 0;
-    if (now - lastTap < this.config.tapCooldown) return false;
+    if (now - lastTap < this.config.tapCooldown) return reject('TAP_COOLDOWN');
     this.lastTapTimes.set(socketId, now);
 
     const player = this.teamManager.getPlayer(socketId);
-    if (!player || !player.teamId) return false;
+    if (!player || !player.teamId) return reject('NOT_JOINED');
 
     const team = this.teamManager.getTeam(player.teamId);
-    if (!team) return false;
+    if (!team) return reject('INVALID_TEAM');
 
-    if (team.isStunned) return false;
+    if (team.isStunned) return reject('TEAM_STUNNED');
 
-    const boost = this.physicsEngine.calculateBoost(team.members.size);
+    const sprintMultiplier = this.finalSprintActive
+      ? Math.max(1, Number(this.getFinalSprintConfig().tapBoostMultiplier) || 1)
+      : 1;
+    const stat = this.getOrCreatePlayerStats(socketId);
+    const nextTapCount = (stat ? stat.tapCount : 0) + 1;
+    const critical = nextTapCount % 20 === 0;
+    const criticalMultiplier = critical ? 2 : 1;
+    const boost = this.physicsEngine.calculateBoost(
+      team.members.size,
+      Number(this.config.baseBoost || 0.5) * sprintMultiplier * criticalMultiplier
+    );
     team.speed += boost;
     this.checkpointEngine.recordTap();
     this.recordPlayerTap(socketId);
-    return true;
+    const status = this.buildPlayerStatus(socketId);
+    return {
+      success: true,
+      critical,
+      multiplier: sprintMultiplier * criticalMultiplier,
+      boost,
+      timestamp: Number(timestamp) || now,
+      status
+    };
   }
 
   // 觸發答題 (由關卡設計)
-  triggerQuiz(quizId) {
-    if (this.state !== 'RACING') return false;
+  triggerQuiz(quizId, timeLimit = null) {
+    if (this.state !== 'RACING' || this.isPaused) return false;
     const flowToken = this.flowToken;
     console.log(`[GameManager] triggerQuiz called for quizId: ${quizId}`);
     this.stopLoop();
@@ -304,9 +717,14 @@ class GameManager {
 
     // 廣播 3 秒準備倒數
     const prepareSeconds = this.getQuizPrepareSeconds();
+    this.pendingQuiz = {
+      quizId,
+      timeLimit,
+      prepareEndsAt: Date.now() + prepareSeconds * 1000
+    };
     this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PREPARE, { seconds: prepareSeconds });
 
-    setTimeout(() => {
+    this.scheduleManagedTimeout('quiz-prepare', () => {
       // 若狀態已經改變（例如管理員強制重置），則中斷
       if (this.flowToken !== flowToken || this.state !== 'QUIZ') return;
 
@@ -317,16 +735,18 @@ class GameManager {
       }
       const qData = this.quizManager.startQuiz(quizId, teamSizes, (results) => {
         this.handleQuizResults(results, flowToken);
-      });
+      }, timeLimit);
 
       if (!qData) {
         // 找不到題目則直接恢復比賽
         if (this.flowToken !== flowToken) return;
+        this.pendingQuiz = null;
         this.setState('RACING');
         this.startLoop();
         return;
       }
 
+      this.pendingQuiz = null;
       this.quizManager.markAnswerWindowOpened();
 
       // 分屏廣播：Host 收到題目、選項與倒數
@@ -348,12 +768,17 @@ class GameManager {
   }
 
   handleQuizAnswer(socketId, quizId, answerStr) {
+    if (this.isPaused) return { success: false, reason: 'GAME_PAUSED' };
     if (this.state !== 'QUIZ') return { success: false, reason: 'NOT_IN_QUIZ' };
     const player = this.teamManager.getPlayer(socketId);
-    const teamId = player ? player.teamId : null;
+    if (!player || !player.teamId) return { success: false, reason: 'NOT_JOINED' };
+    const teamId = player.teamId;
     const result = this.quizManager.handleAnswer(socketId, teamId, quizId, answerStr);
     if (result && result.success) {
       this.recordPlayerQuizResult(socketId, result.isCorrect, result.answerTimeMs);
+      if (result.teamProgress) {
+        this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PROGRESS, result.teamProgress);
+      }
     }
     return result;
   }
@@ -364,6 +789,7 @@ class GameManager {
 
     if (this.flowToken !== flowToken || this.state !== 'QUIZ') return;
 
+    this.pendingQuiz = null;
     if (!results) {
       this.setState('RACING');
       this.startLoop();
@@ -387,29 +813,36 @@ class GameManager {
     }
 
     // 3 秒展示結果後繼續跑
-    setTimeout(() => {
+    this.scheduleManagedTimeout('quiz-result', () => {
       if (this.flowToken === flowToken && this.state === 'QUIZ') {
         this.setState('RACING');
-        this.startLoop();
+        this.evaluateRaceGuard(flowToken);
+        if (this.state === 'RACING') this.startLoop();
       }
     }, this.getQuizResultSeconds() * 1000);
   }
 
-  finishRound(winnerTeamId) {
+  finishRound(winnerTeamId, finishReason = 'finish_line') {
     const flowToken = this.flowToken;
     this.stopLoop();
+    this.clearRaceGuard();
+    this.presentation.stage = 'scoreboard';
     this.setState('ROUND_FINISHED');
 
     const roundInfo = this.roundManager.recordRoundWinner(winnerTeamId);
     this.io.emit(SERVER_TO_CLIENT.GAME_ROUND_FINISHED, {
       roundInfo,
+      finishReason,
       matchStatus: this.roundManager.getMatchStatus()
     });
 
-    // 檢查三局是否結束
+    // 檢查目前設定的賽制是否完成
     if (this.roundManager.isMatchFinished()) {
-      setTimeout(() => {
+      this.scheduleManagedTimeout('match-transition', () => {
         if (this.flowToken !== flowToken || this.state !== 'ROUND_FINISHED') return;
+        this.presentation.stage = 'awards';
+        this.presentation.awardIndex = 0;
+        this.presentation.revealedAwardIndexes = [];
         this.setState('MATCH_FINISHED');
         this.io.emit(SERVER_TO_CLIENT.GAME_MATCH_FINISHED, {
           finalWinner: this.roundManager.getFinalWinner(),
@@ -419,7 +852,7 @@ class GameManager {
       }, this.getFinalTransitionSeconds() * 1000);
     } else {
       // 5 秒後自動進入下局的大廳 (ROUND_LOBBY)
-      setTimeout(() => {
+      this.scheduleManagedTimeout('round-transition', () => {
         if (this.flowToken !== flowToken || this.state !== 'ROUND_FINISHED') return;
         this.setState('ROUND_LOBBY');
         this.io.emit(SERVER_TO_CLIENT.GAME_ROUND_LOBBY, {
@@ -442,11 +875,21 @@ class GameManager {
   resetGame() {
     this.flowToken++;
     this.stopLoop();
+    this.clearAllManagedTimeouts();
+    this.clearRaceGuard();
     this.quizManager.cancelQuiz(); // 確保中斷進行中的答題計時
     this.roundManager.reset();
     this.lastTapTimes.clear();
     this.playerStats.clear();
     this.lastRacePacing = null;
+    this.pendingQuiz = null;
+    this.isPaused = false;
+    this.pausedAt = null;
+    this.presentation = {
+      stage: 'lobby',
+      awardIndex: 0,
+      revealedAwardIndexes: []
+    };
     this.teamManager.resetAllPlayersAndTeams();
     this.setState('LOBBY');
     return true;
@@ -476,6 +919,9 @@ class GameManager {
     if (newConfig.baseBoost) this.config.baseBoost = Number(newConfig.baseBoost);
     if (newConfig.maxSpeed) this.config.maxSpeed = Number(newConfig.maxSpeed);
     if (newConfig.tapCooldown) this.config.tapCooldown = Number(newConfig.tapCooldown);
+    if (newConfig.maxPlayersPerTeam) {
+      this.config.maxPlayersPerTeam = Math.max(1, Math.floor(Number(newConfig.maxPlayersPerTeam)));
+    }
     if (newConfig.totalRounds) {
       this.config.totalRounds = Number(newConfig.totalRounds);
       this.roundManager.totalRounds = this.config.totalRounds;
@@ -484,6 +930,12 @@ class GameManager {
       this.config.racePacing = {
         ...(this.config.racePacing || {}),
         ...newConfig.racePacing
+      };
+    }
+    if (newConfig.finalSprint && typeof newConfig.finalSprint === 'object') {
+      this.config.finalSprint = {
+        ...(this.config.finalSprint || {}),
+        ...newConfig.finalSprint
       };
     }
     this.broadcastStateSync();
@@ -558,14 +1010,13 @@ class GameManager {
     return { success: true };
   }
 
-  forceTriggerQuiz(quizId) {
-    if (this.state !== 'RACING') return false;
-    this.triggerQuiz(quizId || null);
-    return true;
+  forceTriggerQuiz(quizId, timeLimit = null) {
+    if (this.state !== 'RACING' || this.isPaused) return false;
+    return this.triggerQuiz(quizId || null, timeLimit);
   }
 
   forceTriggerItem(teamId, itemType = 'large_boost') {
-    if (this.state !== 'RACING') return false;
+    if (this.state !== 'RACING' || this.isPaused) return false;
     const teams = this.teamManager.teams;
     if (!teams[teamId]) return false;
 
@@ -590,14 +1041,118 @@ class GameManager {
     return true;
   }
 
+  emitToSocket(socketId, eventName, payload) {
+    if (this.io && typeof this.io.to === 'function') {
+      this.io.to(socketId).emit(eventName, payload);
+      return true;
+    }
+    return false;
+  }
+
+  getTeamRanking() {
+    const map = this.mapManager.getCurrentMap();
+    const trackLength = Math.max(1, Number(map && map.track && map.track.length) || 1000);
+    return Object.values(this.teamManager.teams)
+      .map(team => ({
+        id: team.id,
+        name: team.name,
+        hex: team.hex,
+        memberCount: team.members.size,
+        position: Math.round(Number(team.position) || 0),
+        progressPercent: Math.min(100, Math.max(0, (Number(team.position) || 0) / trackLength * 100)),
+        isStunned: !!team.isStunned
+      }))
+      .sort((a, b) => b.position - a.position)
+      .map((team, index) => ({ ...team, rank: index + 1 }));
+  }
+
+  buildPlayerStatus(socketId) {
+    const player = this.teamManager.getPlayer(socketId);
+    const stat = this.getOrCreatePlayerStats(socketId);
+    const ranking = this.getTeamRanking();
+    const team = player && player.teamId
+      ? ranking.find(item => item.id === player.teamId)
+      : null;
+    const tapCount = stat ? stat.tapCount || 0 : 0;
+    const remainder = tapCount % 20;
+    return {
+      joined: !!player,
+      teamId: player ? player.teamId : null,
+      tapCount,
+      nextCriticalIn: remainder === 0 ? 20 : 20 - remainder,
+      teamRank: team ? team.rank : null,
+      teamProgressPercent: team ? team.progressPercent : 0,
+      teams: ranking,
+      paused: this.isPaused,
+      finalSprint: this.getFinalSprintState()
+    };
+  }
+
+  emitPlayerStatus(socketId) {
+    return this.emitToSocket(
+      socketId,
+      SERVER_TO_CLIENT.GAME_PLAYER_STATUS,
+      this.buildPlayerStatus(socketId)
+    );
+  }
+
   stopGameLoop() {
     this.stopLoop();
     this.stopBotSimulation();
   }
 
   // 清理斷線玩家的防抖記錄（防止記憶體洩漏）
-  cleanupDisconnectedPlayer(socketId) {
+  cleanupDisconnectedPlayer(socketId, removeStats = false) {
     this.lastTapTimes.delete(socketId);
+    if (removeStats) this.playerStats.delete(socketId);
+  }
+
+  migratePlayerConnection(previousSocketId, socketId) {
+    if (!previousSocketId || !socketId || previousSocketId === socketId) return false;
+    if (this.lastTapTimes.has(previousSocketId)) {
+      this.lastTapTimes.set(socketId, this.lastTapTimes.get(previousSocketId));
+      this.lastTapTimes.delete(previousSocketId);
+    }
+    if (this.playerStats.has(previousSocketId)) {
+      const stat = this.playerStats.get(previousSocketId);
+      this.playerStats.delete(previousSocketId);
+      stat.socketId = socketId;
+      this.playerStats.set(socketId, stat);
+    }
+    this.quizManager.migrateAnswerIdentity(previousSocketId, socketId);
+    return true;
+  }
+
+  emitActiveQuizRecovery(socket, role = 'guest') {
+    if (!socket || this.state !== 'QUIZ') return false;
+    const activeQuiz = this.quizManager.getRecoveryPayload();
+    if (activeQuiz) {
+      if (role === 'host' || role === 'admin' || role === 'control') {
+        socket.emit(SERVER_TO_CLIENT.GAME_QUIZ_START, {
+          quizId: activeQuiz.quizId,
+          question: activeQuiz.question,
+          options: activeQuiz.optionList,
+          timeLimit: activeQuiz.timeLimit,
+          recovered: true
+        });
+      } else {
+        socket.emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, {
+          quizId: activeQuiz.quizId,
+          options: activeQuiz.optionMap,
+          timeLimit: activeQuiz.timeLimit,
+          recovered: true
+        });
+      }
+      return true;
+    }
+
+    if (this.pendingQuiz) {
+      const referenceNow = this.isPaused && this.pausedAt ? this.pausedAt : Date.now();
+      const seconds = Math.max(0, Math.ceil((this.pendingQuiz.prepareEndsAt - referenceNow) / 1000));
+      socket.emit(SERVER_TO_CLIENT.GAME_QUIZ_PREPARE, { seconds, recovered: true });
+      return true;
+    }
+    return false;
   }
 
   upsertPlayerStats(player) {
@@ -649,7 +1204,11 @@ class GameManager {
 
   recordPlayerTap(socketId) {
     const stat = this.getOrCreatePlayerStats(socketId);
-    if (stat) stat.tapCount++;
+    if (stat) {
+      stat.tapCount++;
+      return stat;
+    }
+    return null;
   }
 
   recordPlayerQuizResult(socketId, isCorrect, answerTimeMs = null) {
@@ -684,7 +1243,7 @@ class GameManager {
         color: team.color || configTeam.color || team.id,
         hex: team.hex || configTeam.hex || '#315E58',
         imgPath: team.imgPath || configTeam.imgPath || '',
-        value: this.roundManager.scores[team.id] || 0
+        value: Math.round(Number(team.position) || 0)
       };
     });
   }
@@ -793,7 +1352,7 @@ class GameManager {
           name: topTeams.length > 1 ? topTeams.map(team => team.name).join('、') : '多隊平手',
           color: 'tie',
           hex: '#315E58',
-          imgPath: '/host/assets/finish_flag.png',
+          imgPath: '/assets/finish_flag.png',
           value: topScore,
           tiedTeams: topTeams
         }
@@ -808,10 +1367,10 @@ class GameManager {
           tag: 'TEAM WINNER',
           title: '幸福總冠軍',
           prompt: '哪個隊伍贏得最終勝利',
-          description: '三局累計分數最高，獲得新人親頒幸福榮耀盃',
-          metricKey: 'score',
-          metricLabel: '總積分',
-          unit: '分',
+          description: '單局一戰決勝，最快衝過終點的隊伍獲得幸福榮耀',
+          metricKey: 'position',
+          metricLabel: '賽道距離',
+          unit: 'm',
           winner: teamWinner,
           ranking: teamRanking
         },
@@ -840,7 +1399,7 @@ class GameManager {
         this.buildPlayerAward({
           id: 'most-wrong',
           tag: 'BRAVE TRY',
-          title: '答錯最多獎',
+          title: '越挫越勇獎',
           prompt: '哪位賓客答錯最多',
           description: '只統計有實際作答的賓客；若同分，以平均答題速度最快者勝出',
           metricKey: 'wrongCount',

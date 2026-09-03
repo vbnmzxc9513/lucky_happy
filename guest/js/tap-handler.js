@@ -60,5 +60,24 @@ class TapHandler {
 
     setTimeout(() => el.remove(), 500);
   }
+
+  showAckFeedback(result) {
+    if (!result || !result.success) return;
+    const layer = document.getElementById('tap-feedback-layer');
+    const button = document.getElementById('btn-tap');
+    if (!layer || !result.critical) return;
+
+    const el = document.createElement('div');
+    el.className = 'critical-hit-feedback';
+    el.innerHTML = '<strong>CRITICAL</strong><span>2 倍爆擊</span>';
+    layer.appendChild(el);
+    if (button) {
+      button.classList.remove('critical-hit');
+      void button.offsetWidth;
+      button.classList.add('critical-hit');
+      setTimeout(() => button.classList.remove('critical-hit'), 650);
+    }
+    setTimeout(() => el.remove(), 900);
+  }
 }
 window.TapHandler = TapHandler;
