@@ -47,6 +47,7 @@ check(bootstrap.includes('npm run security:check'), 'bootstrap rejects vulnerabl
 check(bootstrap.includes('npm run preflight'), 'bootstrap runs public preflight');
 check(bootstrap.includes('ufw allow 443/tcp'), 'bootstrap opens HTTPS without exposing port 3000');
 check(bootstrap.includes('BIND_HOST=127.0.0.1'), 'bootstrap binds Node to loopback only');
+check(bootstrap.includes('systemctl restart lucky-horse'), 'bootstrap restarts Node after every deployment');
 
 const service = read('deploy/lucky-horse.service');
 check(service.includes('Restart=always'), 'systemd restarts Node after failure');

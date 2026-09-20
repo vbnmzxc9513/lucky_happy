@@ -146,7 +146,8 @@ ufw allow 443/tcp
 ufw --force enable
 
 systemctl daemon-reload
-systemctl enable --now lucky-horse
+systemctl enable lucky-horse
+systemctl restart lucky-horse
 systemctl enable caddy
 systemctl reload-or-restart caddy
 
