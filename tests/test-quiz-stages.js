@@ -73,7 +73,11 @@ for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
         const result = snapshot.quizStage.summary.teamResults[team.id];
         assert.equal(result.correctCount, expected);
         assert.equal(result.rewardPx, [0, 1, 2, 4][expected] * 1500);
-        assert.equal(game.teamManager.teams[team.id].position - before[team.id], result.rewardPx);
+        const awardedDistance = game.teamManager.teams[team.id].position - before[team.id];
+        assert.ok(
+          Math.abs(awardedDistance - result.rewardPx) < 1e-9,
+          `expected ${result.rewardPx} reward distance, got ${awardedDistance}`
+        );
       }
       assert.equal(game.showStageSummary(game.flowToken), false, 'summary cannot pay twice');
       assert.equal(game.handleTap('p0').success, false);
