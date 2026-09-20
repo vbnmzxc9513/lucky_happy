@@ -7,6 +7,7 @@ const staffSessionSecret =
   process.env.SESSION_SECRET ||
   `lucky-horse-staff-${staffAccessCode}-${process.env.COMPUTERNAME || 'local'}`;
 const publicBaseUrl = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
+const bindHost = String(process.env.BIND_HOST || (isProduction ? '127.0.0.1' : '0.0.0.0')).trim();
 
 if (isProduction) {
   if (!process.env.STAFF_ACCESS_CODE) {
@@ -33,10 +34,14 @@ if (isProduction) {
   } catch {
     throw new Error('PUBLIC_BASE_URL must be a public HTTPS URL in production.');
   }
+  if (bindHost !== '127.0.0.1') {
+    throw new Error('BIND_HOST must be 127.0.0.1 in production.');
+  }
 }
 
 module.exports = {
   port: process.env.PORT || 3000,
+  bindHost,
   publicBaseUrl,
   staffAccessCode,
   staffSessionSecret,

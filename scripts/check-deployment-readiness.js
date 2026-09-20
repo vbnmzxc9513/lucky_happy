@@ -34,7 +34,7 @@ for (const file of requiredFiles) {
 
 const envExample = read('.env.example');
 const deployEnv = read('deploy/lucky-horse.env.example');
-for (const key of ['NODE_ENV', 'PORT', 'PUBLIC_BASE_URL', 'STAFF_ACCESS_CODE', 'STAFF_SESSION_SECRET']) {
+for (const key of ['NODE_ENV', 'PORT', 'BIND_HOST', 'PUBLIC_BASE_URL', 'STAFF_ACCESS_CODE', 'STAFF_SESSION_SECRET']) {
   check(envExample.includes(`${key}=`), `.env.example documents ${key}`);
   check(deployEnv.includes(`${key}=`), `deploy environment documents ${key}`);
 }
@@ -46,6 +46,7 @@ check(bootstrap.includes('npm test'), 'bootstrap runs the confidence suite');
 check(bootstrap.includes('npm run security:check'), 'bootstrap rejects vulnerable dependency releases');
 check(bootstrap.includes('npm run preflight'), 'bootstrap runs public preflight');
 check(bootstrap.includes('ufw allow 443/tcp'), 'bootstrap opens HTTPS without exposing port 3000');
+check(bootstrap.includes('BIND_HOST=127.0.0.1'), 'bootstrap binds Node to loopback only');
 
 const service = read('deploy/lucky-horse.service');
 check(service.includes('Restart=always'), 'systemd restarts Node after failure');
@@ -84,6 +85,12 @@ check(runProductionConfig({
   STAFF_ACCESS_CODE: '1009',
   STAFF_SESSION_SECRET: 'x'.repeat(64)
 }).status === 0, 'production accepts a complete HTTPS environment');
+check(runProductionConfig({
+  BIND_HOST: '0.0.0.0',
+  PUBLIC_BASE_URL: 'https://game.example.com',
+  STAFF_ACCESS_CODE: '1009',
+  STAFF_SESSION_SECRET: 'x'.repeat(64)
+}).status !== 0, 'production rejects a public Node bind address');
 
 if (failed > 0) {
   console.error(`\nDeployment readiness failed: ${failed} check(s).`);

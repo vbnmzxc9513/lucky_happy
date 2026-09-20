@@ -109,6 +109,7 @@ umask 077
 cat > /etc/lucky-horse.env <<EOF
 NODE_ENV=production
 PORT=${PORT}
+BIND_HOST=127.0.0.1
 PUBLIC_BASE_URL=https://${DOMAIN}
 STAFF_ACCESS_CODE=${STAFF_ACCESS_CODE}
 STAFF_SESSION_SECRET=${STAFF_SESSION_SECRET}
@@ -133,6 +134,7 @@ caddy validate --config /etc/caddy/Caddyfile
 env \
   NODE_ENV=production \
   PORT="${PORT}" \
+  BIND_HOST=127.0.0.1 \
   PUBLIC_BASE_URL="https://${DOMAIN}" \
   STAFF_ACCESS_CODE="${STAFF_ACCESS_CODE}" \
   STAFF_SESSION_SECRET="${STAFF_SESSION_SECRET}" \

@@ -295,7 +295,7 @@ server.on('error', (err) => {
   }
 });
 
-server.listen(config.port, () => {
+server.listen(config.port, config.bindHost, () => {
   const lanAddress = getPreferredLanAddress();
   const configuredGuestUrl = config.publicBaseUrl ? `${config.publicBaseUrl.replace(/\/$/, '')}/guest/` : '';
   const lanGuestUrl = lanAddress ? `http://${lanAddress}:${config.port}/guest/` : '';
