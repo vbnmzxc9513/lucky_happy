@@ -3,6 +3,7 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
   const socket = io();
+  const stageDisplay = window.StageDisplay ? new window.StageDisplay('guest') : null;
   const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = window.GameEvents;
 
   const SESSION_STORAGE_KEY = 'luckyHorseGuestSessionV1';
@@ -105,7 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const criticalFill = document.getElementById('critical-progress-fill');
     if (tapEl) tapEl.innerText = tapCount.toLocaleString('zh-TW');
     if (rankEl) rankEl.innerText = rank;
-    if (progressEl) progressEl.innerText = `${progress.toFixed(0)}%`;
+    if (progressEl) progressEl.innerText = status.teamShuttle
+      ? `${status.teamShuttle.laps} 圈 · ${Math.floor(status.teamShuttle.progress)}%` : `${progress.toFixed(0)}%`;
     if (criticalEl) criticalEl.innerText = nextCritical;
     if (criticalFill) criticalFill.style.width = `${(tapCount % 20) / 20 * 100}%`;
     showPauseOverlay(!!status.paused);
@@ -270,6 +272,13 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, (state) => {
     currentGameState = state.state;
     syncGameConfig(state.config);
+    quizUI.paused = !!state.paused;
+    stageDisplay?.sync(state, myPlayerInfo.teamId);
+    if (state.quizStage?.phase === 'summary') quizUI.disableAll();
+    if (state.quizStage?.phase === 'reveal') {
+      quizUI.disableAll();
+      quizUI.showTeamResult(state.quizStage.reveal?.teamResults[myPlayerInfo.teamId]);
+    }
     showPauseOverlay(!!state.paused);
     if (state.finalSprint && state.finalSprint.active) {
       const banner = document.getElementById('final-sprint-mobile');
@@ -451,6 +460,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const myTeamData = data.teams[myPlayerInfo.teamId];
     if (myTeamData) {
       tapHandler.setStunned(myTeamData.isStunned);
+      if (window.ShuttleRace?.enabled(window.GameConfig)) {
+        const distance = window.ShuttleRace.measure(myTeamData.position, window.GameConfig);
+        document.getElementById('my-team-progress').textContent = `${distance.laps} 圈 · ${Math.floor(distance.progress)}%`;
+        document.getElementById('my-team-rank').textContent = `第 ${window.ShuttleRace.rank(data.teams)[myPlayerInfo.teamId]}`;
+      }
     }
   });
 
@@ -469,6 +483,13 @@ document.addEventListener('DOMContentLoaded', () => {
       showScreen('screen-quiz');
     }
     quizUI.showOptions(data.options, data.timeLimit);
+    if (data.alreadyAnswered) {
+      quizUI.isAnswered = true;
+      quizUI.disableAll();
+      const message = document.getElementById('quiz-lock-msg');
+      message.style.display = 'block';
+      message.innerText = '本題已作答，答案已保留';
+    }
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK, (result) => {

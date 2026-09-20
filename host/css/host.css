@@ -3208,3 +3208,43 @@ body::before {
   line-height: 1.35;
   white-space: normal;
 }
+
+/* Light answer colours need dark foregrounds, including their nested labels. */
+.quiz-option-card-v2:nth-child(1), .quiz-option-card-v2:nth-child(2),
+.quiz-option-card-v2:nth-child(1) .opt-text, .quiz-option-card-v2:nth-child(2) .opt-text {
+  color: #172e2b;
+}
+.effect-badge { color: #244d43; }
+
+/* Text flows independently of the winner portrait so long names cannot collide. */
+.award-current-card { display: grid; grid-template-columns: minmax(0, 1fr) 242px; grid-template-rows: auto auto auto 126px auto auto; column-gap: 24px; align-content: start; row-gap: 8px; }
+.award-meta-line { grid-column: 1 / -1; }
+.award-current-card h1, #award-prompt, #award-congrats, #award-description { grid-column: 1; margin: 0; }
+.award-current-card h1 { font-size: 44px; }
+#award-prompt { font-size: 21px; }
+.award-hero-row { display: contents; }
+.award-metric-box { position: static; grid-column: 1; grid-row: 4; width: 100%; height: 126px; }
+.award-winner-identity { position: static; grid-column: 2; grid-row: 2 / 7; width: 242px; height: 280px; align-self: center; }
+#award-congrats, #award-description { position: static; overflow-wrap: anywhere; }
+#award-congrats { font-size: 26px; line-height: 1.3; }
+#award-description { font-size: 18px; line-height: 1.35; }
+.award-player-card strong { font-size: 23px; line-height: 1.35; padding: 0 10px; overflow-wrap: anywhere; text-align: center; }
+.final-awards-groom { left: 4px; bottom: 36px; }
+.final-awards-bride { right: 4px; bottom: 36px; }
+.final-awards-character { height: 290px; max-width: 205px; object-fit: contain; object-position: center bottom; }
+.award-progress-item.active.revealed { background: #315e58; }
+.award-ranking-row { font-size: 18px; }
+.award-ranking-row.player-award { grid-template-columns: 28px 160px 170px minmax(0, 1fr) 88px; }
+.quiz-fullscreen { padding-top: 80px; }
+.quiz-question-card { font-size: 48px; letter-spacing: 0; padding: 20px 30px; }
+.quiz-option-card-v2 .opt-text { text-shadow: none; letter-spacing: 0; }
+.stage-result-view .quiz-fullscreen { justify-content: center; padding: 80px 24px 24px; }
+.stage-result-view .quiz-question-row, .stage-result-view #quiz-options-display { display: none; }
+.stage-result-view .quiz-result-box { position: relative; bottom: auto; width: 100%; padding: 32px 24px; border-block: 4px solid #315e58; }
+.stage-result-view .quiz-result-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.stage-result-view .quiz-res-card { min-width: 0; max-width: none; }
+.stage-result-view .quiz-res-card h4 { color: #244d43 !important; }
+@media (max-height: 800px) {
+  .quiz-question-card { font-size: 38px; padding: 16px 24px; }
+  .quiz-option-card-v2 .opt-text { font-size: 36px; }
+}

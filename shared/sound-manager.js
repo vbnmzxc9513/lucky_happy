@@ -56,6 +56,14 @@
     if (!canPlay(name, interval)) return false;
 
     switch (name) {
+      case 'stage-star-1':
+      case 'stage-star-2':
+      case 'stage-star-3': {
+        const frequency = { 'stage-star-1': 523.25, 'stage-star-2': 659.25, 'stage-star-3': 783.99 }[name];
+        tone(frequency, 0, 0.19, { type: 'triangle', gain: 0.065 });
+        tone(frequency * 2, 0.025, 0.12, { gain: 0.025 });
+        break;
+      }
       case 'ready':
         tone(523.25, 0, 0.1, { gain: 0.06 });
         tone(659.25, 0.1, 0.14, { gain: 0.07 });

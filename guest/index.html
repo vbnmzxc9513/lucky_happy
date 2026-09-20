@@ -7,7 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/guest/css/guest.css?v=10">
+    <link rel="stylesheet" href="/guest/css/guest.css?v=12">
+    <link rel="stylesheet" href="/shared/stage-display.css?v=2">
 </head>
 <body>
     <div id="final-sprint-mobile" class="final-sprint-mobile" aria-hidden="true">
@@ -90,7 +91,7 @@
                 <div class="player-live-stats" aria-label="個人與隊伍即時狀態">
                     <div><span>有效點擊</span><strong id="my-tap-count">0</strong></div>
                     <div><span>隊伍名次</span><strong id="my-team-rank">--</strong></div>
-                    <div><span>賽道進度</span><strong id="my-team-progress">0%</strong></div>
+                    <div><span>圈數與當圈進度</span><strong id="my-team-progress">0 圈 · 0%</strong></div>
                 </div>
                 <div class="critical-progress">
                     <span>距離爆擊還差 <strong id="next-critical-count">20</strong> 次</span>
@@ -156,9 +157,11 @@
     <!-- 引入 Socket.IO Client 與前端 JS -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="/shared/events.js?v=14"></script>
-    <script src="/shared/game-config.js?v=11"></script>
-    <script src="/guest/js/tap-handler.js?v=10"></script>
+    <script src="/shared/game-config.js?v=12"></script>
+    <script src="/shared/shuttle-race.js?v=1"></script>
+    <script src="/guest/js/tap-handler.js?v=11"></script>
     <script src="/guest/js/quiz-ui.js?v=10"></script>
-    <script src="/guest/js/guest-app.js?v=13"></script>
+    <script src="/shared/stage-display.js?v=2"></script>
+    <script src="/guest/js/guest-app.js?v=15"></script>
 </body>
 </html>

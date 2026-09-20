@@ -1,0 +1,13 @@
+{
+  "meta": { "id": "wedding-party", "name": "婚禮暖場備用題", "description": "可在出題介面替換的暖場題，不含未確認的新人私事。" },
+  "quizzes": [
+    { "id": "party_001", "question": "「囍」是由哪個字組成的？", "options": ["喜", "福", "愛", "吉"], "correctAnswer": "A", "timeLimit": 10 },
+    { "id": "party_002", "question": "哪一句是祝福新人感情長久的話？", "options": ["百年好合", "一路順風", "早日康復", "考試順利"], "correctAnswer": "A", "timeLimit": 10 },
+    { "id": "party_003", "question": "「執子之手」下一句常接什麼？", "options": ["一起買菜", "與子偕老", "先去排隊", "明天再說"], "correctAnswer": "B", "timeLimit": 10 },
+    { "id": "party_004", "question": "英文「新娘」是哪一個字？", "options": ["Bride", "Bridge", "Bread", "Bird"], "correctAnswer": "A", "timeLimit": 10 },
+    { "id": "party_005", "question": "英文「新郎」是哪一個字？", "options": ["Room", "Bloom", "Groom", "Broom"], "correctAnswer": "C", "timeLimit": 10 },
+    { "id": "party_006", "question": "哪個成語最適合形容新人心意相通？", "options": ["各說各話", "心心相印", "三心二意", "大吃一驚"], "correctAnswer": "B", "timeLimit": 10 },
+    { "id": "party_007", "question": "「白頭偕老」祝福新人什麼？", "options": ["一起染頭髮", "一起熬夜", "相伴到老", "一起戴帽子"], "correctAnswer": "C", "timeLimit": 10 },
+    { "id": "party_008", "question": "哪個詞語通常用來祝福新婚？", "options": ["珠聯璧合", "分道揚鑣", "水火不容", "各奔東西"], "correctAnswer": "A", "timeLimit": 10 }
+  ]
+}

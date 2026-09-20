@@ -250,7 +250,7 @@ async function main() {
   await waitForConnect(host);
   const recoveredHostQuiz = await recoveredHostQuizPromise;
   assert.ok(recoveredHostQuiz.question);
-  assert.ok(recoveredHostQuiz.timeLimit > 0 && recoveredHostQuiz.timeLimit <= 8);
+  assert.ok(recoveredHostQuiz.timeLimit > 0 && recoveredHostQuiz.timeLimit <= 10);
   console.log('PASS host refresh restores current question and remaining time');
 
   const lobbyState = waitForEvent(host, SERVER_TO_CLIENT.GAME_STATE_SYNC, data => data.state === 'LOBBY');

@@ -11,8 +11,7 @@ const guestAppJs = fs.readFileSync(guestAppJsPath, 'utf8');
 
 const dom = new JSDOM(htmlContent, {
   url: "http://localhost:3000/guest/",
-  runScripts: "dangerously",
-  resources: "usable"
+  runScripts: "outside-only"
 });
 
 dom.window.GameEvents = {

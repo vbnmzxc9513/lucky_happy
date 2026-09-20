@@ -1,0 +1,56 @@
+const assert = require('node:assert/strict');
+const { JSDOM } = require('jsdom');
+const fs = require('node:fs');
+const config = require('../shared/game-config');
+const dom = new JSDOM(`<body><section id="screen-racing"><div id="track-container"></div><div id="items-layer"></div>
+${config.TEAMS.map(t => `<div id="horse-${t.id}"></div><span id="${t.id}-progress-text"></span>`).join('')}
+<div id="race-overtake" hidden></div></section></body>`, { runScripts: 'outside-only' });
+const w = dom.window;
+let now = 0, pending, nextId = 0;
+w.GameConfig = config;
+w.matchMedia = () => ({ matches: false });
+Object.defineProperty(w.performance, 'now', { value: () => now });
+w.requestAnimationFrame = fn => { pending = fn; return ++nextId; };
+w.cancelAnimationFrame = () => { pending = null; };
+w.eval(fs.readFileSync(require.resolve('../shared/shuttle-race'), 'utf8'));
+w.eval(fs.readFileSync(require.resolve('../host/js/race-renderer'), 'utf8'));
+const teams = position => ({ red: { id: 'red', position, speed: 10 } });
+const state = (position, paused = false) => ({ state: 'RACING', paused, teams: Object.values(teams(position)) });
+try {
+  const r = new w.RaceRenderer();
+  r.initTrack(76000, { red: [{ id: 'first', x: 1400, type: 'accelerator' }, { id: 'next', x: 1700, type: 'mystery' }] });
+  r.setState(state(1400));
+  assert.equal(r.itemsMap.has('first'), true);
+  now = 100; r.updatePositions(teams(1600));
+  now = 150; pending(now);
+  const horse = w.document.getElementById('horse-red');
+  assert.equal(horse.style.getPropertyValue('--facing'), '-1', 'interpolates through the actual endpoint');
+  assert.equal(r.itemsMap.has('first'), false);
+  assert.equal(r.itemsMap.has('next'), true);
+  r.removeItemDom('next');
+  r.paint(teams(1700));
+  assert.equal(r.itemsMap.has('next'), false, 'triggered item cannot respawn');
+  r.setState(state(1600, true));
+  assert.equal(pending, null);
+  r.setState(state(1600));
+  assert.ok(pending);
+  r.disconnect();
+  assert.equal(pending, null);
+  r.setState(state(7700));
+  assert.equal(w.document.getElementById('red-progress-text').textContent, '2 圈 · 56%');
+  assert.equal(r.samples.length, 1, 'reconnect snaps without replay');
+  r.ranks = { red: 2, blue: 1 };
+  r.detectOvertake({ red: { position: 300 }, blue: { position: 200 } }, 0);
+  r.detectOvertake({ red: { position: 310 }, blue: { position: 201 } }, 400);
+  assert.equal(w.document.getElementById('race-overtake').hidden, false);
+  const firstNotice = r.lastNoticeAt;
+  r.detectOvertake({ red: { position: 311 }, blue: { position: 401 } }, 500);
+  r.detectOvertake({ red: { position: 312 }, blue: { position: 402 } }, 900);
+  assert.equal(r.lastNoticeAt, firstNotice, 'notices rate limited');
+  r.reset();
+  assert.equal(pending, null);
+  assert.equal(r.itemsMap.size, 0);
+  assert.equal(r.samples.length, 0);
+  assert.equal(w.document.getElementById('race-overtake').hidden, true);
+  console.log('PASS renderer: endpoint interpolation, items, pause, reconnect, notices, reset');
+} finally { w.close(); }

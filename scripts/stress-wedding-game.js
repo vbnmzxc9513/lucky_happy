@@ -45,8 +45,8 @@ const CONFIG = {
   manualStartTimeoutSeconds: Number(cli.manualStartTimeoutSeconds || process.env.MANUAL_START_TIMEOUT_SECONDS || 1800),
   expectedTotalPlayers: Number(cli.expectedTotalPlayers || process.env.EXPECTED_TOTAL_PLAYERS || cli.clients || process.env.CLIENTS || 150),
   enforceDuration: isEnabled(cli.enforceDuration || process.env.ENFORCE_DURATION),
-  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || 390),
-  maxDurationSeconds: Number(cli.maxDurationSeconds || process.env.MAX_DURATION_SECONDS || 510),
+  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || 343),
+  maxDurationSeconds: Number(cli.maxDurationSeconds || process.env.MAX_DURATION_SECONDS || 370),
   reportPath: cli.report || process.env.STRESS_REPORT_PATH || ''
 };
 
@@ -79,7 +79,9 @@ const metrics = {
   latestRacePacing: null,
   finalAwards: null,
   peakTotalPlayers: 0,
-  finalSprintEvents: 0
+  finalSprintEvents: 0,
+  stageSummaries: [],
+  tapWindows: []
 };
 
 let hostSocket = null;
@@ -217,6 +219,13 @@ async function connectHost() {
       log(`Human host started the match (${state.state})`);
     }
     if (state.racePacing) metrics.latestRacePacing = state.racePacing;
+    const stage = state.quizStage;
+    if (stage?.phase === 'summary' && !metrics.stageSummaries.some(s => s.stageNumber === stage.stageNumber)) {
+      metrics.stageSummaries.push(stage.summary);
+    }
+    if (stage?.phase === 'tap' && !metrics.tapWindows.some(s => s.stageNumber === stage.stageNumber)) {
+      metrics.tapWindows.push({ stageNumber: stage.stageNumber, seconds: (stage.endsAt - state.serverNow) / 1000 });
+    }
   });
 
   const observePlayerCount = data => {
@@ -526,6 +535,8 @@ function printSummary() {
   console.log(`System errors: ${metrics.systemErrors}`);
   console.log(`Taps sent: ${metrics.tapsSent.toLocaleString('en-US')}`);
   console.log(`Quiz starts/results: ${metrics.quizStarts}/${metrics.quizResults}`);
+  console.log(`Three-question settlements: ${metrics.stageSummaries.length}/6`);
+  console.log(`Tap windows (seconds): ${metrics.tapWindows.map(stage => stage.seconds.toFixed(2)).join(', ')}`);
   console.log(`Final sprint announcements: ${metrics.finalSprintEvents}`);
   console.log(`Quiz answers accepted: ${metrics.quizAnswerAccepted}/${metrics.quizAnswersSent}`);
   if (metrics.quizRuns.length > 0) {
@@ -579,6 +590,8 @@ function printSummary() {
     tapsSent: metrics.tapsSent,
     quizStarts: metrics.quizStarts,
     quizResults: metrics.quizResults,
+    stageSummaries: metrics.stageSummaries,
+    tapWindows: metrics.tapWindows,
     quizAnswersSent: metrics.quizAnswersSent,
     quizAnswersAccepted: metrics.quizAnswerAccepted,
     finalSprintEvents: metrics.finalSprintEvents,
@@ -687,7 +700,7 @@ async function main() {
   await sleep(1000);
   const report = printSummary();
   const totalAnswers = metrics.quizRuns.reduce((sum, run) => sum + run.totalAnswers, 0);
-  const minimumExpectedAnswers = CONFIG.clients * Math.max(0, Math.min(1, CONFIG.answerRate)) * 10 * 0.9;
+  const minimumExpectedAnswers = CONFIG.clients * Math.max(0, Math.min(1, CONFIG.answerRate)) * 18 * 0.9;
   const runSeconds = report.observedRoundSeconds;
 
   const failed =
@@ -700,8 +713,11 @@ async function main() {
     metrics.intentionalDisconnects !== Math.min(CONFIG.reconnectClients, CONFIG.clients) ||
     metrics.recoveredConnections !== Math.min(CONFIG.reconnectClients, CONFIG.clients) ||
     metrics.systemErrors > 0 ||
-    metrics.quizStarts !== 10 ||
-    metrics.quizResults !== 10 ||
+    metrics.quizStarts !== 18 ||
+    metrics.quizResults !== 18 ||
+    metrics.stageSummaries.length !== 6 ||
+    metrics.tapWindows.length !== 6 ||
+    metrics.tapWindows.some(stage => Math.abs(stage.seconds - DEFAULT_CONFIG.quizStages.tapSeconds) > 0.5) ||
     totalAnswers < minimumExpectedAnswers ||
     metrics.roundFinished !== 1 ||
     metrics.quizAnswerAccepted < metrics.quizAnswersSent * 0.95 ||

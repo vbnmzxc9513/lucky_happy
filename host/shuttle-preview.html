@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>黑皮折返賽 · 單關預覽</title>
+<style>html,body{height:100%;margin:0;background:#a1d7cf;color:#214943;font-family:system-ui}body{display:grid;grid-template-rows:48px minmax(0,1fr)}nav{display:flex;align-items:center;gap:12px;padding:0 18px;background:#e4f3ea}button{background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:8px}button:hover{background:#f4d478}strong{margin-right:auto}iframe{width:100%;height:100%;border:0;min-height:0}</style></head>
+<body><nav><strong>單關預覽 · 模擬資料</strong><button id="replay" title="重播">↻</button><button id="pause" title="暫停或恢復">Ⅱ</button><button id="race">賽跑</button><button id="quiz">答題</button><button id="summary">結算</button></nav><iframe id="preview" title="黑皮折返賽"></iframe>
+<script>
+(async () => {
+  const frame = document.getElementById('preview');
+  const response = await fetch('/host/');
+  if (!response.ok || response.redirected) { location.href = '/staff-login?next=/host/shuttle-preview.html'; return; }
+  const html = await response.text();
+  // Replace the transport before any app scripts execute: preview cannot operate a real game.
+  frame.srcdoc = html.replace('<head>', '<head><base href="/host/">').replace('/socket.io/socket.io.js', '/host/js/shuttle-preview.js');
+  const seek = seconds => frame.contentWindow.previewSeek?.(seconds);
+  document.getElementById('replay').onclick = () => seek(0);
+  document.getElementById('race').onclick = () => seek(0);
+  document.getElementById('quiz').onclick = () => seek(11);
+  document.getElementById('summary').onclick = () => seek(47);
+  document.getElementById('pause').onclick = () => frame.contentWindow.previewPause?.();
+})();
+</script></body></html>

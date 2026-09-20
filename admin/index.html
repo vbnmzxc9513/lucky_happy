@@ -7,10 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=Noto+Serif+TC:wght@400;600;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=16">
+  <link rel="stylesheet" href="css/admin.css?v=17">
   <script src="/socket.io/socket.io.js"></script>
   <script src="/shared/events.js?v=12"></script>
   <script src="/shared/game-config.js?v=15"></script>
+  <script src="/shared/stage-plan.js?v=1"></script>
 </head>
 <body>
   <div class="luxury-bg-glow"></div>
@@ -63,9 +64,9 @@
               <div class="form-group half">
                 <label>📏 賽道總里程 / 勝利點擊門檻 (px)</label>
                 <select id="trackLength" class="luxury-input">
-                  <option value="76000" selected>76000 px (正式 10 題 - 約 150 人 / 7~8 分鐘)</option>
-                  <option value="93000">93000 px (長版 10 題 - 約 150 人 / 8 分鐘以上)</option>
-                  <option value="104000">104000 px (長版耐力賽 - 約 150 人 / 9 分鐘以上)</option>
+                  <option value="76000" selected>76000 px（顯示距離，分關時間固定）</option>
+                  <option value="93000">93000 px（顯示距離，分關時間固定）</option>
+                  <option value="104000">104000 px（顯示距離，分關時間固定）</option>
                   <option value="500">500 px (極速閃電戰 - 約 300 次點擊)</option>
                   <option value="1000">1000 px (標準婚禮宴會 - 約 600 次點擊)</option>
                   <option value="1500">1500 px (熱血耐力賽 - 約 1000 次點擊)</option>
@@ -148,7 +149,7 @@
                 <textarea id="mapDescInput" class="luxury-input" rows="2" placeholder="浪漫櫻花紛飛的幸福禮道..."></textarea>
               </div>
               <h3 class="sub-heading">🚩 里程碑關卡觸發器配置 (Checkpoints)</h3>
-              <p class="card-desc">設定在跑道達到特定百分比時，自動觸發指定的突襲問題或事件：</p>
+              <p class="card-desc">正式版依排列順序每三題一關；賽道百分比不影響分關時間。</p>
               <div id="checkpointsContainer">
                 <!-- JS 動態產生里程碑輸入框 -->
               </div>
@@ -265,27 +266,27 @@
               </label>
               <label class="pacing-control">
                 <span>每回合題數</span>
-                <input type="number" id="quizTargetQuestionCount" class="luxury-input" min="10" max="20" value="10" onchange="ensureMinimumQuizRows(); autoSpreadQuizPlan(false); updateQuizPacing()">
+                <input type="number" id="quizTargetQuestionCount" class="luxury-input" min="18" max="60" step="3" value="18" onchange="ensureMinimumQuizRows(); autoSpreadQuizPlan(false); updateQuizPacing()">
               </label>
               <label class="pacing-control">
-                <span>出題頻率 %</span>
-                <input type="number" id="quizTriggerFrequency" class="luxury-input" min="5" max="20" value="9" oninput="updateQuizPacing()">
+                <span>每段連點秒數</span>
+                <input type="number" id="quizTriggerFrequency" class="luxury-input" value="8" disabled>
               </label>
             </div>
             <label class="inline-check pacing-auto-check">
               <input type="checkbox" id="quizAutoPacingEnabled" checked onchange="updateQuizPacing()">
-              <span>開賽時依實際人數自動微調場地，維持約 7 分鐘</span>
+              <span>開賽時自動調整賽道顯示距離</span>
             </label>
             <div class="pacing-action-row">
-              <button class="btn-secondary" onclick="applyRecommendedQuizPacing()">正式版 10 題</button>
-              <button class="btn-secondary" onclick="applyQuizFrequencyPlan()">套用頻率</button>
+              <button class="btn-secondary" onclick="applyRecommendedQuizPacing()">正式版 18 題</button>
+              <button class="btn-secondary" onclick="applyQuizFrequencyPlan()">套用題數</button>
             </div>
-            <div class="pacing-hint" id="quizFrequencyHint">每約 9% 賽道進度出 1 題，至少保留 10 題。</div>
+            <div class="pacing-hint" id="quizFrequencyHint">每段連點 8 秒，接著連答三題。</div>
             <div class="quiz-metric-grid">
-              <div class="quiz-metric"><span>題目數</span><strong id="quizMetricCount">10 題</strong></div>
-              <div class="quiz-metric"><span>每題流程</span><strong id="quizMetricQuestionSeconds">16 秒</strong></div>
-              <div class="quiz-metric primary"><span>自動配速總長</span><strong id="quizMetricAutoDuration">7:00</strong></div>
-              <div class="quiz-metric"><span>固定賽道估算</span><strong id="quizMetricFixedDuration">6:59</strong></div>
+              <div class="quiz-metric"><span>題目數</span><strong id="quizMetricCount">18 題</strong></div>
+              <div class="quiz-metric"><span>關卡配置</span><strong id="quizMetricQuestionSeconds">6 關 × 3 題</strong></div>
+              <div class="quiz-metric primary"><span>預估遊戲總長</span><strong id="quizMetricAutoDuration">5:43</strong></div>
+              <div class="quiz-metric"><span>累計連點時間</span><strong id="quizMetricFixedDuration">1:58</strong></div>
             </div>
             <div class="pacing-summary" id="quizPacingSummary">目前設定接近婚禮正式節奏。</div>
             <div class="question-count-forecast">
@@ -293,9 +294,9 @@
               <div id="questionCountForecast" class="forecast-list"></div>
             </div>
             <div class="reward-rule-list">
-              <div><span>答對率 ≥ 70%</span><strong id="rewardLargeBoost">隊伍 +1500px 衝刺</strong></div>
-              <div><span>答對率 ≥ 40%</span><strong id="rewardSmallBoost">隊伍 +500px 小衝刺</strong></div>
-              <div><span>答對率 &lt; 40%</span><strong id="rewardStun">隊伍暈眩 3 秒</strong></div>
+              <div><span>本關全對 3 題</span><strong id="rewardLargeBoost">前進 4 格</strong></div>
+              <div><span>本關答對 2 題 / 1 題</span><strong id="rewardSmallBoost">前進 2 格 / 1 格</strong></div>
+              <div><span>本關答對 0 題</span><strong id="rewardStun">不加速、不倒退</strong></div>
             </div>
             <div class="quiz-library-header">
               <h3>題庫清單</h3>
@@ -372,6 +373,6 @@
       <p>🏇 Lucky Horse v1.1 Wedding Event System — Authoritative State Guardrails & Zero Silent Failures Enabled.</p>
     </footer>
   </div>
-  <script src="js/admin-app.js?v=16"></script>
+  <script src="js/admin-app.js?v=17"></script>
 </body>
 </html>

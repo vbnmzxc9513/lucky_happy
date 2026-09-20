@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = window.GameEvents;
   const raceRenderer = new window.RaceRenderer();
   const quizDisplay = new window.QuizDisplay();
+  const stageDisplay = window.StageDisplay ? new window.StageDisplay('host') : null;
   const scoreboardUI = new window.ScoreboardUI();
   const gameSound = window.GameSound || {
     enable: async () => false,
@@ -80,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
               <!-- Hidden elements for JS compatibility -->
               <span id="race-${t.id}-count" style="display:none;">0</span>
-              <span id="${t.id}-progress-text" style="display:none;">0%</span>
+              <span id="${t.id}-progress-text" class="race-distance">0 圈 · 0%</span>
               <span id="${t.id}-stun-tag" class="stun-badge" style="display:none;">⚠️</span>
           </div>
         `;
@@ -102,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const laneHTML = `
           <div class="track-lane ${t.color}-lane" style="top: ${i * 20}%;">
               <div class="lane-border-line"></div>
-              <div class="lane-label" style="display: none;">${t.name}</div>
+              <div class="lane-label"><span id="${t.id}-race-rank" class="lane-rank">第 1 名</span><strong>${t.name}</strong><span id="${t.id}-lane-laps" class="lane-laps">0 圈</span></div>
               <div class="lane-flag">
                   <div class="lane-flag-pole"></div>
                   <div class="lane-flag-triangle"></div>
@@ -124,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const runSrc = t.runImgPath || t.imgPath;
         const horseHTML = `
           <div id="horse-${t.id}" class="horse-unit" style="left: 10px; top: ${topPct}%; margin-top: -50px;">
-              <img class="horse-emoji" src="${runSrc}" alt="${t.name}" />
+              <div class="horse-facing"><img class="horse-emoji" src="${runSrc}" alt="${t.name}" /></div>
               <div id="${t.id}-effect-layer" class="horse-effect"></div>
           </div>
         `;
@@ -173,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  let renderedTeamsKey = null;
   function syncGameConfig(config) {
     if (!config || !Array.isArray(config.TEAMS)) return;
     window.GameConfig = {
@@ -180,7 +182,11 @@ document.addEventListener('DOMContentLoaded', () => {
       ...config,
       TEAMS: config.TEAMS
     };
-    renderDynamicHostUI();
+    const key = JSON.stringify(config.TEAMS);
+    if (key !== renderedTeamsKey) {
+      renderDynamicHostUI();
+      renderedTeamsKey = key;
+    }
   }
 
   renderDynamicHostUI();
@@ -305,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('主控端連線驗證失敗:', err.message);
     document.getElementById('game-state-label').innerText = '主持端驗證失敗，請回到工作人員選單重新輸入驗證碼。';
   });
+  socket.on('disconnect', () => raceRenderer.disconnect?.());
 
   socket.on('game:map_list', (list) => {
     currentMapList = list;
@@ -321,6 +328,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     showPausedOverlay(!!state.paused);
     syncGameConfig(state.config);
+    quizDisplay.paused = !!state.paused;
+    stageDisplay?.sync(state);
+    if (state.quizStage?.phase === 'summary') quizDisplay.hide();
+    if (state.quizStage?.phase === 'reveal' && state.quizStage.reveal) {
+      quizDisplay.showResult(state.quizStage.reveal);
+    }
     if (state.finalSprint && state.finalSprint.active) {
       const overlay = document.getElementById('final-sprint-overlay');
       if (!overlay || !overlay.classList.contains('active')) showFinalSprint(state.finalSprint, false);
@@ -407,6 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
         scoreboardUI.render(state.roundStatus, state.finalWinner, state.finalAwards, currentPresentation);
       }
     }
+
+    raceRenderer.setState?.(state);
 
     // 將所有已入席玩家加入迎賓氣泡牆
     if (state.players) {
@@ -544,6 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. 接收道具與特效
   socket.on(SERVER_TO_CLIENT.GAME_ITEM_TRIGGERED, (data) => {
     if (currentServerState !== 'RACING') return;
+    if (data.itemId) raceRenderer.removeItemDom(data.itemId);
     const teams = (window.GameConfig && window.GameConfig.TEAMS) || [];
     const trigTeam = teams.find(t => t.id === data.teamId);
     const teamLabel = trigTeam ? trigTeam.name : data.teamId;

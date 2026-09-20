@@ -12,7 +12,7 @@ class QuizUI {
   initButtons() {
     document.querySelectorAll('.opt-btn').forEach(btn => {
       btn.onclick = () => {
-        if (this.isAnswered) return;
+        if (this.isAnswered || this.paused) return;
         const opt = btn.getAttribute('data-opt');
         this.selectOption(opt, btn);
       };
@@ -55,6 +55,7 @@ class QuizUI {
       let left = seconds;
       if (this.timerInterval) clearInterval(this.timerInterval);
       this.timerInterval = setInterval(() => {
+        if (this.paused) return;
         left--;
         if (left > 0) {
           lockMsg.innerText = `⚠️ 突發關卡即將開始... ${left}`;
@@ -87,6 +88,7 @@ class QuizUI {
 
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.timerInterval = setInterval(() => {
+      if (this.paused) return;
       left--;
       if (left < 0) left = 0;
       if (timerEl) timerEl.innerText = left;
@@ -134,6 +136,8 @@ class QuizUI {
   }
 
   showTeamResult(teamResult) {
+    this.disableAll();
+    this.stopTimer();
     const lockMsg = document.getElementById('quiz-lock-msg');
     if (!lockMsg || !teamResult) return;
     lockMsg.classList.remove('is-correct', 'is-wrong');
@@ -145,7 +149,7 @@ class QuizUI {
       lockMsg.innerHTML = '<strong>隊內票數平手</strong><span>這題沒有形成唯一答案</span>';
     } else {
       lockMsg.innerHTML = teamResult.isCorrect
-        ? '<strong>隊伍答對！</strong><span>多數決成功，獲得大幅加速</span>'
+        ? `<strong>隊伍答對！</strong><span>${teamResult.effect === 'stage_pending' ? '本關累積一題，三題後一起領獎勵' : '多數決成功，獲得大幅加速'}</span>`
         : `<strong>隊伍答錯</strong><span>多數選擇 ${teamResult.teamAnswer || '--'}</span>`;
     }
   }

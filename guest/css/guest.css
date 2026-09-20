@@ -671,4 +671,57 @@ body::before {
 .mobile-pause-overlay span { margin-top: 12px; color: #315E58; font-weight: 800; }
 
 .wait-box { padding: 45px 24px; }
+.screen#screen-racing { min-height: 0; overflow: hidden; padding: 36px 20px 12px; }
+#screen-racing .race-control-area { display: grid; grid-template-rows: 58px 64px 32px minmax(0, 1fr) 28px; gap: 6px; min-height: 0; padding: 0; }
+#screen-racing .team-indicator { height: 100%; padding: 6px 10px; font-size: 16px; line-height: 1.3; border-radius: 8px; }
+#screen-racing .team-indicator strong { font-size: 18px; }
+#screen-racing .player-live-stats, #screen-racing .critical-progress { margin: 0; height: 100%; }
+#screen-racing .player-live-stats strong { font-size: 17px; line-height: 1.2; }
+#screen-racing #my-team-progress { font-size: 15px; }
+#screen-racing .tap-zone { min-height: 0; height: 100%; margin: 0; }
+#screen-racing .giant-tap-btn { width: auto; max-width: 100%; height: min(100%, 260px); aspect-ratio: 1; min-height: 0; }
+#screen-racing .tap-icon { font-size: 56px; }
+#screen-racing .tap-label { font-size: 18px; margin-top: 4px; letter-spacing: 0; }
+#screen-racing .tap-tip { font-size: 12px; line-height: 1.3; margin: 0; letter-spacing: 0; }
 .wait-icon { font-size: 65px; margin-bottom: 18px; animation: float-item 2s infinite ease-in-out; }
+
+/* Keep the header aligned with the fixed stage overlays, including long names. */
+body { height: 100dvh; }
+#mobile-header { flex: 0 0 64px; height: 64px; min-height: 64px; padding: 8px 12px; gap: 8px; }
+.user-profile { min-width: 0; gap: 6px; }
+#header-avatar { flex: 0 0 auto; }
+#header-nickname { min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 1.3; max-height: 37px; overflow: hidden; }
+.team-badge { flex: 0 0 auto; max-width: 46%; padding: 6px 8px; font-size: 12px; }
+.screen { min-height: 0; }
+#screen-login.active, #screen-quiz.active { justify-content: flex-start; padding: 12px; }
+#screen-login .card-box, .quiz-ctrl-box { margin: auto 0; flex-shrink: 0; padding: 18px 16px; }
+#screen-login h1 { font-size: 22px; line-height: 1.3; margin-bottom: 8px; }
+#screen-login .sub-text { font-size: 13px; margin-bottom: 12px; }
+#screen-login .form-group { margin-bottom: 12px; }
+#screen-login label { margin-bottom: 6px; letter-spacing: 0; }
+#screen-login input { padding: 10px; min-height: 44px; }
+.avatar-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.avatar-opt { min-width: 0; height: 44px; padding: 0; font-size: 25px; }
+.avatar-opt.selected { transform: none; }
+#btn-join { min-height: 44px; padding: 12px 6px; font-size: 16px; letter-spacing: 0; }
+#login-error { margin: 6px 0 0; font-size: 13px; }
+#login-error:empty { display: none; }
+.quiz-top h2 { font-size: 22px; color: #183e38; }
+.quiz-instruction { font-size: 14px; line-height: 1.4; color: #244f48; letter-spacing: 0; margin: 8px 0; }
+.quiz-mobile-timer { font-size: 22px; color: #9a2424; margin-bottom: 12px; }
+.options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.opt-btn { min-width: 0; min-height: 108px; padding: 10px 8px; gap: 4px; }
+.opt-tag { font-size: 28px; }
+.opt-text { overflow-wrap: anywhere; font-size: 16px; line-height: 1.4; }
+.lock-msg { padding: 8px; }
+.lock-msg strong { font-size: 20px; }
+.opt-btn:disabled { opacity: 1; background: #354b52; }
+.opt-btn.selected { transform: none; background: #244f48; border: 3px solid #f5d06b; box-shadow: none; }
+@media (max-height: 600px) {
+  #screen-login.active, #screen-quiz.active { padding: 8px; }
+  #screen-login .card-box, .quiz-ctrl-box { padding: 12px; }
+  #screen-login h1 { font-size: 20px; }
+  #screen-login .sub-text { margin-bottom: 8px; }
+  #screen-login .form-group { margin-bottom: 8px; }
+  .quiz-top h2 { font-size: 20px; }
+}

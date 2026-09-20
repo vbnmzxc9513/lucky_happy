@@ -7,7 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/host/css/host.css?v=21">
+    <link rel="stylesheet" href="/host/css/host.css?v=22">
+    <link rel="stylesheet" href="/host/css/shuttle-race.css?v=3">
+    <link rel="stylesheet" href="/shared/stage-display.css?v=2">
 </head>
 <body>
     <button id="btn-enable-sound" class="sound-unlock" type="button" aria-label="啟用大螢幕遊戲音效">
@@ -172,7 +174,7 @@
                             <span class="tap-horses">🏇🏇🏇</span>
                         </div>
                     </div>
-                    <p class="rules-card-desc">全隊一起瘋狂點擊按鈕<br><strong>最先衝過終點線的陣營勝利！</strong></p>
+                    <p class="rules-card-desc">每關一起連點 8 秒<br><strong>六關後衝刺 10 秒，累積距離最多的隊伍獲勝！</strong></p>
                 </div>
 
                 <!-- 卡片 3: 快問快答與機遇 -->
@@ -187,13 +189,13 @@
                             <span class="quiz-bolt">⚡</span>
                         </div>
                     </div>
-                    <p class="rules-card-desc">賽道中途隨機觸發<br>新人快問快答或驚喜機遇事件！</p>
+                    <p class="rules-card-desc">每關連答三題，共六關<br>答題後一起看成績、領取獎勵！</p>
                 </div>
 
                 <!-- 卡片 4: 多數決答題獎懲 -->
                 <div class="rules-card">
                     <div class="rules-card-number">4</div>
-                    <h3 class="rules-card-title">多數決答題獎懲</h3>
+                    <h3 class="rules-card-title">多數決答題獎勵</h3>
                     <p class="rules-card-subtitle">Majority Vote System</p>
                     <div class="rules-card-illustration">
                         <div class="vote-demo">
@@ -203,11 +205,11 @@
                             </div>
                             <div class="vote-results">
                                 <span class="vote-correct">🚀 答對加速</span>
-                                <span class="vote-wrong">⚡ 答錯停滯</span>
+                                <span class="vote-wrong">★ 全對加碼</span>
                             </div>
                         </div>
                     </div>
-                    <p class="rules-card-desc">全隊投票比例最高的選項<br>作為繳卷答案，答對加速 答錯受罰！</p>
+                    <p class="rules-card-desc">每題以全隊最多票選項為答案<br>答對 1／2／3 題，前進 1／2／4 格！</p>
                 </div>
             </div>
 
@@ -269,6 +271,7 @@
 
         <!-- 2. 賽馬競技場畫面 (COUNTDOWN / RACING / QUIZ) -->
         <section id="screen-racing" class="screen">
+            <header class="shuttle-banner"><div><p>THE TSAI NIEH WEDDING CLUB</p><h1>黑皮折返賽</h1></div><span>來回一圈 · 一起跑更遠</span></header>
             <!-- 賽事頂部資訊板 -->
             <div id="dynamic-race-header" class="race-header">
                 <!-- 動態注入的各隊伍數據統計 -->
@@ -300,6 +303,7 @@
             <div class="race-ticker">
                 💬 現場快報：<span id="ticker-text">比賽即將開始，請準備瘋狂點擊！</span>
             </div>
+            <div id="race-overtake" hidden></div>
         </section>
 
         <!-- 3. 關卡答題全屏畫面 -->
@@ -458,13 +462,15 @@
     <!-- 引入 Socket.IO Client、現場音效與遊戲邏輯 JS -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="/shared/events.js?v=14"></script>
-    <script src="/shared/game-config.js?v=14"></script>
-    <script src="/shared/sound-manager.js?v=1"></script>
+    <script src="/shared/game-config.js?v=15"></script>
+    <script src="/shared/shuttle-race.js?v=1"></script>
+    <script src="/shared/sound-manager.js?v=2"></script>
     <script src="/host/js/effects.js?v=12"></script>
-    <script src="/host/js/race-renderer.js?v=12"></script>
-    <script src="/host/js/quiz-display.js?v=12"></script>
+    <script src="/host/js/race-renderer.js?v=13"></script>
+    <script src="/host/js/quiz-display.js?v=13"></script>
     <script src="/host/js/map-select-ui.js?v=12"></script>
     <script src="/host/js/scoreboard.js?v=14"></script>
-    <script src="/host/js/host-app.js?v=19"></script>
+    <script src="/shared/stage-display.js?v=2"></script>
+    <script src="/host/js/host-app.js?v=21"></script>
 </body>
 </html>

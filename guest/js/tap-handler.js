@@ -39,26 +39,13 @@ class TapHandler {
   }
 
   triggerVisualFeedback() {
-    const layer = document.getElementById('tap-feedback-layer');
-    if (!layer) return;
-
-    const el = document.createElement('div');
-    el.innerText = '⚡ +1';
-    el.style.position = 'absolute';
-    el.style.left = `${50 + (Math.random() - 0.5) * 40}%`;
-    el.style.top = `${40 + (Math.random() - 0.5) * 30}%`;
-    el.style.fontSize = '28px';
-    el.style.fontWeight = '900';
-    el.style.color = '#f59e0b';
-    el.style.transition = 'all 0.5s ease-out';
-    layer.appendChild(el);
-
-    setTimeout(() => {
-      el.style.transform = 'translateY(-60px) scale(1.3)';
-      el.style.opacity = '0';
-    }, 20);
-
-    setTimeout(() => el.remove(), 500);
+    const button = document.getElementById('btn-tap');
+    if (!button) return;
+    this.pressAnimation?.cancel();
+    if (button.animate) this.pressAnimation = button.animate([
+      { transform: 'scale(.96)', filter: 'brightness(1.12)' },
+      { transform: 'scale(1)', filter: 'brightness(1)' }
+    ], { duration: 130, easing: 'ease-out' });
   }
 
   showAckFeedback(result) {

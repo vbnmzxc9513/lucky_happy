@@ -1,7 +1,7 @@
 {
   "id": "wedding-final-showdown",
   "name": "幸福一戰決勝負",
-  "description": "婚禮正式版預設賽道，單局決勝、十道答題關卡。",
+  "description": "婚禮正式版：六關、每關三題，連點十八秒，約六分四十三秒。",
   "thumbnail": "🏇",
   "difficulty": 2,
   "track": {
@@ -13,7 +13,7 @@
       "id": "final_cp_1",
       "trigger": {
         "type": "team_progress",
-        "percent": 9
+        "percent": 5
       },
       "quizId": "wc_001",
       "timeLimit": 10
@@ -22,7 +22,7 @@
       "id": "final_cp_2",
       "trigger": {
         "type": "team_progress",
-        "percent": 18
+        "percent": 11
       },
       "quizId": "wc_002",
       "timeLimit": 10
@@ -31,7 +31,7 @@
       "id": "final_cp_3",
       "trigger": {
         "type": "team_progress",
-        "percent": 27
+        "percent": 16
       },
       "quizId": "wc_003",
       "timeLimit": 10
@@ -40,16 +40,16 @@
       "id": "final_cp_4",
       "trigger": {
         "type": "team_progress",
-        "percent": 36
+        "percent": 21
       },
       "quizId": "wc_004",
-      "timeLimit": 8
+      "timeLimit": 10
     },
     {
       "id": "final_cp_5",
       "trigger": {
         "type": "team_progress",
-        "percent": 45
+        "percent": 26
       },
       "quizId": "ft_001",
       "timeLimit": 10
@@ -58,7 +58,7 @@
       "id": "final_cp_6",
       "trigger": {
         "type": "team_progress",
-        "percent": 54
+        "percent": 32
       },
       "quizId": "ft_002",
       "timeLimit": 10
@@ -67,7 +67,7 @@
       "id": "final_cp_7",
       "trigger": {
         "type": "team_progress",
-        "percent": 63
+        "percent": 37
       },
       "quizId": "ft_003",
       "timeLimit": 10
@@ -76,27 +76,99 @@
       "id": "final_cp_8",
       "trigger": {
         "type": "team_progress",
-        "percent": 72
+        "percent": 42
       },
       "quizId": "ft_004",
-      "timeLimit": 8
+      "timeLimit": 10
     },
     {
       "id": "final_cp_9",
       "trigger": {
         "type": "team_progress",
-        "percent": 81
+        "percent": 47
       },
       "quizId": "ft_005",
-      "timeLimit": 8
+      "timeLimit": 10
     },
     {
       "id": "final_cp_10",
       "trigger": {
         "type": "team_progress",
-        "percent": 90
+        "percent": 53
       },
       "quizId": "ft_006",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_11",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 58
+      },
+      "quizId": "party_001",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_12",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 63
+      },
+      "quizId": "party_002",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_13",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 68
+      },
+      "quizId": "party_003",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_14",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 74
+      },
+      "quizId": "party_004",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_15",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 79
+      },
+      "quizId": "party_005",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_16",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 84
+      },
+      "quizId": "party_006",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_17",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 89
+      },
+      "quizId": "party_007",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_18",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 95
+      },
+      "quizId": "party_008",
       "timeLimit": 10
     }
   ],
@@ -119,7 +191,15 @@
     "ft_003",
     "ft_004",
     "ft_005",
-    "ft_006"
+    "ft_006",
+    "party_001",
+    "party_002",
+    "party_003",
+    "party_004",
+    "party_005",
+    "party_006",
+    "party_007",
+    "party_008"
   ],
   "config": {
     "baseBoost": 0.5,

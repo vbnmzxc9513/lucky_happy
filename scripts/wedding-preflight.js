@@ -125,8 +125,8 @@ async function main() {
     const currentMap = realtime.state.currentMap || {};
     record('host WebSocket', true, `state=${realtime.state.state}, maps=${realtime.mapList.length}`);
     record(
-      'formal 10-question map',
-      currentMap.id === 'wedding-final-showdown' && Array.isArray(currentMap.checkpoints) && currentMap.checkpoints.length === 10,
+      'formal 18-question map',
+      currentMap.id === 'wedding-final-showdown' && Array.isArray(currentMap.checkpoints) && currentMap.checkpoints.length === 18,
       `${currentMap.id || 'no map'}, checkpoints=${(currentMap.checkpoints || []).length}`
     );
     const config = realtime.state.config || {};
@@ -135,11 +135,13 @@ async function main() {
       Number(config.maxPlayersPerTeam) === 50,
       `max=${config.maxPlayersPerTeam || 'missing'} players/team`
     );
-    const sprint = config.finalSprint || {};
+    const stages = config.quizStages || {};
     record(
-      'final sprint guard',
-      sprint.enabled === true && Number(sprint.startAfterSeconds) === 540 && Number(sprint.hardFinishAfterSeconds) === 600,
-      `sprint=${sprint.startAfterSeconds || 'missing'}s, deadline=${sprint.hardFinishAfterSeconds || 'missing'}s`
+      'six-stage pacing and final sprint',
+      stages.enabled === true && stages.questionsPerStage === 3 && stages.tapSeconds === 8
+        && stages.prepareSeconds === 3 && stages.revealSeconds === 2 && stages.summarySeconds === 8
+        && stages.sprintSeconds === 10,
+      `tap=${stages.tapSeconds}s, questions/group=${stages.questionsPerStage}, final sprint=${stages.sprintSeconds}s`
     );
   }
 

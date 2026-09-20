@@ -12,8 +12,7 @@ const hostAppJs = fs.readFileSync(hostAppJsPath, 'utf8');
 
 const dom = new JSDOM(htmlContent, {
   url: "http://localhost:3000/host/",
-  runScripts: "dangerously",
-  resources: "usable"
+  runScripts: "outside-only"
 });
 
 // Setup mock io()

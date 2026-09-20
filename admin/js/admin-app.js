@@ -8,7 +8,7 @@ let allMaps = [];
 let allQuizzes = [];
 let currentConfig = window.GameConfig || {};
 let selectedQuizPlanMapId = 'wedding-final-showdown';
-const MIN_FORMAL_QUIZ_COUNT = 10;
+const MIN_FORMAL_QUIZ_COUNT = 18;
 const DEFAULT_EXPECTED_PLAYERS = 150;
 const DEFAULT_FORMAL_TRACK_LENGTH = 76000;
 const DEFAULT_TRIGGER_FREQUENCY_PERCENT = 9;
@@ -239,7 +239,7 @@ function getControlNumber(id, min, max, fallback) {
 function getTargetQuizCount() {
   const pacing = getRacePacingConfig();
   const fallback = Math.max(MIN_FORMAL_QUIZ_COUNT, Number(pacing.targetQuizCount || MIN_FORMAL_QUIZ_COUNT));
-  return Math.round(getControlNumber('quizTargetQuestionCount', MIN_FORMAL_QUIZ_COUNT, 20, fallback));
+  return Math.ceil(getControlNumber('quizTargetQuestionCount', MIN_FORMAL_QUIZ_COUNT, 60, fallback) / 3) * 3;
 }
 
 function getQuizTrackLength() {
@@ -263,7 +263,7 @@ function syncPacingControlsFromConfig() {
   const targetCount = Math.max(MIN_FORMAL_QUIZ_COUNT, Number(pacing.targetQuizCount || MIN_FORMAL_QUIZ_COUNT));
   setConfigControlValue('quizExpectedPlayers', pacing.expectedPlayers || DEFAULT_EXPECTED_PLAYERS);
   setConfigControlValue('quizTargetQuestionCount', targetCount);
-  setConfigControlValue('quizTriggerFrequency', pacing.triggerFrequencyPercent || DEFAULT_TRIGGER_FREQUENCY_PERCENT);
+  setConfigControlValue('quizTriggerFrequency', currentConfig.quizStages?.enabled ? currentConfig.quizStages.tapSeconds : pacing.triggerFrequencyPercent || DEFAULT_TRIGGER_FREQUENCY_PERCENT);
   const auto = document.getElementById('quizAutoPacingEnabled');
   if (auto) auto.checked = pacing.enabled !== false;
   syncQuizTrackLengthFromSelectedMap();
@@ -296,6 +296,12 @@ function getQuizThresholds() {
 }
 
 function updateRewardRuleLabels() {
+  if (currentConfig.quizStages?.enabled) {
+    document.getElementById('rewardLargeBoost').textContent = '前進 4 格（含全對加碼 1 格）';
+    document.getElementById('rewardSmallBoost').textContent = '前進 2 格 / 前進 1 格';
+    document.getElementById('rewardStun').textContent = '不加速、不倒退';
+    return;
+  }
   const thresholds = getQuizThresholds();
   const large = document.getElementById('rewardLargeBoost');
   const small = document.getElementById('rewardSmallBoost');
@@ -703,6 +709,7 @@ function addQuizPlanRow(cp = null, fallbackIndex = null, shouldUpdate = true) {
   const percent = getCheckpointPercent(cp, index, total);
   const row = document.createElement('div');
   row.className = 'quiz-plan-row';
+  if (currentConfig.quizStages?.enabled) row.style.gridTemplateColumns = '54px minmax(0, 1fr) 80px 128px';
   row.innerHTML = `
     <div class="plan-row-index">${index + 1}</div>
     <div class="plan-row-main">
@@ -711,7 +718,7 @@ function addQuizPlanRow(cp = null, fallbackIndex = null, shouldUpdate = true) {
         ${buildQuizSelectOptions(quizId)}
       </select>
     </div>
-    <div class="plan-row-mini">
+    <div class="plan-row-mini" ${currentConfig.quizStages?.enabled ? 'style="display:none"' : ''}>
       <label>進度%</label>
       <input type="number" class="luxury-input plan-percent-input" min="5" max="95" value="${escapeHtml(percent)}" oninput="updateQuizPacing()">
     </div>
@@ -733,7 +740,7 @@ function addQuizPlanRow(cp = null, fallbackIndex = null, shouldUpdate = true) {
 function setQuizPlanRowCount(desiredCount) {
   const container = document.getElementById('quizPlanRows');
   if (!container) return;
-  const count = Math.max(MIN_FORMAL_QUIZ_COUNT, Math.min(20, Math.round(Number(desiredCount) || MIN_FORMAL_QUIZ_COUNT)));
+  const count = Math.max(MIN_FORMAL_QUIZ_COUNT, Math.min(60, Math.ceil((Number(desiredCount) || MIN_FORMAL_QUIZ_COUNT) / 3) * 3));
   let rows = Array.from(container.querySelectorAll('.quiz-plan-row'));
   while (rows.length > count) {
     rows[rows.length - 1].remove();
@@ -764,6 +771,10 @@ function renumberQuizPlanRows() {
   document.querySelectorAll('.quiz-plan-row').forEach((row, index) => {
     const label = row.querySelector('.plan-row-index');
     if (label) label.textContent = String(index + 1);
+    if (currentConfig.quizStages?.enabled) {
+      const heading = row.querySelector('.plan-row-main label');
+      if (heading) heading.textContent = `第 ${Math.floor(index / 3) + 1} 關 · 第 ${index % 3 + 1} 題`;
+    }
   });
 }
 
@@ -797,6 +808,12 @@ function autoSpreadQuizPlan(shouldToast = true) {
 }
 
 function applyQuizFrequencyPlan() {
+  if (currentConfig.quizStages?.enabled) {
+    setQuizPlanRowCount(getTargetQuizCount());
+    autoSpreadQuizPlan(false);
+    updateQuizPacing();
+    return;
+  }
   const frequency = getQuizTriggerFrequency();
   const countByFrequency = Math.floor(95 / Math.max(1, frequency));
   const desiredCount = Math.max(MIN_FORMAL_QUIZ_COUNT, getTargetQuizCount(), countByFrequency);
@@ -828,7 +845,9 @@ function applyRecommendedQuizPacing() {
   if (auto) auto.checked = true;
   setQuizPlanRowCount(MIN_FORMAL_QUIZ_COUNT);
   applyQuizFrequencyPlan();
-  showToast('已套用正式版：150 人、10 題、約 7~8 分鐘節奏。');
+  document.querySelectorAll('.plan-time-input').forEach(input => { input.value = 10; });
+  updateQuizPacing();
+  showToast('已套用正式版：18 題、6 關、每次連點 8 秒，約 5:43。');
 }
 
 function getQuizPlanRows() {
@@ -855,9 +874,14 @@ function saveQuizPlan() {
     showToast('尚未載入賽道，無法保存出題順序。', true);
     return;
   }
-  ensureMinimumQuizRows(getTargetQuizCount(), false);
+  if (!currentConfig.quizStages?.enabled) ensureMinimumQuizRows(getTargetQuizCount(), false);
   const checkpoints = getQuizPlanRows();
   const quizPool = checkpoints.map(cp => cp.quizId).filter(Boolean);
+  if (currentConfig.quizStages?.enabled && (checkpoints.length % 3 !== 0
+    || quizPool.length !== checkpoints.length || new Set(quizPool).size !== checkpoints.length)) {
+    showToast('每關需要 3 題，請選擇不重複的題目並補齊整組後再儲存。', true);
+    return;
+  }
   const trackLength = getQuizTrackLength();
   const racePacing = getRacePacingPayload();
   const mapData = {
@@ -879,6 +903,23 @@ function saveQuizPlan() {
 
 function updateQuizPacing() {
   const rows = getQuizPlanRows();
+  if (currentConfig.quizStages?.enabled && window.StagePlan) {
+    const plan = window.StagePlan.estimate(rows, currentConfig);
+    document.getElementById('quizMetricCount').textContent = `${plan.questionCount} 題`;
+    document.getElementById('quizMetricQuestionSeconds').textContent = `${plan.stageCount} 關 × 3 題`;
+    document.getElementById('quizMetricAutoDuration').textContent = formatSeconds(plan.totalSeconds);
+    document.getElementById('quizMetricFixedDuration').textContent = formatSeconds(plan.racingSeconds);
+    document.getElementById('quizFrequencyHint').textContent = `每段連點 ${currentConfig.quizStages.tapSeconds} 秒，接著連答三題、結算 8 秒。`;
+    document.getElementById('quizPacingSummary').textContent = rows.length % 3
+      ? '尚有未滿三題的關卡，請補齊或移除後再儲存。'
+      : `預估 ${formatSeconds(plan.totalSeconds)}，不含主持暫停與最終頒獎；人數與手速不影響關卡時間。`;
+    document.getElementById('questionCountForecast').innerHTML = [12, 15, 18, 21, 24].map(count => {
+      const average = plan.questionCount ? plan.answerSeconds / plan.questionCount : 10;
+      const estimate = window.StagePlan.estimate(Array.from({ length: count }, () => ({ timeLimit: average })), currentConfig);
+      return `<div class="${count === rows.length ? 'active' : ''}"><span>${count} 題</span><strong>${formatSeconds(estimate.totalSeconds)}</strong></div>`;
+    }).join('');
+    return;
+  }
   const pacing = getRacePacingConfig();
   const playersInput = document.getElementById('quizExpectedPlayers');
   const expectedPlayers = Number(playersInput && playersInput.value) || pacing.expectedPlayers || DEFAULT_EXPECTED_PLAYERS;

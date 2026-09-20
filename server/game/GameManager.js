@@ -8,6 +8,8 @@ const QuizLoader = require('../quiz/QuizLoader');
 const QuizManager = require('../quiz/QuizManager');
 const { SERVER_TO_CLIENT } = require('../../shared/events');
 const DEFAULT_CONFIG = require('../../shared/game-config');
+const StagePlan = require('../../shared/stage-plan');
+const ShuttleRace = require('../../shared/shuttle-race');
 
 class GameManager {
   constructor(io) {
@@ -30,6 +32,8 @@ class GameManager {
     this.lastRacePacing = null;
     this.flowToken = 0;
     this.pendingQuiz = null;
+    this.quizStage = null;
+    this.stageQuestions = [];
     this.raceGuardInterval = null;
     this.raceStartedAt = null;
     this.finalSprintActive = false;
@@ -129,6 +133,8 @@ class GameManager {
       players: Array.from(this.teamManager.players.values()).map(player => this.getPublicPlayer(player)),
       totalPlayers: this.teamManager.players.size,
       racePacing: this.lastRacePacing,
+      quizStage: this.quizStage,
+      serverNow: this.isPaused ? this.pausedAt : Date.now(),
       finalSprint: this.getFinalSprintState(),
       paused: this.isPaused,
       pausedAt: this.pausedAt,
@@ -165,6 +171,114 @@ class GameManager {
       maxTrackLength: 220000,
       ...(this.config.racePacing || {})
     };
+  }
+
+  usesQuizStages() {
+    return this.config.quizStages && this.config.quizStages.enabled;
+  }
+
+  setStagePhase(phase, seconds) {
+    this.quizStage.phase = phase;
+    this.quizStage.endsAt = Date.now() + seconds * 1000;
+  }
+
+  beginTapStage() {
+    const settings = this.config.quizStages;
+    const stageNumber = this.quizStage ? this.quizStage.stageNumber + 1 : 1;
+    this.quizStage = {
+      stageNumber,
+      stageCount: this.stageQuestions.length / settings.questionsPerStage,
+      questionNumber: 0,
+      questionsPerStage: settings.questionsPerStage,
+      completedQuestions: (stageNumber - 1) * settings.questionsPerStage,
+      results: [], summary: null, reveal: null
+    };
+    this.setStagePhase('tap', settings.tapSeconds);
+    this.setState('RACING');
+    this.startLoop();
+    const token = this.flowToken;
+    this.scheduleManagedTimeout('stage-tap', () => {
+      if (token === this.flowToken && this.state === 'RACING') this.startStageQuestions();
+    }, settings.tapSeconds * 1000);
+  }
+
+  startStageQuestions() {
+    if (!this.quizStage || this.quizStage.phase !== 'tap' || this.isPaused) return false;
+    this.clearManagedTimeout('stage-tap');
+    this.quizStage.questionNumber = 1;
+    return this.startStageQuestion();
+  }
+
+  startStageQuestion() {
+    const stage = this.quizStage;
+    const cp = this.stageQuestions[stage.completedQuestions];
+    if (!cp) return false;
+    this.checkpointEngine.takeNextUntriggeredCheckpoint();
+    const prepare = stage.questionNumber === 1 ? this.config.quizStages.prepareSeconds : 0;
+    this.setStagePhase('prepare', prepare);
+    stage.reveal = null;
+    return this.triggerQuiz(cp.quizId, cp.timeLimit, true);
+  }
+
+  completeStageQuestion(results, token) {
+    const stage = this.quizStage;
+    const settings = this.config.quizStages;
+    stage.completedQuestions++;
+    stage.results.push(results);
+    stage.reveal = results;
+    // Rewards are applied once per group, never for individual questions.
+    for (const result of Object.values(results.teamResults)) {
+      result.effect = 'stage_pending';
+      result.val = 0;
+    }
+    this.setStagePhase('reveal', settings.revealSeconds);
+    this.broadcastStateSync();
+    this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, results);
+    this.scheduleManagedTimeout('quiz-result', () => {
+      if (token !== this.flowToken || this.state !== 'QUIZ') return;
+      if (stage.questionNumber < settings.questionsPerStage) {
+        stage.questionNumber++;
+        this.startStageQuestion();
+      } else this.showStageSummary(token);
+    }, settings.revealSeconds * 1000);
+  }
+
+  showStageSummary(token) {
+    const stage = this.quizStage;
+    if (!stage || stage.phase !== 'reveal') return false;
+    const settings = this.config.quizStages;
+    const teamResults = {};
+    for (const [id, team] of Object.entries(this.teamManager.teams)) {
+      const answers = stage.results.map(result => !!result.teamResults[id]?.isCorrect);
+      const correctCount = answers.filter(Boolean).length;
+      const steps = settings.rewardSteps[correctCount];
+      const beforePosition = team.position;
+      const rewardPx = steps * settings.rewardUnitPx;
+      team.position += rewardPx;
+      teamResults[id] = { answers, correctCount, steps, rewardPx, beforePosition, position: team.position };
+    }
+    stage.reveal = null;
+    stage.summary = { stageNumber: stage.stageNumber, teamResults };
+    this.setStagePhase('summary', settings.summarySeconds);
+    this.broadcastStateSync();
+    this.scheduleManagedTimeout('stage-summary', () => {
+      if (token !== this.flowToken || this.state !== 'QUIZ') return;
+      if (stage.completedQuestions < this.stageQuestions.length) this.beginTapStage();
+      else {
+        stage.summary = null;
+        this.setStagePhase('sprint', settings.sprintSeconds);
+        this.hardFinishAt = stage.endsAt;
+        this.setState('RACING');
+        this.activateFinalSprint(token);
+        this.startLoop();
+        this.scheduleManagedTimeout('stage-finish', () => {
+          if (token === this.flowToken && this.state === 'RACING') {
+            this.finishRound(this.getDeadlineLeader(), 'stage_sprint');
+          }
+        }, settings.sprintSeconds * 1000);
+      }
+    }, settings.summarySeconds * 1000);
+    return true;
   }
 
   getFinalSprintConfig() {
@@ -293,6 +407,7 @@ class GameManager {
     if (this.raceStartedAt) this.raceStartedAt += pausedDuration;
     if (this.finalSprintStartedAt) this.finalSprintStartedAt += pausedDuration;
     if (this.hardFinishAt) this.hardFinishAt += pausedDuration;
+    if (this.quizStage?.endsAt) this.quizStage.endsAt += pausedDuration;
     if (this.pendingQuiz && this.pendingQuiz.prepareEndsAt) {
       this.pendingQuiz.prepareEndsAt += pausedDuration;
     }
@@ -305,7 +420,7 @@ class GameManager {
     this.pausedAt = null;
     this.quizManager.resumeTimer(now);
     this.resumeManagedTimeouts();
-    if (this.raceStartedAt && this.getFinalSprintConfig().enabled) {
+    if (this.raceStartedAt && this.getFinalSprintConfig().enabled && !this.usesQuizStages()) {
       this.startRaceGuardInterval(this.flowToken);
     }
     if (this.state === 'RACING') this.startLoop();
@@ -318,6 +433,10 @@ class GameManager {
 
   beginRaceGuard(flowToken = this.flowToken) {
     this.clearRaceGuard();
+    if (this.usesQuizStages()) {
+      this.raceStartedAt = Date.now();
+      return;
+    }
     const config = this.getFinalSprintConfig();
     if (!config.enabled) return;
 
@@ -404,6 +523,7 @@ class GameManager {
   }
 
   evaluateRaceGuard(flowToken = this.flowToken, now = Date.now()) {
+    if (this.usesQuizStages()) return false;
     if (this.flowToken !== flowToken) return false;
     if (this.isPaused) return false;
     if (this.state !== 'RACING' && this.state !== 'QUIZ') return false;
@@ -469,6 +589,18 @@ class GameManager {
   }
 
   calculateRecommendedTrackLength(map) {
+    if (this.usesQuizStages()) {
+      const plan = StagePlan.estimate(map.checkpoints || [], this.config);
+      const maxSpeed = this.config.maxSpeed * 1000 / this.config.positionUpdateRate;
+      const rewards = plan.stageCount * 4 * this.config.quizStages.rewardUnitPx;
+      return {
+        trackLength: Math.ceil((plan.racingSeconds * maxSpeed + rewards) * 1.1),
+        targetGameSeconds: plan.totalSeconds, targetRacingSeconds: plan.racingSeconds,
+        estimatedSpeedPxPerSecond: Math.round(maxSpeed), fastestTeamSize: this.getCurrentFastestTeamSize(),
+        totalPlayers: this.teamManager.players.size, quizCount: plan.questionCount,
+        stageCount: plan.stageCount, overheadSeconds: plan.totalSeconds - plan.racingSeconds
+      };
+    }
     const pacing = this.getRacePacingConfig();
     const quizCount = Array.isArray(map && map.checkpoints)
       ? map.checkpoints.length
@@ -543,6 +675,15 @@ class GameManager {
   // 主持人開始局
   startRound() {
     if (this.state !== 'LOBBY' && this.state !== 'ROUND_LOBBY' && this.state !== 'MAP_SELECT') return false;
+    if (this.usesQuizStages()) {
+      const checkpoints = this.mapManager.getCurrentMap().checkpoints || [];
+      if (!checkpoints.length || checkpoints.length % this.config.quizStages.questionsPerStage !== 0
+        || new Set(checkpoints.map(cp => cp.quizId)).size !== checkpoints.length
+        || checkpoints.some(cp => !this.quizLoader.getQuizById(cp.quizId))) return false;
+      this.stageQuestions = checkpoints.map(cp => ({ ...cp, timeLimit: Math.max(1, Math.min(60,
+        Number(cp.timeLimit) || this.config.quizTimeLimit || 10)) }));
+    }
+    this.quizStage = null;
     const flowToken = ++this.flowToken;
     this.clearAllManagedTimeouts();
     this.clearRaceGuard();
@@ -582,6 +723,10 @@ class GameManager {
     this.scheduleManagedTimeout('countdown', () => {
       if (this.flowToken === flowToken && this.state === 'COUNTDOWN') {
         this.beginRaceGuard(flowToken);
+        if (this.usesQuizStages()) {
+          this.beginTapStage();
+          return;
+        }
         this.setState('RACING');
         this.startLoop();
       }
@@ -627,7 +772,7 @@ class GameManager {
     }
 
     // 檢查關卡自動觸發
-    const cp = this.checkpointEngine.checkTriggers(teams, trackLen);
+    const cp = !this.usesQuizStages() && this.checkpointEngine.checkTriggers(teams, trackLen);
     if (cp) {
       this.triggerQuiz(cp.quizId || null, cp.timeLimit);
       return;
@@ -642,7 +787,7 @@ class GameManager {
         finisher = teamId;
       }
     }
-    if (finisher) {
+    if (finisher && !this.usesQuizStages()) {
       this.finishRound(finisher);
       return;
     }
@@ -708,21 +853,30 @@ class GameManager {
   }
 
   // 觸發答題 (由關卡設計)
-  triggerQuiz(quizId, timeLimit = null) {
-    if (this.state !== 'RACING' || this.isPaused) return false;
+  triggerQuiz(quizId, timeLimit = null, stageContinuation = false) {
+    if (this.isPaused) return false;
+    if (this.usesQuizStages() && !stageContinuation) {
+      if (this.state !== 'RACING') return false;
+      const next = this.stageQuestions[this.quizStage?.completedQuestions];
+      if (quizId && quizId !== next?.quizId) return false;
+      return this.startStageQuestions();
+    }
+    if (this.state !== 'RACING' && !(stageContinuation && this.state === 'QUIZ')) return false;
     const flowToken = this.flowToken;
     console.log(`[GameManager] triggerQuiz called for quizId: ${quizId}`);
     this.stopLoop();
     this.setState('QUIZ');
 
     // 廣播 3 秒準備倒數
-    const prepareSeconds = this.getQuizPrepareSeconds();
+    const prepareSeconds = stageContinuation
+      ? (this.quizStage.questionNumber === 1 ? this.config.quizStages.prepareSeconds : 0)
+      : this.getQuizPrepareSeconds();
     this.pendingQuiz = {
       quizId,
       timeLimit,
       prepareEndsAt: Date.now() + prepareSeconds * 1000
     };
-    this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PREPARE, { seconds: prepareSeconds });
+    if (prepareSeconds > 0) this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PREPARE, { seconds: prepareSeconds });
 
     this.scheduleManagedTimeout('quiz-prepare', () => {
       // 若狀態已經改變（例如管理員強制重置），則中斷
@@ -748,6 +902,10 @@ class GameManager {
 
       this.pendingQuiz = null;
       this.quizManager.markAnswerWindowOpened();
+      if (stageContinuation) {
+        this.setStagePhase('answer', qData.timeLimit);
+        this.broadcastStateSync();
+      }
 
       // 分屏廣播：Host 收到題目、選項與倒數
       this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_START, {
@@ -788,6 +946,13 @@ class GameManager {
     if (this.state !== 'QUIZ') return;
 
     if (this.flowToken !== flowToken || this.state !== 'QUIZ') return;
+    if (this.usesQuizStages()) {
+      if (!results || this.quizStage?.phase !== 'answer'
+        || results.quizId !== this.stageQuestions[this.quizStage.completedQuestions]?.quizId) return;
+      this.pendingQuiz = null;
+      this.completeStageQuestion(results, flowToken);
+      return;
+    }
 
     this.pendingQuiz = null;
     if (!results) {
@@ -826,6 +991,8 @@ class GameManager {
     const flowToken = this.flowToken;
     this.stopLoop();
     this.clearRaceGuard();
+    this.clearAllManagedTimeouts();
+    this.quizStage = null;
     this.presentation.stage = 'scoreboard';
     this.setState('ROUND_FINISHED');
 
@@ -884,6 +1051,8 @@ class GameManager {
     this.lastRacePacing = null;
     this.pendingQuiz = null;
     this.isPaused = false;
+    this.quizStage = null;
+    this.stageQuestions = [];
     this.pausedAt = null;
     this.presentation = {
       stage: 'lobby',
@@ -1082,6 +1251,7 @@ class GameManager {
       nextCriticalIn: remainder === 0 ? 20 : 20 - remainder,
       teamRank: team ? team.rank : null,
       teamProgressPercent: team ? team.progressPercent : 0,
+      teamShuttle: this.usesQuizStages() && team ? ShuttleRace.measure(team.position, this.config) : null,
       teams: ranking,
       paused: this.isPaused,
       finalSprint: this.getFinalSprintState()
@@ -1139,6 +1309,7 @@ class GameManager {
         socket.emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, {
           quizId: activeQuiz.quizId,
           options: activeQuiz.optionMap,
+          alreadyAnswered: this.quizManager.answeredSet.has(`${socket.id}:${activeQuiz.quizId}`),
           timeLimit: activeQuiz.timeLimit,
           recovered: true
         });

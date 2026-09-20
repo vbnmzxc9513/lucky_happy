@@ -22,6 +22,7 @@ function addPlayersEvenly(gameManager, totalPlayers) {
 
 function estimateFixedDuration(gameManager, map, fixedTrackLength) {
   const recommendation = gameManager.calculateRecommendedTrackLength(map);
+  if (gameManager.usesQuizStages()) return { ...recommendation, trackLength: fixedTrackLength };
   const pacing = gameManager.getRacePacingConfig();
   const quizBoost = recommendation.quizCount * Number(pacing.expectedQuizBoostPx || 0);
   const racingSeconds = Math.max(0, (fixedTrackLength - quizBoost) / recommendation.estimatedSpeedPxPerSecond);
@@ -52,7 +53,7 @@ function main() {
   const playerCounts = totals.length ? totals : [30, 50, 80, 100, 150, 200];
   const rows = playerCounts.map(count => estimate(count));
 
-  console.log('Assumptions: 5 teams, about 5 taps/sec/player, at least 10 questions, 10 sec/question, 3 sec prepare, 3 sec result.');
+  console.log('Assumptions: 18 questions in 6 groups; 8 sec tapping, 3 sec prepare, 3 x (10 sec answer + 2 sec reveal), 8 sec summary; final sprint 10 sec.');
   console.log('');
   console.log('| Players | Per team | Auto track | Auto total | Fixed 76000 total | Questions |');
   console.log('|---:|---:|---:|---:|---:|---:|');

@@ -1,0 +1,40 @@
+.shuttle-banner { display: none; }
+.horse-facing { transform: scaleX(var(--facing, 1)); width: 100%; height: 100%; display: grid; place-items: center; }
+.horse-unit { left: 0 !important; transition: none; will-change: transform; }
+.shuttle-race #screen-racing { position: absolute; inset: auto; top: 50%; left: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%) scale(var(--race-scale, 1)); padding: 34px 54px 26px; background: #a1d7cf; border-block: 8px solid #eac76e; color: #214943; overflow: hidden; box-sizing: border-box; }
+.shuttle-race #screen-racing.active { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 86px 108px minmax(0, 1fr) 44px; gap: 16px; justify-content: stretch; align-items: stretch; }
+.shuttle-race #screen-racing * { box-sizing: border-box; letter-spacing: 0; }
+.shuttle-race .shuttle-banner { display: flex; justify-content: space-between; align-items: center; padding-right: 280px; }
+.shuttle-banner p { font: 700 16px 'Outfit', sans-serif; margin: 0 0 2px; }
+.shuttle-banner h1 { font: 900 44px 'Noto Sans TC', sans-serif; margin: 0; color: #214943; }
+.shuttle-banner > span { font-size: 25px; font-weight: 700; border-bottom: 5px solid #f4d478; }
+.shuttle-race .race-header { width: 100%; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: stretch; gap: 16px; }
+.shuttle-race .team-stat { padding: 6px 12px; background: transparent; border: none; border-top: 3px solid #548c7c; gap: 5px; }
+.shuttle-race .stat-title { color: #214943; font: 700 25px 'Noto Sans TC', sans-serif; margin: 0; white-space: normal; }
+.shuttle-race .progress-bar-wrap { height: 7px; border: 0; background: #73b3a4; border-radius: 0; }
+.shuttle-race .progress-fill { border: 0; transition: none; }
+.shuttle-race .race-distance { display: block; font: 700 25px 'Outfit', 'Noto Sans TC', sans-serif; }
+.shuttle-race .track-area { width: 100%; height: 100%; min-height: 0; margin: 0; border: 0; border-radius: 0; }
+.shuttle-race .lane-label { display: grid; width: 270px; height: 100%; grid-template-columns: 78px minmax(0, 1fr); grid-template-rows: 1fr 1fr; gap: 0 8px; padding: 16px; background: #fff8e1c9; border-right: 2px solid #8b9451; color: #214943; }
+.lane-label .lane-rank { grid-row: 1 / 3; align-self: center; font-size: 24px; font-weight: 900; white-space: nowrap; }
+.lane-label strong { font-size: 22px; align-self: end; line-height: 1.25; overflow-wrap: anywhere; }
+.lane-label .lane-laps { font: 800 38px 'Outfit', 'Noto Sans TC', sans-serif; align-self: center; }
+.shuttle-race .lane-flag, .shuttle-race .finish-line-banner { display: none; }
+.shuttle-race .track-area::before, .shuttle-race .track-area::after { content: ''; position: absolute; top: 0; bottom: 0; width: 5px; border-left: 5px dashed #fdf4ca; z-index: 2; }
+.shuttle-race .track-area::before { left: 400px; }
+.shuttle-race .track-area::after { right: 180px; }
+.shuttle-race .horse-unit { width: 220px; height: 132px; margin-top: -66px !important; }
+.shuttle-race .horse-unit .horse-emoji { width: 220px !important; height: 132px !important; object-fit: contain; filter: drop-shadow(0 5px 0 #315f4a18); }
+.shuttle-race .horse-unit.is-running .horse-emoji { animation: shuttle-stride var(--stride, .4s) ease-in-out infinite; }
+.shuttle-race .horse-unit.is-running::before { display: none; }
+.shuttle-race .race-ticker { display: block !important; position: static; width: 100%; margin: 0; padding: 4px 220px 4px 12px; background: transparent; border: none; border-radius: 0; box-shadow: none; color: #214943; font-size: 23px; line-height: 32px; white-space: nowrap; overflow: hidden; }
+.shuttle-race .sound-unlock { top: 20px; bottom: auto; left: auto; right: 20px; transform: none; }
+.shuttle-race .item-dom { width: 60px; height: 60px; object-fit: contain; margin-top: -30px; }
+#race-overtake { position: absolute; top: 40px; right: 30px; max-width: 900px; padding: 14px 26px; font-size: 32px; font-weight: 900; background: #f4d478; color: #214943; z-index: 40; border-bottom: 4px solid #ba8f34; }
+#race-overtake[hidden] { display: none; }
+.shuttle-race .stage-clock-host { top: 20px; left: 50%; font-size: 22px; padding: 8px 18px; }
+.shuttle-paused .horse-unit * { animation-play-state: paused !important; }
+.shuttle-race.final-sprint-active #screen-racing .race-header { padding-top: 0; }
+.shuttle-race.final-sprint-active #screen-racing .track-area { height: 100%; }
+@keyframes shuttle-stride { 0%, 100% { transform: translateY(0) rotate(-2deg); } 45% { transform: translateY(-7px) rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .shuttle-race .horse-unit * { animation: none !important; } }

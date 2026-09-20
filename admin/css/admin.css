@@ -1836,3 +1836,31 @@ body {
   position: static !important;
   width: auto !important;
 }
+
+/* Forms use the available workspace width, not the projector's 1920px canvas. */
+.admin-container { grid-template-columns: 210px minmax(0, 1fr); gap: 24px; }
+.tab-content-area, .tab-pane, .luxury-card { min-width: 0; }
+.settings-stage-grid { height: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto auto; gap: 20px; }
+.settings-stage-grid .luxury-card { padding: 24px; }
+#teamNamesContainer { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#teamNamesContainer .form-group { height: auto; min-width: 0; grid-template-rows: auto auto; }
+#teamNamesContainer .luxury-input { height: 36px; font-size: 14px; }
+.preview-stat-row, .preview-command-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+.preview-stat { height: auto; padding: 16px; }
+.preview-stat span { font-size: 16px; }
+.preview-stat strong { font-size: 28px; }
+.quiz-workbench-grid { height: auto; overflow: visible; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.quiz-workbench-grid > :first-child { grid-column: 1 / -1; }
+.quiz-plan-rows, .quiz-library-list { max-height: 580px; flex: auto; }
+.card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-tabs { padding: 24px 16px; }
+.tab-btn { padding: 14px 10px; min-height: 56px; }
+.quiz-plan-row { grid-template-columns: 32px minmax(0, 1fr) 66px 66px 140px; }
+.plan-row-tools { grid-template-columns: repeat(3, 44px); gap: 4px; }
+.plan-row-tools button { width: 44px; min-height: 44px; padding: 0; border-radius: 8px; }
+@media (max-width: 1100px) {
+  .admin-container { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "header" "tabs" "content"; padding: 20px 16px !important; }
+  .admin-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .settings-stage-grid, .quiz-workbench-grid, .card-grid { grid-template-columns: minmax(0, 1fr); }
+  .settings-stage-grid > .luxury-card { grid-column: auto; grid-row: auto; }
+}

@@ -32,6 +32,7 @@ test('update() should apply physics to all 5 teams', () => {
 
 test('Any team reaching finish line should end the round', () => {
   const gm = new GameManager(new MockIo());
+  gm.config.quizStages.enabled = false; // Legacy distance-based mode.
   gm.state = 'RACING';
   const trackLen = gm.mapManager.getCurrentMap().track ? gm.mapManager.getCurrentMap().track.length : 1000;
   gm.teamManager.teams['purple'].position = trackLen + 10;
@@ -129,7 +130,7 @@ test('Quiz awards should break ties by average answer speed', () => {
   assert.ok(!wrongAward.ranking.some(player => player.name === '沒作答賓客'));
 });
 
-test('Default pacing should use one round and estimate the formal 10-question game', () => {
+test('Default pacing should use one round and estimate the formal 18-question game', () => {
   const gm = new GameManager(new MockIo());
   const teamIds = Object.keys(gm.teamManager.teams);
 
@@ -144,13 +145,15 @@ test('Default pacing should use one round and estimate the formal 10-question ga
 
   assert.strictEqual(gm.roundManager.totalRounds, 1);
   assert.strictEqual(map.id, 'wedding-final-showdown');
-  assert.strictEqual(recommendation.quizCount, 10);
-  assert.ok(recommendation.trackLength >= 77000 && recommendation.trackLength <= 78000);
-  assert.strictEqual(recommendation.targetGameSeconds, 390);
+  assert.strictEqual(recommendation.quizCount, 18);
+  assert.strictEqual(recommendation.stageCount, 6);
+  assert.ok(recommendation.trackLength > 58 * 20 * 1000 / 33 + 6 * 6000);
+  assert.strictEqual(recommendation.targetGameSeconds, 343);
 });
 
 test('Checkpoint must trigger before a team can finish the race', () => {
   const gm = new GameManager(new MockIo());
+  gm.config.quizStages.enabled = false;
   const map = gm.mapManager.getCurrentMap();
   gm.checkpointEngine.initCheckpoints(map.checkpoints);
   gm.state = 'RACING';
@@ -246,8 +249,9 @@ test('Pause and resume should freeze and shift all race deadlines', () => {
   gm.clearRaceGuard();
 });
 
-test('Race deadline catch-up should preserve all ten checkpoints before finishing', () => {
+test('Legacy race deadline catch-up preserves every checkpoint before finishing', () => {
   const gm = new GameManager(new MockIo());
+  gm.config.quizStages.enabled = false;
   const map = gm.mapManager.getCurrentMap();
   gm.checkpointEngine.initCheckpoints(map.checkpoints);
   gm.state = 'RACING';
@@ -261,7 +265,7 @@ test('Race deadline catch-up should preserve all ten checkpoints before finishin
     return true;
   };
 
-  for (let index = 0; index < 10; index++) {
+  for (let index = 0; index < map.checkpoints.length; index++) {
     gm.state = 'RACING';
     gm.evaluateRaceGuard(gm.flowToken, Date.now());
   }

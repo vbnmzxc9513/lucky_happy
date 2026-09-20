@@ -63,10 +63,22 @@ const DEFAULT_CONFIG = {
   stateSyncRate: 5000,         // 全量狀態校正同步頻率 ms
   countdownSeconds: 3,         // 賽前倒數秒數
   totalRounds: 1,              // 預設一戰決勝負
+  quizStages: {
+    enabled: true,
+    questionsPerStage: 3,
+    tapSeconds: 8,
+    prepareSeconds: 3,
+    revealSeconds: 2,
+    summarySeconds: 8,
+    sprintSeconds: 10,
+    rewardUnitPx: 1500,
+    rewardSteps: [0, 1, 2, 4]
+  },
+  shuttleRace: { legLength: 1500 },
   racePacing: {
     enabled: true,
-    targetGameSeconds: 390,
-    targetQuizCount: 10,
+    targetGameSeconds: 343,
+    targetQuizCount: 18,
     expectedPlayers: 150,
     triggerFrequencyPercent: 9,
     expectedTapRatePerPlayer: 5,

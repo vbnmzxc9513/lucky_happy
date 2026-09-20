@@ -38,16 +38,17 @@ function loadQuizCatalog() {
   return catalog;
 }
 
-test('Formal wedding map has exactly 10 valid ordered quiz checkpoints', () => {
+test('Formal wedding map has 18 unique questions in six ordered groups', () => {
   const map = require('../data/maps/wedding-final-showdown.json');
   const quizzes = loadQuizCatalog();
   assert.strictEqual(config.totalRounds, 1);
-  assert.strictEqual(map.checkpoints.length, 10);
+  assert.strictEqual(map.checkpoints.length, 18);
   assert.deepStrictEqual(
     map.checkpoints.map(checkpoint => checkpoint.trigger.percent),
-    [9, 18, 27, 36, 45, 54, 63, 72, 81, 90]
+    Array.from({ length: 18 }, (_, i) => Math.round((i + 1) * 100 / 19))
   );
-  assert.strictEqual(new Set(map.checkpoints.map(checkpoint => checkpoint.id)).size, 10);
+  assert.strictEqual(new Set(map.checkpoints.map(checkpoint => checkpoint.id)).size, 18);
+  assert.strictEqual(new Set(map.checkpoints.map(checkpoint => checkpoint.quizId)).size, 18);
 
   for (const checkpoint of map.checkpoints) {
     assert.strictEqual(checkpoint.trigger.type, 'team_progress');
@@ -105,6 +106,7 @@ test('GameManager instances do not leak mutable configuration into each other', 
 test('Reset during an active quiz cancels stale timers and stays in lobby', async () => {
   const io = new MockIo();
   const game = new GameManager(io);
+  game.config.quizStages.enabled = false;
   game.config.racePacing.quizPrepareSeconds = 0;
   game.config.racePacing.quizResultSeconds = 0;
   game.teamManager.addPlayer('p1', 'Guest', 'G', 'reset-session-123456789');

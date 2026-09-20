@@ -55,12 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
     list.innerHTML = teams.map((team, index) => {
       const conf = teamConfig(team.id);
       const progress = Math.min(100, Math.max(0, Number(team.position || 0) / trackLength * 100));
+      const shuttle = window.ShuttleRace?.enabled(gameState.config) ? window.ShuttleRace.measure(team.position, gameState.config) : null;
       return `<div class="team-row">
         <span class="team-rank">${index + 1}</span>
         <img src="${conf.imgPath || ''}" alt="">
         <span class="team-name">${team.name}<small>${team.memberCount || 0} 人${team.isStunned ? ' · 暈眩' : ''}</small></span>
-        <span class="team-bar"><i style="width:${progress.toFixed(1)}%;background:${conf.hex || '#315E58'}"></i></span>
-        <span class="team-progress">${progress.toFixed(0)}%</span>
+        <span class="team-bar"><i style="width:${(shuttle ? shuttle.progress : progress).toFixed(1)}%;background:${conf.hex || '#315E58'}"></i></span>
+        <span class="team-progress">${shuttle ? `${shuttle.laps} 圈` : `${progress.toFixed(0)}%`}</span>
       </div>`;
     }).join('');
 
@@ -113,6 +114,17 @@ document.addEventListener('DOMContentLoaded', () => {
     byId('player-count').textContent = String(gameState.totalPlayers || 0);
     byId('presentation-state').textContent = stageLabels[presentation.stage] || presentation.stage;
     byId('paused-badge').hidden = !gameState.paused;
+    if (gameState.quizStage) {
+      const stage = gameState.quizStage;
+      const phase = { tap: '連點中', prepare: '準備答題', answer: '作答中', reveal: '公布答案', summary: '三題結算', sprint: '最後衝刺' };
+      byId('quiz-state').textContent = `第 ${stage.stageNumber}/${stage.stageCount} 關 · ${phase[stage.phase]} · ${stage.completedQuestions} 題完成`;
+    }
+    if (gameState.config?.quizStages?.enabled) {
+      byId('quiz-select').disabled = true;
+      byId('quiz-select').value = '';
+      byId('btn-force-quiz').textContent = '提前進入下一組三題';
+      byId('btn-force-quiz').disabled = gameState.paused || gameState.quizStage?.phase !== 'tap';
+    }
     byId('btn-start').disabled = !['LOBBY', 'MAP_SELECT', 'ROUND_LOBBY'].includes(gameState.state);
     byId('btn-pause').disabled = gameState.paused || !['COUNTDOWN', 'RACING', 'QUIZ', 'ROUND_FINISHED'].includes(gameState.state);
     byId('btn-resume').disabled = !gameState.paused;

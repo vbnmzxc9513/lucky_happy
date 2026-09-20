@@ -25,6 +25,7 @@ class QuizDisplay {
 
   showPrepare(seconds = 3) {
     const overlay = document.getElementById('quiz-overlay');
+    overlay.classList.remove('stage-result-view');
     const qBox = document.getElementById('quiz-question-box');
     const resBox = document.getElementById('quiz-result-section');
     const optionsContainer = document.getElementById('quiz-options-display');
@@ -48,6 +49,7 @@ class QuizDisplay {
     let left = seconds;
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.timerInterval = setInterval(() => {
+      if (this.paused) return;
       left--;
       if (left > 0) {
         splashNum.innerText = left;
@@ -59,6 +61,7 @@ class QuizDisplay {
 
   showQuiz(questionText, options, timeLimit) {
     const overlay = document.getElementById('quiz-overlay');
+    overlay.classList.remove('stage-result-view');
     const qBox = document.getElementById('quiz-question-box');
     const resBox = document.getElementById('quiz-result-section');
     const timerNum = document.getElementById('quiz-timer-num');
@@ -104,6 +107,7 @@ class QuizDisplay {
 
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.timerInterval = setInterval(() => {
+      if (this.paused) return;
       left--;
       if (left < 0) left = 0;
       timerNum.innerText = left;
@@ -169,6 +173,16 @@ class QuizDisplay {
     const dynamicResults = document.getElementById('dynamic-quiz-results');
 
     if (!resultData || !window.GameConfig || !window.GameConfig.TEAMS) return;
+    document.getElementById('quiz-overlay').style.display = 'flex';
+    document.getElementById('quiz-prepare-splash').style.display = 'none';
+    const stageResult = Object.values(resultData.teamResults).some(result => result.effect === 'stage_pending');
+    document.getElementById('quiz-overlay').classList.toggle('stage-result-view', stageResult);
+    if (stageResult) {
+      document.getElementById('quiz-question-box').style.display = 'none';
+      document.getElementById('quiz-options-display').innerHTML = '';
+      document.getElementById('quiz-countdown-circle').style.display = 'none';
+      document.getElementById('quiz-team-bar').style.display = 'none';
+    }
     const teams = window.GameConfig.TEAMS;
 
     ansText.innerText = resultData.correctAnswerText
@@ -177,6 +191,7 @@ class QuizDisplay {
     dynamicResults.innerHTML = '';
     
     const getEffectText = (eff, val) => {
+      if (eff === 'stage_pending') return '三題結束後一起結算';
       if (eff === 'large_boost') return `🔥 衝刺加速 +${val}px`;
       if (eff === 'small_boost') return `⚡ 小幅加速 +${val}px`;
       return `💫 停滯暈眩 ${val/1000} 秒`;
@@ -207,6 +222,7 @@ class QuizDisplay {
 
   hide() {
     if (this.timerInterval) clearInterval(this.timerInterval);
+    document.getElementById('quiz-overlay').classList.remove('stage-result-view');
     document.getElementById('quiz-overlay').style.display = 'none';
     // 確保所有子元素恢復預設狀態，避免下次開啟殘留
     const splash = document.getElementById('quiz-prepare-splash');

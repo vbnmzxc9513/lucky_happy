@@ -12,9 +12,13 @@ const fastTests = [
   'tests/test-item-manager.js',
   'tests/test-round-manager.js',
   'tests/test-game-manager.js',
+  'tests/test-quiz-stages.js',
+  'tests/test-shuttle-race.js',
+  'scripts/test-shuttle-renderer.js',
   'tests/test-wedding-readiness.js',
   'scripts/check-deployment-readiness.js',
   'scripts/test-admin-quiz-planner.js',
+  'scripts/test-stage-display.js',
   'scripts/test-control-ui-flow.js',
   'scripts/test-ui-flow.js',
   'scripts/test-guest-ui-flow.js'
@@ -117,6 +121,8 @@ async function main() {
     await runNode(['scripts/wedding-preflight.js', '--url', serverUrl]);
 
     if (isFullRun) {
+      await runNode(['scripts/stress-wedding-game.js', '--url', serverUrl,
+        '--clients', '120', '--enforceDuration', 'true', '--report', 'reports/shuttle/stress-120.json']);
       console.log('\n--- 150 guest full-match stress test with 15 forced reconnects ---');
       await runNode([
         'scripts/stress-wedding-game.js',
@@ -127,7 +133,7 @@ async function main() {
         '--answerStrategy', 'random',
         '--reconnectClients', '15',
         '--reconnectAtQuiz', '5',
-        '--maxSeconds', '600'
+        '--maxSeconds', '600', '--enforceDuration', 'true', '--report', 'reports/shuttle/stress-150.json'
       ]);
     }
   } finally {
