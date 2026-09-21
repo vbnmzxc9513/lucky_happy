@@ -237,6 +237,7 @@ class QuizManager {
         answeredCount: ans.responded,
         correctCount,
         wrongCount: ans.responded - correctCount,
+        teamWrongCount: ans.responded - correctCount + Math.max(0, ans.total - ans.responded),
         unansweredCount: Math.max(0, ans.total - ans.responded),
         totalCount: ans.total,
         responseRate: ans.total > 0 ? ans.responded / ans.total : 0,

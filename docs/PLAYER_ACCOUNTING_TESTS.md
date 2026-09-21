@@ -20,6 +20,9 @@ Accounting rules:
 
 - Attempted taps are not accepted taps. Cooldown and wrong-phase taps must not count.
 - Correct plus wrong equals accepted answers. Skipping is not an individual wrong answer.
+- Team display counts skipping as wrong: correctCount plus teamWrongCount equals
+  the question's team size. unansweredCount is a subset of teamWrongCount;
+  wrongCount still represents submitted incorrect answers for reconciliation.
 - Accepted answers plus skipped questions equals 18 for these full-match participants.
 - Rejected, duplicate, invalid, expired and paused answers must not alter statistics.
 - Reconnecting retains identity and the answer lock, without duplicating statistics.

@@ -142,6 +142,8 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
             check(result.teamResults[tid].answeredCount, votes[tid].A + votes[tid].B, 'vote conservation');
             check(result.teamResults[tid].correctCount, votes[tid].A, 'correct people per question');
             check(result.teamResults[tid].wrongCount, votes[tid].B, 'wrong people per question');
+            check(result.teamResults[tid].teamWrongCount, count / 5 - votes[tid].A, 'team wrong includes unanswered');
+            check(result.teamResults[tid].correctCount + result.teamResults[tid].teamWrongCount, count / 5, 'team correct plus wrong covers all members');
             check(result.teamResults[tid].unansweredCount, count / 5 - votes[tid].A - votes[tid].B, 'unanswered people per question');
             if (expectedCorrect) stageCorrect[tid]++;
           }

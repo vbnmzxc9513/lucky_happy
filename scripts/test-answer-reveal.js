@@ -42,7 +42,7 @@ const config = require('../shared/game-config');
           return r.left < 0 || r.right > innerWidth || r.bottom > innerHeight || r.top < 0 || el.scrollWidth > el.clientWidth + 1;
         }).map(el => ({ text: el.textContent, width: el.clientWidth, scroll: el.scrollWidth }))
       })));
-      assert.deepEqual(stats.map(s => s.values), [[50,0,0],[0,40,10],[20,20,10],[15,30,5],[0,0,50]]);
+      assert.deepEqual(stats.map(s => s.values), [[50,0,0],[0,50,10],[20,30,10],[15,35,5],[0,50,50]]);
       await page.screenshot({ path: `reports/answer-reveal/${width}.png` });
       assert(stats.every(s => !s.clipped.length), `readable counts at ${width}x${height}: ${JSON.stringify(stats)}`);
     }

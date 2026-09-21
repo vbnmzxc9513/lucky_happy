@@ -203,8 +203,8 @@ class QuizDisplay {
       const votes = res.voteCounts || {};
       const topVotes = res.teamAnswer ? Number(votes[res.teamAnswer] || 0) : 0;
       const correct = Number(res.correctCount ?? votes[resultData.correctAnswer] ?? 0);
-      const wrong = Number(res.wrongCount ?? Math.max(0, (res.answeredCount || 0) - correct));
       const unanswered = Number(res.unansweredCount ?? Math.max(0, (res.totalCount || 0) - (res.answeredCount || 0)));
+      const wrong = Number(res.teamWrongCount ?? (Number(res.wrongCount ?? Math.max(0, (res.answeredCount || 0) - correct)) + unanswered));
       const decision = res.noAnswer
         ? '未作答'
         : res.hasTie
@@ -218,7 +218,7 @@ class QuizDisplay {
             <dl class="answer-counts">
               <div class="count-correct"><dt>答對</dt><dd>${correct}<small>人</small></dd></div>
               <div class="count-wrong"><dt>答錯</dt><dd>${wrong}<small>人</small></dd></div>
-              <div class="count-unanswered"><dt>未作答</dt><dd>${unanswered}<small>人</small></dd></div>
+              <div class="count-unanswered"><dt>其中未作答</dt><dd>${unanswered}<small>人</small></dd></div>
             </dl>
             <div class="effect-badge">${getEffectText(res.effect, res.val)}</div>
         </div>
