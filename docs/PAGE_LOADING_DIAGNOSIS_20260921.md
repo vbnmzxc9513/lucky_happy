@@ -48,3 +48,22 @@ It would bypass Cloudflare's proxy and associated WAF/CDN protections, so obtain
 explicit user confirmation before changing it. Then test public DNS propagation,
 host and guest first load, QR URL, staff authentication and Socket.IO reconnection.
 No match should be reset as part of this network diagnosis.
+
+## DNS-only Cutover, 2026-09-22
+
+The user explicitly approved DNS-only routing. Updated the existing apex A record
+to DNS only, retaining `167.172.95.75` and Auto TTL. Cloudflare UI confirmed the
+saved state; both 1.1.1.1 and the local resolver returned the origin IPv4 address.
+Normal public HTTPS requests now connect directly to that IP with certificate
+validation enabled. No service restart or game reset was performed.
+
+An unmodified browser using normal DNS measured host first contentful paint at
+1252ms cold / 392ms warm; DOMContentLoaded at 1057ms / 319ms; load at 3617ms /
+428ms. No page errors or failed requests were recorded in this run. Evidence:
+`reports/page-load-dns-only.json`. This is a measured sample, not a latency SLA.
+
+Guest page returned HTTP 200. Join info still points to
+`https://luckyhappy1009.com/guest/`. A read-only WebSocket connection received
+state sync in 927ms: MATCH_FINISHED with 101 existing players. No test player was
+joined. Cached DNS elsewhere may take time to expire. The separate six-second
+answer reveal change remains pending production deployment/restart approval.
