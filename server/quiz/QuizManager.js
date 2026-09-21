@@ -224,6 +224,7 @@ class QuizManager {
       const hasTie = leaders.length > 1;
       const teamAnswer = !hasTie && leaders.length === 1 ? leaders[0][0] : null;
       const isCorrect = teamAnswer === this.currentQuiz.correctAnswer;
+      const correctCount = ans.votes[this.currentQuiz.correctAnswer] || 0;
       const effect = isCorrect
         ? { effect: 'large_boost', val: this.config.quizThresholds.LARGE_BOOST }
         : { effect: 'stun', val: this.config.stunDuration };
@@ -234,6 +235,9 @@ class QuizManager {
         noAnswer: ans.responded === 0,
         voteCounts: { ...ans.votes },
         answeredCount: ans.responded,
+        correctCount,
+        wrongCount: ans.responded - correctCount,
+        unansweredCount: Math.max(0, ans.total - ans.responded),
         totalCount: ans.total,
         responseRate: ans.total > 0 ? ans.responded / ans.total : 0,
         ...effect

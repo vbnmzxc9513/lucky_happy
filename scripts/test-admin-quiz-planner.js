@@ -53,7 +53,7 @@ handlers['admin:quiz_list']([...weddingQuizzes, ...funQuizzes, ...require('../da
 
 assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 18);
 assert.strictEqual(window.document.getElementById('quizMetricCount').textContent, '18 題');
-assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '5:43');
+assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '6:55');
 assert.ok(window.document.querySelector('#questionCountForecast .active').textContent.includes('18 題'));
 
 window.addQuizPlanRow({ quizId: 'wc_004', timeLimit: 8 });
@@ -69,12 +69,12 @@ assert.strictEqual(JSON.stringify(percents), JSON.stringify(Array.from({ length:
 window.applyRecommendedQuizPacing();
 assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 18);
 assert.strictEqual(window.document.getElementById('quizTrackLengthInput').value, '76000');
-assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '5:43');
+assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '6:55');
 
 window.document.getElementById('quizTriggerFrequency').value = '8';
 window.applyQuizFrequencyPlan();
 assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 18);
-assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '5:43');
+assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '6:55');
 
 window.saveQuizPlan();
 const saveEvent = emitted.find(entry => entry.event === 'admin:save_map');

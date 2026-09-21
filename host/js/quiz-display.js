@@ -202,6 +202,9 @@ class QuizDisplay {
       if (!res) return;
       const votes = res.voteCounts || {};
       const topVotes = res.teamAnswer ? Number(votes[res.teamAnswer] || 0) : 0;
+      const correct = Number(res.correctCount ?? votes[resultData.correctAnswer] ?? 0);
+      const wrong = Number(res.wrongCount ?? Math.max(0, (res.answeredCount || 0) - correct));
+      const unanswered = Number(res.unansweredCount ?? Math.max(0, (res.totalCount || 0) - (res.answeredCount || 0)));
       const decision = res.noAnswer
         ? '未作答'
         : res.hasTie
@@ -209,8 +212,14 @@ class QuizDisplay {
           : `多數選 ${res.teamAnswer} · ${topVotes} 票`;
       const html = `
         <div class="quiz-res-card" style="border-top: 4px solid ${t.hex};">
-            <h4 style="color: ${t.hex};">${t.name}隊伍答案</h4>
+            <h4 style="color: ${t.hex};">${t.name}</h4>
+            <div class="team-verdict ${res.isCorrect ? 'is-correct' : 'is-wrong'}">${res.isCorrect ? '隊伍答對' : '隊伍未答對'}</div>
             <div class="rate-val">${decision}</div>
+            <dl class="answer-counts">
+              <div class="count-correct"><dt>答對</dt><dd>${correct}<small>人</small></dd></div>
+              <div class="count-wrong"><dt>答錯</dt><dd>${wrong}<small>人</small></dd></div>
+              <div class="count-unanswered"><dt>未作答</dt><dd>${unanswered}<small>人</small></dd></div>
+            </dl>
             <div class="effect-badge">${getEffectText(res.effect, res.val)}</div>
         </div>
       `;

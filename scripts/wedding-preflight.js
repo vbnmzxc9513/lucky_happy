@@ -139,7 +139,7 @@ async function main() {
     record(
       'six-stage pacing and final sprint',
       stages.enabled === true && stages.questionsPerStage === 3 && stages.tapSeconds === 8
-        && stages.prepareSeconds === 3 && stages.revealSeconds === 2 && stages.summarySeconds === 8
+        && stages.prepareSeconds === 3 && stages.revealSeconds === 6 && stages.summarySeconds === 8
         && stages.sprintSeconds === 10,
       `tap=${stages.tapSeconds}s, questions/group=${stages.questionsPerStage}, final sprint=${stages.sprintSeconds}s`
     );

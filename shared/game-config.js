@@ -68,7 +68,7 @@ const DEFAULT_CONFIG = {
     questionsPerStage: 3,
     tapSeconds: 8,
     prepareSeconds: 3,
-    revealSeconds: 2,
+    revealSeconds: 6,
     summarySeconds: 8,
     sprintSeconds: 10,
     rewardUnitPx: 1500,
@@ -77,7 +77,7 @@ const DEFAULT_CONFIG = {
   shuttleRace: { legLength: 1500 },
   racePacing: {
     enabled: true,
-    targetGameSeconds: 343,
+    targetGameSeconds: 415,
     targetQuizCount: 18,
     expectedPlayers: 150,
     triggerFrequencyPercent: 9,

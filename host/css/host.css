@@ -3245,6 +3245,17 @@ body::before {
 .stage-result-view .quiz-result-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .stage-result-view .quiz-res-card { min-width: 0; max-width: none; }
 .stage-result-view .quiz-res-card h4 { color: #244d43 !important; }
+.quiz-res-card .team-verdict { font-size: 22px; font-weight: 900; margin: 8px 0; }
+.team-verdict.is-correct, .answer-counts .count-correct { color: #176346; }
+.team-verdict.is-wrong, .answer-counts .count-wrong { color: #a52e38; }
+.quiz-res-card .answer-counts { margin: 14px 0; display: grid; gap: 6px; }
+.answer-counts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; border-bottom: 1px solid #d1ddd6; }
+.answer-counts dt { font-size: 20px; font-weight: 700; }
+.answer-counts dd { font: 900 32px 'Outfit', sans-serif; margin: 0; }
+.answer-counts small { font-size: 16px; margin-left: 5px; }
+.answer-counts .count-unanswered { color: #505d59; }
+.stage-result-view .quiz-res-card .rate-val { font-size: 22px; }
+.stage-result-view .quiz-res-card { border-radius: 8px; }
 @media (max-height: 800px) {
   .quiz-question-card { font-size: 38px; padding: 16px 24px; }
   .quiz-option-card-v2 .opt-text { font-size: 36px; }

@@ -45,7 +45,7 @@ const CONFIG = {
   manualStartTimeoutSeconds: Number(cli.manualStartTimeoutSeconds || process.env.MANUAL_START_TIMEOUT_SECONDS || 1800),
   expectedTotalPlayers: Number(cli.expectedTotalPlayers || process.env.EXPECTED_TOTAL_PLAYERS || cli.clients || process.env.CLIENTS || 150),
   enforceDuration: isEnabled(cli.enforceDuration || process.env.ENFORCE_DURATION),
-  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || 343),
+  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || 415),
   maxDurationSeconds: Number(cli.maxDurationSeconds || process.env.MAX_DURATION_SECONDS || 370),
   reportPath: cli.report || process.env.STRESS_REPORT_PATH || ''
 };

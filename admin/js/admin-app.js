@@ -847,7 +847,7 @@ function applyRecommendedQuizPacing() {
   applyQuizFrequencyPlan();
   document.querySelectorAll('.plan-time-input').forEach(input => { input.value = 10; });
   updateQuizPacing();
-  showToast('已套用正式版：18 題、6 關、每次連點 8 秒，約 5:43。');
+  showToast('已套用正式版：18 題、6 關、每次連點 8 秒、揭曉 6 秒，約 6:55。');
 }
 
 function getQuizPlanRows() {

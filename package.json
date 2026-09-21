@@ -13,6 +13,7 @@
     "test:confidence": "node scripts/run-confidence-tests.js --full",
     "test:simulation": "node test-simulation.js",
     "test:operations": "node scripts/test-wedding-operations.js",
+    "test:accounting": "node --test tests/test-player-accounting.js",
     "deploy:check": "node scripts/check-deployment-readiness.js",
     "security:check": "npm audit --audit-level=moderate",
     "preflight": "node scripts/wedding-preflight.js",

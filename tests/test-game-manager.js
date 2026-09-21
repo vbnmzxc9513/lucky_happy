@@ -148,7 +148,7 @@ test('Default pacing should use one round and estimate the formal 18-question ga
   assert.strictEqual(recommendation.quizCount, 18);
   assert.strictEqual(recommendation.stageCount, 6);
   assert.ok(recommendation.trackLength > 58 * 20 * 1000 / 33 + 6 * 6000);
-  assert.strictEqual(recommendation.targetGameSeconds, 343);
+  assert.strictEqual(recommendation.targetGameSeconds, 415);
 });
 
 test('Checkpoint must trigger before a team can finish the race', () => {

@@ -44,6 +44,7 @@
       const prefix = `第 ${stage.stageNumber} / ${stage.stageCount} 關`;
       const suffix = stage.phase === 'tap' ? `${seconds} 秒後連答三題`
         : stage.phase === 'sprint' ? `最後衝刺 ${seconds} 秒`
+          : stage.phase === 'reveal' ? `第 ${stage.questionNumber} / 3 題 · 成績公布 ${seconds} 秒`
           : `第 ${stage.questionNumber} / 3 題`;
       this.label.textContent = `${prefix} · ${suffix}`;
       this.label.classList.toggle('is-urgent', stage.phase === 'tap' && seconds <= 3);

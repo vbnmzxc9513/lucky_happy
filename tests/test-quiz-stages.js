@@ -18,10 +18,10 @@ function setup(t, players = 5) {
 }
 
 for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
-  test(`Six groups finish after 343 seconds: ${style}`, t => {
+  test(`Six groups finish after 415 seconds: ${style}`, t => {
     const { game, events, advance } = setup(t, 150);
     const estimate = StagePlan.estimate(game.mapManager.getCurrentMap().checkpoints, game.config);
-    assert.equal(estimate.totalSeconds, 343);
+    assert.equal(estimate.totalSeconds, 415);
     const beganAt = Date.now();
     assert.equal(game.startRound(), true);
     assert.equal(game.startRound(), false);
@@ -63,7 +63,9 @@ for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
         const result = game.quizStage.reveal;
         game.handleQuizResults(result);
         assert.equal(game.quizStage.results.length, q, 'duplicate result ignored');
-        advance(2000);
+        advance(5900);
+        assert.equal(game.quizStage.phase, 'reveal', 'results remain visible for the full six seconds');
+        advance(100);
       }
       assert.equal(game.quizStage.phase, 'summary');
       const snapshot = game.getGameState();
@@ -90,7 +92,7 @@ for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
     assert.equal(game.state, 'RACING');
     advance(100);
     assert.equal(game.state, 'ROUND_FINISHED');
-    assert.equal(Date.now() - beganAt, 343000);
+    assert.equal(Date.now() - beganAt, 415000);
     assert.equal(events.filter(e => e.event === 'game:quiz_start').length, 18);
     assert.equal(events.filter(e => e.event === 'game:quiz_prepare').length, 6);
     assert.equal(events.filter(e => e.event === 'game:quiz_result').length, 18);
@@ -100,7 +102,7 @@ for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
   });
 }
 
-for (const [phase, elapsed] of [['tap', 4000], ['prepare', 12000], ['answer', 15000], ['reveal', 24000], ['summary', 50000], ['sprint', 334000]]) {
+for (const [phase, elapsed] of [['tap', 4000], ['prepare', 12000], ['answer', 15000], ['reveal', 24000], ['summary', 63000], ['sprint', 406000]]) {
   test(`Pause, recover and reset during ${phase}`, t => {
     const { game, advance } = setup(t);
     game.startRound();

@@ -13,6 +13,7 @@ const fastTests = [
   'tests/test-round-manager.js',
   'tests/test-game-manager.js',
   'tests/test-quiz-stages.js',
+  'tests/test-player-accounting.js',
   'tests/test-shuttle-race.js',
   'scripts/test-shuttle-renderer.js',
   'tests/test-wedding-readiness.js',
