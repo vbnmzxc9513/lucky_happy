@@ -6,10 +6,11 @@
     <title>❖ Lucky Horse ❖ 頂級婚禮互動對抗賽</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/host/css/host.css?v=22">
-    <link rel="stylesheet" href="/host/css/shuttle-race.css?v=3">
-    <link rel="stylesheet" href="/shared/stage-display.css?v=2">
+    <link rel="preload" href="/host/assets/horse-sprite.png" as="image" fetchpriority="high">
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="/host/css/host.css?v=23">
+    <link rel="stylesheet" href="/host/css/shuttle-race.css?v=4">
+    <link rel="stylesheet" href="/shared/stage-display.css?v=3">
 </head>
 <body>
     <button id="btn-enable-sound" class="sound-unlock" type="button" aria-label="啟用大螢幕遊戲音效">
@@ -214,8 +215,8 @@
             </div>
 
             <!-- 左右兩邊新人立繪 (去背圖) -->
-            <img class="rules-char rules-char-left" src="/host/assets/a_ping_rule_explain_fullbody_nobg.png" alt="新郎說明">
-            <img class="rules-char rules-char-right" src="/host/assets/xiao_nie_rule_explain_fullbody_nobg.png" alt="新娘說明">
+            <img class="rules-char rules-char-left" data-src="/host/assets/a_ping_rule_explain_fullbody_nobg.png" alt="新郎說明">
+            <img class="rules-char rules-char-right" data-src="/host/assets/xiao_nie_rule_explain_fullbody_nobg.png" alt="新娘說明">
 
             <!-- 底部開賽按鈕 -->
             <div class="rules-action-bar">
@@ -357,7 +358,7 @@
                 </div>
 
                 <!-- 右下角黑皮探頭裝飾 -->
-                <img src="/host/assets/heipi_cowboy_run.png" alt="黑皮" class="quiz-dog-peek" />
+                <img data-src="/host/assets/heipi_cowboy_run.png" alt="黑皮" class="quiz-dog-peek" />
             </div>
         </div>
 
@@ -407,8 +408,8 @@
                     <small>獎項名稱保密，揭曉瞬間才公開</small>
                 </div>
 
-                <img class="final-awards-character final-awards-groom" src="/host/assets/a_ping_awards_cheer_nobg.png" alt="新郎加油">
-                <img class="final-awards-character final-awards-bride" src="/host/assets/xiao_nie_awards_cheer_nobg.png" alt="新娘加油">
+                <img class="final-awards-character final-awards-groom" data-src="/host/assets/a_ping_awards_cheer_nobg.png" alt="新郎加油">
+                <img class="final-awards-character final-awards-bride" data-src="/host/assets/xiao_nie_awards_cheer_nobg.png" alt="新娘加油">
 
                 <div class="final-awards-frame">
                     <aside class="award-progress-panel">
@@ -471,6 +472,6 @@
     <script src="/host/js/map-select-ui.js?v=12"></script>
     <script src="/host/js/scoreboard.js?v=14"></script>
     <script src="/shared/stage-display.js?v=2"></script>
-    <script src="/host/js/host-app.js?v=21"></script>
+    <script src="/host/js/host-app.js?v=22"></script>
 </body>
 </html>

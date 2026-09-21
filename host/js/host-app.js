@@ -54,11 +54,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     hideFinalSprint();
   };
+  const loadScreenImages = target => {
+    target?.querySelectorAll('img[data-src]').forEach(img => {
+      img.decoding = 'async';
+      img.src = img.dataset.src;
+      img.removeAttribute('data-src');
+    });
+  };
   const showScreen = (screenId) => {
     if (screenId === 'screen-lobby') cleanupTransientOverlays();
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
     const target = document.getElementById(screenId);
-    if (target) target.classList.add('active');
+    if (target) {
+      loadScreenImages(target);
+      target.classList.add('active');
+    }
+    if (screenId === 'screen-racing') loadScreenImages(document.getElementById('quiz-overlay'));
     // 大廳頁面隱藏「回到大廳」按鈕，其餘頁面顯示
     if (backBtn) backBtn.style.display = (screenId === 'screen-lobby') ? 'none' : 'flex';
   };
@@ -125,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const runSrc = t.runImgPath || t.imgPath;
         const horseHTML = `
           <div id="horse-${t.id}" class="horse-unit" style="left: 10px; top: ${topPct}%; margin-top: -50px;">
-              <div class="horse-facing"><img class="horse-emoji" src="${runSrc}" alt="${t.name}" /></div>
+              <div class="horse-facing"><img class="horse-emoji" data-src="${runSrc}" alt="${t.name}" /></div>
               <div id="${t.id}-effect-layer" class="horse-effect"></div>
           </div>
         `;
@@ -155,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="team-select-card card-${t.color}-theme">
               <div class="team-card-badge ${t.color}-badge">${t.name} (${t.id.toUpperCase()})</div>
               <div class="team-card-img-wrap">
-                  <img src="${t.imgPath}?v=${Date.now()}" alt="${t.name}" class="dog-showcase-img ${floatClass}">
+                  <img data-src="${t.imgPath}" alt="${t.name}" class="dog-showcase-img ${floatClass}">
               </div>
               <div class="team-card-info">
                   <div class="team-slogan">${t.slogan}</div>
@@ -190,6 +201,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   renderDynamicHostUI();
+
+  // Warm the next screens one image at a time after the lobby has loaded.
+  window.addEventListener('load', () => {
+    setTimeout(async () => {
+      for (const img of document.querySelectorAll('img[data-src]')) {
+        if (!img.dataset.src) continue;
+        await new Promise(resolve => {
+          const timeout = setTimeout(done, 5000);
+          function done() {
+            clearTimeout(timeout);
+            img.removeEventListener('load', done);
+            img.removeEventListener('error', done);
+            resolve();
+          }
+          img.addEventListener('load', done, { once: true });
+          img.addEventListener('error', done, { once: true });
+          img.decoding = 'async';
+          img.fetchPriority = 'low';
+          img.src = img.dataset.src;
+          img.removeAttribute('data-src');
+          if (img.complete) done();
+        });
+      }
+    }, 3000);
+  }, { once: true });
 
   // 追蹤伺服器當前狀態 (用於防止主持人在比賽中誤觸跳離)
   let currentServerState = 'LOBBY';
