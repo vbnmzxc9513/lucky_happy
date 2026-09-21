@@ -316,6 +316,7 @@ function createGuest(index) {
     tapTimer: null,
     answeredQuizIds: new Set(),
     joined: false,
+    teamChosen: false,
     everConnected: false,
     expectingDisconnect: false
   };
@@ -360,6 +361,9 @@ function createGuest(index) {
       client.joined = true;
       metrics.joinAccepted++;
     }
+    if (ack && ack.success && !client.teamChosen) {
+      socket.emit(CLIENT_TO_SERVER.GUEST_CHOOSE_TEAM, { teamId: client.teamId });
+    }
     if (ack && ack.reconnected) metrics.recoveredConnections++;
   });
 
@@ -384,6 +388,8 @@ function createGuest(index) {
   });
 
   socket.on('guest:team_chosen', () => {
+    if (client.teamChosen) return;
+    client.teamChosen = true;
     metrics.teamChosen++;
   });
 
@@ -458,9 +464,6 @@ async function joinAndChooseTeams() {
         avatar: client.avatar,
         sessionId: client.sessionId
       });
-      setTimeout(() => {
-        client.socket.emit(CLIENT_TO_SERVER.GUEST_CHOOSE_TEAM, { teamId: client.teamId });
-      }, 30);
     }, index * 8);
   });
 
@@ -756,7 +759,12 @@ async function main() {
 main().catch(async error => {
   console.error('');
   console.error('Stress test failed:', error.message);
-  if (raceStartedAt) printSummary();
+  const report = { ...printSummary(), passed: false, error: error.message };
+  if (CONFIG.reportPath) {
+    const reportPath = path.resolve(CONFIG.reportPath);
+    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+    fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  }
   await cleanup();
   process.exit(1);
 });
