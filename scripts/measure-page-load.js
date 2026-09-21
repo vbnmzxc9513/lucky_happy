@@ -7,8 +7,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const base = process.env.SERVER_URL || 'http://127.0.0.1:3000';
   const out = path.resolve(process.env.LOAD_REPORT || 'reports/page-load.json');
   const browser = await chromium.launch({ headless: true,
+    args: JSON.parse(process.env.BROWSER_DIAGNOSTIC_ARGS || '[]'),
     ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
-  const report = { base, measuredAt: new Date().toISOString(), pages: [] };
+  const report = { base, diagnosticArgs: JSON.parse(process.env.BROWSER_DIAGNOSTIC_ARGS || '[]'),
+    measuredAt: new Date().toISOString(), pages: [] };
   try {
     for (const pathname of ['/manage', '/host/']) {
       const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
@@ -37,7 +39,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
             console.log(JSON.stringify(entry));
             throw error;
           }
-          if (pathname === '/host/') await page.locator('#qr-placeholder img').waitFor({ timeout: 30000 });
+          if (pathname === '/host/') await page.locator('#qr-placeholder img').waitFor({ state: 'attached', timeout: 15000 });
           await page.waitForTimeout(3000);
           const metrics = await page.evaluate(() => ({
             navigation: performance.getEntriesByType('navigation')[0].toJSON(),
@@ -59,6 +61,9 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
         }
       } finally { await context.close(); }
     }
+  } catch (error) {
+    report.error = error.message;
+    throw error;
   } finally {
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, JSON.stringify(report, null, 2));
