@@ -5,6 +5,10 @@ const portArgIndex = process.argv.indexOf('--port');
 const port = portArgIndex >= 0 ? Number(process.argv[portArgIndex + 1]) : 3996;
 const serverUrl = `http://127.0.0.1:${port}`;
 const fastTests = [
+  'tests/test-network-delivery.js',
+  'tests/test-guest-input.js',
+  'tests/test-network-measurement.js',
+  'tests/test-receipt-accounting.js',
   'tests/test-checkpoint-engine.js',
   'tests/test-join-url-resolver.js',
   'tests/test-team-manager.js',
@@ -12,15 +16,18 @@ const fastTests = [
   'tests/test-item-manager.js',
   'tests/test-round-manager.js',
   'tests/test-game-manager.js',
+  'tests/test-map-safety.js',
   'tests/test-quiz-stages.js',
   'tests/test-player-accounting.js',
   'tests/test-shuttle-race.js',
+  'tests/test-documentation.js',
   'scripts/test-shuttle-renderer.js',
   'tests/test-wedding-readiness.js',
   'scripts/check-deployment-readiness.js',
   'scripts/test-admin-quiz-planner.js',
   'scripts/test-stage-display.js',
   'scripts/test-control-ui-flow.js',
+  'scripts/test-quiz-statistics.js',
   'scripts/test-ui-flow.js',
   'scripts/test-guest-ui-flow.js'
 ];

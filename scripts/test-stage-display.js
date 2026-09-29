@@ -6,7 +6,7 @@ const dom = new JSDOM('<body><div id="app-container"></div><div id="mobile-app">
 const window = dom.window;
 window.eval(fs.readFileSync(require.resolve('../shared/stage-display.js'), 'utf8'));
 const stage = {
-  phase: 'summary', stageNumber: 1, stageCount: 6, questionNumber: 3, endsAt: Date.now() + 8000,
+  phase: 'summary', stageNumber: 1, stageCount: 5, questionNumber: 3, endsAt: Date.now() + 8000,
   summary: { teamResults: Object.fromEntries(config.TEAMS.map((team, index) => {
     const count = Math.min(index, 3);
     return [team.id, { correctCount: count, steps: [0, 1, 2, 4][count], answers: [0, 1, 2].map(i => i < count) }];

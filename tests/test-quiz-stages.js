@@ -17,38 +17,43 @@ function setup(t, players = 5) {
   return { game, events, advance(ms) { for (let i = 0; i < ms; i += 100) t.mock.timers.tick(Math.min(100, ms - i)); } };
 }
 
+const command = game => ({ requestId: 'test-advance', runId: game.runId, stageNumber: game.quizStage?.stageNumber,
+  flowRevision: game.quizStage?.flowRevision });
+const next = game => assert.equal(game.advanceQuizFlow(command(game)).success, true);
+
 for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
-  test(`Six groups finish after 415 seconds: ${style}`, t => {
+  test(`Five manually controlled groups: ${style}`, t => {
     const { game, events, advance } = setup(t, 150);
-    const estimate = StagePlan.estimate(game.mapManager.getCurrentMap().checkpoints, game.config);
-    assert.equal(estimate.totalSeconds, 415);
-    const beganAt = Date.now();
+    const map = game.mapManager.getCurrentMap();
+    assert.equal(map.checkpoints.length, 15);
+    assert.equal(new Set(map.quizPool).size, 15);
+    const plan = StagePlan.estimate(map.checkpoints, game.config);
+    assert.equal(plan.stageCount, 5);
+    assert.equal(plan.totalSeconds, null);
+    assert.equal(plan.timedSeconds, 203);
     assert.equal(game.startRound(), true);
     assert.equal(game.startRound(), false);
     advance(3000);
-    for (let group = 1; group <= 6; group++) {
+    let settlements = 0;
+    for (let group = 1; group <= 5; group++) {
       assert.equal(game.quizStage.stageNumber, group);
       assert.equal(game.quizStage.phase, 'tap');
       if (style === 'fast-taps') {
         game.teamManager.teams.red.position = 1000000;
         game.update();
-        assert.equal(game.state, 'RACING', 'finish line cannot skip questions');
+        assert.equal(game.state, 'RACING');
       }
-      advance(7900);
-      assert.equal(game.quizStage.phase, 'tap');
-      advance(100);
-      assert.equal(game.quizStage.phase, 'prepare');
-      assert.equal(game.triggerQuiz(null), false);
-      advance(3000);
+      advance(8000);
+      assert.equal(game.quizStage.phase, 'awaiting_question');
+      advance(60000);
+      assert.equal(game.quizManager.currentQuiz, null);
+      assert.equal(game.quizStage.phase, 'awaiting_question');
       const before = Object.fromEntries(Object.entries(game.teamManager.teams).map(([id, team]) => [id, team.position]));
+      next(game); t.mock.timers.tick(0);
       for (let q = 1; q <= 3; q++) {
         assert.equal(game.quizStage.phase, 'answer');
         assert.equal(game.quizStage.questionNumber, q);
         const quiz = game.quizManager.currentQuiz;
-        if (q > 1) {
-          game.handleQuizResults(game.quizStage.results[0]);
-          assert.equal(game.quizStage.phase, 'answer', 'old question result cannot settle the next question');
-        }
         if (style !== 'no-answers') {
           for (let i = 0; i < 150; i++) {
             const correct = style !== 'mixed' || q <= i % 5;
@@ -59,68 +64,65 @@ for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
         }
         advance(10000);
         assert.equal(game.quizStage.phase, 'reveal');
-        assert.equal(game.teamManager.teams.red.position, before.red, 'no reward before group settlement');
-        const result = game.quizStage.reveal;
-        game.handleQuizResults(result);
-        assert.equal(game.quizStage.results.length, q, 'duplicate result ignored');
-        advance(5900);
-        assert.equal(game.quizStage.phase, 'reveal', 'results remain visible for the full six seconds');
-        advance(100);
+        assert.equal(game.teamManager.teams.red.position, before.red);
+        game.handleQuizResults(game.quizStage.reveal);
+        assert.equal(game.quizStage.results.length, q);
+        advance(3600000);
+        assert.equal(game.quizStage.phase, 'reveal', 'including question three: no automatic settlement');
+        assert.equal(game.quizStage.summary, null);
+        next(game); t.mock.timers.tick(0);
       }
-      assert.equal(game.quizStage.phase, 'summary');
-      const snapshot = game.getGameState();
-      assert.equal(snapshot.quizStage.completedQuestions, group * 3);
+      assert.equal(game.quizStage.phase, 'summary'); settlements++;
       for (const [index, team] of game.config.TEAMS.entries()) {
         const expected = style === 'no-answers' ? 0 : style === 'mixed' ? Math.min(index, 3) : 3;
-        const result = snapshot.quizStage.summary.teamResults[team.id];
+        const result = game.quizStage.summary.teamResults[team.id];
         assert.equal(result.correctCount, expected);
         assert.equal(result.rewardPx, [0, 1, 2, 4][expected] * 1500);
-        const awardedDistance = game.teamManager.teams[team.id].position - before[team.id];
-        assert.ok(
-          Math.abs(awardedDistance - result.rewardPx) < 1e-9,
-          `expected ${result.rewardPx} reward distance, got ${awardedDistance}`
-        );
+        assert.ok(Math.abs(game.teamManager.teams[team.id].position - before[team.id] - result.rewardPx) < 1e-9);
       }
-      assert.equal(game.showStageSummary(game.flowToken), false, 'summary cannot pay twice');
-      assert.equal(game.handleTap('p0').success, false);
-      advance(8000);
+      assert.equal(game.showStageSummary(game.flowToken), false);
+      advance(3600000);
+      assert.equal(game.quizStage.phase, 'summary');
+      next(game);
     }
+    assert.equal(settlements, 5);
     assert.equal(game.quizStage.phase, 'sprint');
-    assert.equal(game.finalSprintActive, true);
-    assert.equal(game.quizStage.completedQuestions, 18);
-    advance(9900);
-    assert.equal(game.state, 'RACING');
-    advance(100);
-    assert.equal(game.state, 'ROUND_FINISHED');
-    assert.equal(Date.now() - beganAt, 415000);
-    assert.equal(events.filter(e => e.event === 'game:quiz_start').length, 18);
-    assert.equal(events.filter(e => e.event === 'game:quiz_prepare').length, 6);
-    assert.equal(events.filter(e => e.event === 'game:quiz_result').length, 18);
+    assert.equal(game.quizStage.completedQuestions, 15);
+    advance(9900); assert.equal(game.state, 'RACING');
+    advance(100); assert.equal(game.state, 'ROUND_FINISHED');
+    assert.equal(events.filter(e => e.event === 'game:quiz_start').length, 15);
+    assert.equal(events.filter(e => e.event === 'game:quiz_result').length, 15);
     advance(5000);
     assert.equal(game.state, 'MATCH_FINISHED');
     assert.equal(game.buildFinalAwardsPayload().awards.length, 4);
+    if (style === 'no-answers') assert.ok([...game.playerStats.values()].every(s => s.wrongCount === 0));
   });
 }
 
-for (const [phase, elapsed] of [['tap', 4000], ['prepare', 12000], ['answer', 15000], ['reveal', 24000], ['summary', 63000], ['sprint', 406000]]) {
-  test(`Pause, recover and reset during ${phase}`, t => {
+for (const phase of ['tap', 'awaiting_question', 'answer', 'reveal', 'summary', 'sprint']) {
+  test(`Pause, recover, stale operations and reset in ${phase}`, t => {
     const { game, advance } = setup(t);
-    game.startRound();
-    advance(elapsed);
-    assert.equal(game.quizStage.phase, phase);
+    game.startRound(); advance(3000);
+    while (game.quizStage.phase !== phase) {
+      if (game.quizStage.phase === 'tap') advance(8000);
+      else if (game.quizStage.phase === 'answer') advance(10000);
+      else { next(game); t.mock.timers.tick(0); }
+    }
     const deadline = game.quizStage.endsAt;
-    const phaseBefore = game.quizStage.phase;
+    const oldCommand = command(game);
     assert.ok(game.pauseGame());
-    assert.equal(game.pauseGame(), false);
+    assert.equal(game.advanceQuizFlow(oldCommand).reason, 'GAME_PAUSED');
     advance(20000);
-    assert.equal(game.quizStage.phase, phaseBefore);
-    assert.equal(game.handleTap('p0').reason, 'GAME_PAUSED');
+    assert.equal(game.quizStage.phase, phase);
+    assert.equal(game.getGameState().quizStage.phase, phase);
     assert.ok(game.resumeGame());
-    assert.equal(game.quizStage.endsAt, deadline + 20000);
-    assert.equal(game.resumeGame(), false);
+    assert.equal(game.quizStage.endsAt, deadline === null ? null : deadline + 20000);
+    const callbacks = [...game.managedTimeouts.values()].map(entry => entry.callback);
     const oldToken = game.flowToken;
     game.resetGame();
-    game.evaluateRaceGuard(oldToken);
+    callbacks.forEach(callback => callback());
+    game.handleQuizResults({}, oldToken);
+    assert.equal(game.advanceQuizFlow(oldCommand).reason, 'STALE_RUN');
     advance(700000);
     assert.equal(game.state, 'LOBBY');
     assert.equal(game.quizStage, null);
@@ -129,28 +131,51 @@ for (const [phase, elapsed] of [['tap', 4000], ['prepare', 12000], ['answer', 15
   });
 }
 
-test('Invalid or duplicate planned questions refuse start before locking players', t => {
-  const { game } = setup(t);
-  const map = game.mapManager.getCurrentMap();
-  map.checkpoints[1].quizId = map.checkpoints[0].quizId;
-  assert.equal(game.startRound(), false);
-  assert.equal(game.state, 'LOBBY');
-});
+for (const invalid of ['missing', 'duplicate', 'not-multiple']) {
+  test(`Refuse ${invalid} question plan`, t => {
+    const { game } = setup(t);
+    const map = game.mapManager.getCurrentMap();
+    if (invalid === 'missing') map.checkpoints[1].quizId = 'missing';
+    if (invalid === 'duplicate') map.checkpoints[1].quizId = map.checkpoints[0].quizId;
+    if (invalid === 'not-multiple') map.checkpoints.pop();
+    assert.equal(game.startRound(), false);
+    assert.equal(game.state, 'LOBBY');
+    assert.equal(game.teamManager.isJoinLocked, false);
+  });
+}
 
-test('Force starts the scheduled group once and keeps the three-question order', t => {
+test('Concurrent controls advance once and force quiz cannot bypass the state machine', t => {
   const { game, advance } = setup(t);
-  game.startRound();
-  advance(3000);
-  assert.equal(game.forceTriggerQuiz('party_008'), false);
-  assert.equal(game.forceTriggerQuiz(null), true);
+  game.startRound(); advance(3000);
   assert.equal(game.forceTriggerQuiz(null), false);
-  assert.equal(game.managedTimeouts.has('stage-tap'), false);
-  advance(3000);
+  advance(8000);
+  const data = command(game);
+  assert.equal(game.advanceQuizFlow(data).success, true);
+  assert.equal(game.advanceQuizFlow(data).reason, 'STALE_FLOW');
+  t.mock.timers.tick(0);
+  assert.equal(game.advanceQuizFlow(command(game)).reason, 'INVALID_PHASE');
   const quiz = game.quizManager.currentQuiz;
   game.handleQuizAnswer('p0', quiz.id, 'A');
   game.migratePlayerConnection('p0', 'reconnected');
-  assert.equal(game.quizManager.handleAnswer('reconnected', 'red', quiz.id, 'A').reason, 'ALREADY_ANSWERED');
   let recovery;
   game.emitActiveQuizRecovery({ id: 'reconnected', emit(event, payload) { recovery = payload; } }, 'guest');
   assert.equal(recovery.alreadyAnswered, true);
+});
+
+for (const count of [12, 18, 21, 24]) {
+  test(`Formal map refuses ${count} questions at start and save`, t => {
+    const { game } = setup(t);
+    const map = game.mapManager.getCurrentMap();
+    map.checkpoints = game.quizLoader.getAllQuizzes().slice(0, count).map(quiz => ({ quizId: quiz.id }));
+    assert.equal(game.startRound(), false);
+    assert.equal(game.mapManager.saveMap(map), false);
+  });
+}
+test('Malformed advance IDs cannot change the waiting state', t => {
+  const { game, advance } = setup(t); game.startRound(); advance(11000);
+  for (const requestId of [undefined, null, '', {}, 'bad id', 'x'.repeat(101)]) {
+    const data = { ...command(game), requestId };
+    assert.equal(game.advanceQuizFlow(data).reason, 'INVALID_REQUEST_ID');
+    assert.equal(game.quizStage.phase, 'awaiting_question');
+  }
 });

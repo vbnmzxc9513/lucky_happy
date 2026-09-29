@@ -62,7 +62,7 @@ async function main() {
         return [team.id, { answers: [0, 1, 2].map(i => i < count), correctCount: count, steps: [0, 1, 2, 4][count] }];
       }));
       display.sync({ config, serverNow: Date.now(), quizStage: {
-        stageNumber: 6, stageCount: 6, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 8000,
+        stageNumber: 5, stageCount: 5, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 8000,
         summary: { teamResults }
       } });
       // The fixture's rendering is isolated from incoming lobby snapshots.
@@ -95,7 +95,7 @@ async function main() {
         const display = new window.StageDisplay('host');
         display.summary.id = 'fixture-summary';
         display.sync({ config, serverNow: Date.now(), quizStage: {
-          stageNumber: 6, stageCount: 6, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 1000,
+          stageNumber: 5, stageCount: 5, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 1000,
           summary: { teamResults: Object.fromEntries(config.TEAMS.map(t => [t.id, {
             answers: [0, 1, 2].map(i => i < correctCount), correctCount, steps: correctCount ? 4 : 0
           }])) }
@@ -119,7 +119,7 @@ async function main() {
       await page.evaluate(config => {
         window.display = new window.StageDisplay('guest');
         window.fixture = { serverNow: Date.now(), config, quizStage: {
-          stageNumber: 1, stageCount: 6, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 8000,
+          stageNumber: 1, stageCount: 5, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 8000,
           summary: { teamResults: { red: { answers: [true, true, true], correctCount: 3, steps: 4 } } }
         } };
         window.display.sync(window.fixture, 'red');

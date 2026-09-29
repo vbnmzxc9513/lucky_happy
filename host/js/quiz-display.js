@@ -24,6 +24,7 @@ class QuizDisplay {
   }
 
   showPrepare(seconds = 3) {
+    this.statistics?.remove();
     const overlay = document.getElementById('quiz-overlay');
     overlay.classList.remove('stage-result-view');
     const qBox = document.getElementById('quiz-question-box');
@@ -60,6 +61,7 @@ class QuizDisplay {
   }
 
   showQuiz(questionText, options, timeLimit) {
+    this.statistics?.remove();
     const overlay = document.getElementById('quiz-overlay');
     overlay.classList.remove('stage-result-view');
     const qBox = document.getElementById('quiz-question-box');
@@ -168,6 +170,7 @@ class QuizDisplay {
 
   showResult(resultData) {
     if (this.timerInterval) clearInterval(this.timerInterval);
+    if (resultData?.distribution) return this.showStatistics(resultData);
     const resBox = document.getElementById('quiz-result-section');
     const ansText = document.getElementById('correct-answer-text');
     const dynamicResults = document.getElementById('dynamic-quiz-results');
@@ -230,6 +233,7 @@ class QuizDisplay {
   }
 
   hide() {
+    this.statistics?.remove();
     if (this.timerInterval) clearInterval(this.timerInterval);
     document.getElementById('quiz-overlay').classList.remove('stage-result-view');
     document.getElementById('quiz-overlay').style.display = 'none';
@@ -240,6 +244,50 @@ class QuizDisplay {
     if (qBox) qBox.style.display = 'block';
     const teamBar = document.getElementById('quiz-team-bar');
     if (teamBar) teamBar.style.display = 'flex';
+  }
+
+  showStatistics(result) {
+    const overlay = document.getElementById('quiz-overlay');
+    overlay.style.display = 'flex';
+    overlay.classList.add('stage-result-view');
+    this.statistics?.remove();
+    const panel = this.statistics = document.createElement('section');
+    panel.className = 'quiz-statistics';
+    const add = (parent, tag, className, text) => {
+      const element = document.createElement(tag);
+      element.className = className;
+      if (text !== undefined) element.textContent = text;
+      parent.append(element);
+      return element;
+    };
+    const heading = add(panel, 'header', 'statistics-heading');
+    add(heading, 'p', '', '本題答題統計');
+    add(heading, 'h2', '', `正確答案：${result.correctAnswer} · ${result.correctAnswerText}`);
+    const dist = result.distribution;
+    add(heading, 'p', '', `已作答 ${dist.answeredCount} 人 ／ 未作答 ${dist.unansweredCount} 人 ／ 全場 ${dist.totalPlayers} 人 · 回覆率 ${(dist.responseRate * 100).toFixed(1)}%`);
+    const options = add(panel, 'div', 'statistics-options');
+    for (const [label, text] of Object.entries(result.options)) {
+      const option = dist.options[label];
+      const row = add(options, 'article', `statistics-option ${label === result.correctAnswer ? 'is-correct' : ''}`);
+      add(row, 'span', 'statistics-option-text', `${label}. ${text}`);
+      add(row, 'strong', '', `${option.count} 人 · ${(option.answeredPercent * 100).toFixed(1)}%`);
+      const track = add(row, 'div', 'statistics-bar');
+      const fill = add(track, 'i', '');
+      fill.style.width = `${option.answeredPercent * 100}%`;
+    }
+    const teams = add(panel, 'div', 'statistics-teams');
+    for (const team of window.GameConfig.TEAMS) {
+      const resultTeam = result.teamResults[team.id];
+      if (!resultTeam) continue;
+      const card = add(teams, 'article', `statistics-team ${resultTeam.isCorrect ? 'is-correct' : ''}`);
+      add(card, 'h3', '', team.name);
+      add(card, 'strong', '', `${resultTeam.correctCount} / ${resultTeam.totalCount} 人答對`);
+      add(card, 'p', '', `答對率 ${(resultTeam.correctRate * 100).toFixed(1)}%`);
+      add(card, 'b', '', resultTeam.isCorrect ? '本題答對' : '未達 50%');
+      add(card, 'small', '', resultTeam.isCorrect ? '已超過 50%' : '須嚴格大於 50%');
+    }
+    add(panel, 'footer', '', '選項比例以全場已作答人數為分母 · 隊伍答對率包含未作答者 · 等待主持人繼續');
+    overlay.append(panel);
   }
 }
 window.QuizDisplay = QuizDisplay;

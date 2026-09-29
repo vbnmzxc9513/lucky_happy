@@ -204,14 +204,25 @@ app.get('/api/join-info', async (req, res) => {
   }
 });
 
-// 靜態檔案託管
-app.use('/docs', express.static(config.paths.docs));
-app.use('/assets', express.static(config.paths.hostAssets));
-app.use('/host', requireStaffAccess, express.static(config.paths.host));
-app.use('/guest', express.static(config.paths.guest));
-app.use('/control', requireStaffAccess, express.static(config.paths.control));
-app.use('/admin', requireStaffAccess, express.static(config.paths.admin));
-app.use('/shared', express.static(config.paths.shared));
+// HTML 每次重新驗證版本；圖片、CSS、JS 可短期快取，降低現場重連與重新整理流量。
+const staticOptions = {
+  etag: true,
+  lastModified: true,
+  setHeaders(res, filePath) {
+    if (path.extname(filePath).toLowerCase() === '.html') {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    }
+  }
+};
+app.use('/docs', express.static(config.paths.docs, staticOptions));
+app.use('/assets', express.static(config.paths.hostAssets, staticOptions));
+app.use('/host', requireStaffAccess, express.static(config.paths.host, staticOptions));
+app.use('/guest', express.static(config.paths.guest, staticOptions));
+app.use('/control', requireStaffAccess, express.static(config.paths.control, staticOptions));
+app.use('/admin', requireStaffAccess, express.static(config.paths.admin, staticOptions));
+app.use('/shared', express.static(config.paths.shared, staticOptions));
 
 app.get('/manage', requireStaffAccess, (req, res) => {
   res.sendFile(path.join(config.paths.home, 'index.html'));
@@ -234,13 +245,14 @@ io.use((socket, next) => {
   const auth = socket.handshake.auth || {};
   const requestedRole = auth.role;
 
-  if (!requestedRole) {
+  if (!requestedRole || requestedRole === 'guest') {
     socket.data.role = 'guest';
     return next();
   }
 
   if (STAFF_SOCKET_ROLES.has(requestedRole) && hasStaffAccessFromHeader(socket.handshake.headers.cookie)) {
     socket.data.role = requestedRole;
+    socket.data.hasStaffAccess = () => hasStaffAccessFromHeader(socket.handshake.headers.cookie);
     return next();
   }
 
@@ -269,11 +281,24 @@ app.get('/healthz', (req, res) => {
     uptimeSeconds: Math.round(process.uptime()),
     connectedSockets: io.engine.clientsCount,
     eventLoopLagMs,
+    ...(process.env.NETWORK_METRICS === '1' ? { network: gameManager.delivery.metrics } : {}),
     memory: {
       rssMb: Math.round(memory.rss / 1024 / 1024),
       heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024)
     }
   });
+});
+
+app.get('/api/test-accounting', (req, res, next) => {
+  if (process.env.ENABLE_TEST_DIAGNOSTICS !== '1' || process.env.NODE_ENV === 'production') return res.sendStatus(404);
+  return requireStaffAccess(req, res, next);
+}, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ runId: gameManager.runId, state: gameManager.state,
+    players: [...gameManager.playerStats.values()].map(stat => ({ nickname: stat.nickname,
+      tapCount: stat.tapCount, answeredCount: stat.answeredCount, correctCount: stat.correctCount, wrongCount: stat.wrongCount,
+      tapReceipts: gameManager.delivery.tapReceipts(stat.socketId),
+      answerReceipts: gameManager.delivery.answerReceipts(stat.socketId) })) });
 });
 
 // 捕捉重複啟動與連接埠衝突 (EADDRINUSE)，給予人性化無腦提示

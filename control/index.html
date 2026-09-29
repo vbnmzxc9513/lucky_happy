@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lucky Horse 主持控制台</title>
-  <link rel="stylesheet" href="/control/css/control.css?v=1">
+  <link rel="stylesheet" href="/control/css/control.css?v=2">
 </head>
 <body>
   <header class="control-header">
@@ -13,7 +13,7 @@
       <h1>主持控制台</h1>
     </div>
     <div class="header-actions">
-      <span id="connection-status" class="status-pill is-offline">連線中</span>
+      <span id="connection-status" role="status" aria-live="polite" class="status-pill is-offline">連線中</span>
       <a class="icon-link" href="/host/" target="_blank" title="另開大螢幕投影" aria-label="另開大螢幕投影">↗</a>
       <a class="text-link" href="/manage">主頁</a>
     </div>
@@ -42,10 +42,13 @@
           <button data-stage="awards">頒獎</button>
         </div>
 
+        <div class="primary-actions" aria-label="主持主要操作">
+          <button id="btn-advance-quiz" class="command primary" disabled>等待賽事開始</button>
+          <button id="btn-pause" class="command warning" disabled>暫停</button>
+          <button id="btn-resume" class="command success" disabled hidden>繼續</button>
+        </div>
         <div class="game-actions">
-          <button id="btn-start" class="command primary">開始比賽</button>
-          <button id="btn-pause" class="command warning">暫停</button>
-          <button id="btn-resume" class="command success">繼續</button>
+          <button id="btn-start" class="command primary" disabled>開始比賽</button>
           <button id="btn-reset" class="command danger">重置整場</button>
         </div>
 
@@ -101,9 +104,10 @@
 
   <div id="control-toast" class="control-toast" role="status"></div>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/shared/events.js"></script>
-  <script src="/shared/game-config.js"></script>
+  <script src="/shared/client-id.js?v=1"></script>
+  <script src="/shared/events.js?v=20260929"></script>
+  <script src="/shared/game-config.js?v=20260929"></script>
   <script src="/shared/shuttle-race.js?v=1"></script>
-  <script src="/control/js/control-app.js?v=2"></script>
+  <script src="/control/js/control-app.js?v=20260929-3"></script>
 </body>
 </html>

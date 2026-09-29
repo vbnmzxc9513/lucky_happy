@@ -103,7 +103,7 @@ h2 { margin-top: 4px; font-size: 22px; }
 .segmented-control button:last-child { border-right: 0; }
 .segmented-control button.active { color: var(--white); background: var(--deep); border-radius: 5px; }
 
-.game-actions { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); gap: 10px; margin: 18px 0; }
+.game-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 18px 0; }
 .command, .icon-command {
   min-height: 46px;
   padding: 0 16px;
@@ -168,7 +168,7 @@ select { width: 100%; min-height: 44px; padding: 0 12px; border: 2px solid rgba(
 
 @media (max-width: 640px) {
   .control-header { align-items: flex-start; padding: 14px 16px; }
-  .header-actions .status-pill, .header-actions .text-link { display: none; }
+  .header-actions .text-link { display: none; }
   .control-shell { padding: 14px 12px 32px; }
   .live-strip { grid-template-columns: 1fr 1fr; }
   .panel { padding: 16px 14px; }
@@ -178,4 +178,21 @@ select { width: 100%; min-height: 44px; padding: 0 12px; border: 2px solid rgba(
   .team-row img { width: 38px; height: 36px; }
   .team-bar { display: none; }
   .inline-control, .inline-control.three { grid-template-columns: 1fr; }
+}
+
+.primary-actions { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 10px; margin-top: 18px; }
+.primary-actions [hidden] { display: none; }
+@media (max-width: 980px) {
+  .control-shell { padding-bottom: calc(144px + env(safe-area-inset-bottom)); }
+  .primary-actions {
+    position: fixed; z-index: 90; left: 0; right: 0; bottom: 0; margin: 0;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: var(--mint); border-top: 2px solid var(--deep);
+  }
+  #connection-status {
+    position: fixed; z-index: 90; left: 12px; right: 12px;
+    bottom: calc(66px + env(safe-area-inset-bottom)); min-height: 32px;
+    background: var(--deep); font-size: 13px;
+  }
+  .control-toast { bottom: calc(108px + env(safe-area-inset-bottom)); }
 }

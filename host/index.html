@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/host/css/host.css?v=24">
     <link rel="stylesheet" href="/host/css/shuttle-race.css?v=4">
     <link rel="stylesheet" href="/shared/stage-display.css?v=3">
+    <link rel="stylesheet" href="/host/css/quiz-statistics.css?v=1">
 </head>
 <body>
     <button id="btn-enable-sound" class="sound-unlock" type="button" aria-label="啟用大螢幕遊戲音效">
@@ -175,7 +176,7 @@
                             <span class="tap-horses">🏇🏇🏇</span>
                         </div>
                     </div>
-                    <p class="rules-card-desc">每關一起連點 8 秒<br><strong>六關後衝刺 10 秒，累積距離最多的隊伍獲勝！</strong></p>
+                    <p class="rules-card-desc">每關一起連點 8 秒<br><strong>五關後衝刺 10 秒，累積距離最多的隊伍獲勝！</strong></p>
                 </div>
 
                 <!-- 卡片 3: 快問快答與機遇 -->
@@ -190,13 +191,13 @@
                             <span class="quiz-bolt">⚡</span>
                         </div>
                     </div>
-                    <p class="rules-card-desc">每關連答三題，共六關<br>答題後一起看成績、領取獎勵！</p>
+                    <p class="rules-card-desc">每關主持人逐題開始三題，共五關<br>答題後一起看成績、領取獎勵！</p>
                 </div>
 
-                <!-- 卡片 4: 多數決答題獎懲 -->
+                <!-- 卡片 4: 超過半數答對獎懲 -->
                 <div class="rules-card">
                     <div class="rules-card-number">4</div>
-                    <h3 class="rules-card-title">多數決答題獎勵</h3>
+                    <h3 class="rules-card-title">超過半數答對獎勵</h3>
                     <p class="rules-card-subtitle">Majority Vote System</p>
                     <div class="rules-card-illustration">
                         <div class="vote-demo">
@@ -462,16 +463,16 @@
 
     <!-- 引入 Socket.IO Client、現場音效與遊戲邏輯 JS -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="/shared/events.js?v=14"></script>
-    <script src="/shared/game-config.js?v=16"></script>
+    <script src="/shared/events.js?v=20260929"></script>
+    <script src="/shared/game-config.js?v=20260929"></script>
     <script src="/shared/shuttle-race.js?v=1"></script>
     <script src="/shared/sound-manager.js?v=2"></script>
     <script src="/host/js/effects.js?v=12"></script>
     <script src="/host/js/race-renderer.js?v=13"></script>
-    <script src="/host/js/quiz-display.js?v=15"></script>
+    <script src="/host/js/quiz-display.js?v=20260929"></script>
     <script src="/host/js/map-select-ui.js?v=12"></script>
     <script src="/host/js/scoreboard.js?v=14"></script>
-    <script src="/shared/stage-display.js?v=3"></script>
-    <script src="/host/js/host-app.js?v=22"></script>
+    <script src="/shared/stage-display.js?v=20260929"></script>
+    <script src="/host/js/host-app.js?v=20260929"></script>
 </body>
 </html>

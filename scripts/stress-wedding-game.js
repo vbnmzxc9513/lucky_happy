@@ -1,9 +1,11 @@
+const { randomUUID } = require('node:crypto');
 const fs = require('fs');
 const path = require('path');
-const { performance } = require('perf_hooks');
+const { performance, monitorEventLoopDelay } = require('perf_hooks');
 const { io } = require('socket.io-client');
 const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = require('../shared/events');
 const DEFAULT_CONFIG = require('../shared/game-config');
+const reconcilePlayerAccounting = require('./lib/reconcile-player-accounting');
 
 const TEAM_IDS = DEFAULT_CONFIG.TEAMS.map(team => team.id);
 const AVATARS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -29,7 +31,7 @@ const cli = parseArgs(process.argv.slice(2));
 const isEnabled = value => ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
 const CONFIG = {
   url: cli.url || process.env.SERVER_URL || 'http://localhost:3000',
-  clients: Number(cli.clients || process.env.CLIENTS || 150),
+  clients: Number(cli.clients || process.env.CLIENTS || 190),
   tapRate: Number(cli.tapRate || process.env.TAP_RATE || 5),
   answerRate: Number(cli.answerRate || process.env.ANSWER_RATE || 0.98),
   answerStrategy: cli.answerStrategy || process.env.ANSWER_STRATEGY || 'random',
@@ -37,17 +39,24 @@ const CONFIG = {
   reconnectAtQuiz: Number(cli.reconnectAtQuiz || process.env.RECONNECT_AT_QUIZ || 5),
   maxSeconds: Number(cli.maxSeconds || process.env.MAX_SECONDS || 540),
   connectTimeoutMs: Number(cli.connectTimeoutMs || process.env.CONNECT_TIMEOUT_MS || 30000),
+  joinIntervalMs: Number(cli.joinIntervalMs ?? process.env.JOIN_INTERVAL_MS ?? 8),
+  joinTimeoutMs: Number(cli.joinTimeoutMs || process.env.JOIN_TIMEOUT_MS || Math.max(20000, Number(cli.clients || process.env.CLIENTS || 190) * 120)),
   settleMs: Number(cli.settleMs || process.env.SETTLE_MS || 1200),
   transport: cli.transport || process.env.TRANSPORT || 'websocket',
   staffAccessCode: cli.staffAccessCode || process.env.STAFF_ACCESS_CODE || '1009',
   manualHost: isEnabled(cli.manualHost || process.env.MANUAL_HOST),
   readyOnly: isEnabled(cli.readyOnly || process.env.READY_ONLY),
   manualStartTimeoutSeconds: Number(cli.manualStartTimeoutSeconds || process.env.MANUAL_START_TIMEOUT_SECONDS || 1800),
-  expectedTotalPlayers: Number(cli.expectedTotalPlayers || process.env.EXPECTED_TOTAL_PLAYERS || cli.clients || process.env.CLIENTS || 150),
+  expectedTotalPlayers: Number(cli.expectedTotalPlayers || process.env.EXPECTED_TOTAL_PLAYERS || cli.clients || process.env.CLIENTS || 190),
   enforceDuration: isEnabled(cli.enforceDuration || process.env.ENFORCE_DURATION),
-  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || 415),
-  maxDurationSeconds: Number(cli.maxDurationSeconds || process.env.MAX_DURATION_SECONDS || 370),
-  reportPath: cli.report || process.env.STRESS_REPORT_PATH || ''
+  requireAccounting: isEnabled(cli.requireAccounting || process.env.REQUIRE_ACCOUNTING),
+  accountingMode: cli.accountingMode || 'receipts',
+  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || 203),
+  maxDurationSeconds: Number(cli.maxDurationSeconds || process.env.MAX_DURATION_SECONDS || 445),
+  reportPath: cli.report || process.env.STRESS_REPORT_PATH || '',
+  progressMs: Number(cli.progressMs || process.env.PROGRESS_MS || 10000),
+  ackTimeoutMs: Number(cli.ackTimeoutMs || process.env.ACK_TIMEOUT_MS || 5000),
+  stateMaxAgeMs: Number(cli.stateMaxAgeMs || process.env.STATE_MAX_AGE_MS || 3000)
 };
 
 const metrics = {
@@ -61,10 +70,23 @@ const metrics = {
   joinLocked: 0,
   systemErrors: 0,
   tapsSent: 0,
+  tapAcks: 0,
+  tapAccepted: 0,
+  tapRejections: {},
+  tapAckLatencies: [],
+  quizAckLatencies: [],
+  quizRejections: {},
+  affectedClients: new Set(),
+  intentionalAffectedClients: new Set(),
+  unexpectedAffectedClients: new Set(),
+  recoveredClients: new Set(),
+  hostDisconnects: 0,
+  hostConnectErrors: 0,
   quizOptions: 0,
   quizAnswersSent: 0,
   quizAnswerAck: 0,
   quizAnswerAccepted: 0,
+  quizRetries: 0,
   quizStarts: 0,
   quizResults: 0,
   roundFinished: 0,
@@ -85,13 +107,148 @@ const metrics = {
 };
 
 let hostSocket = null;
+let staffCookie = null;
 let clients = [];
 let currentState = 'UNKNOWN';
 let raceStartedAt = null;
 let lastHostPositionAt = null;
 let httpProbeTimer = null;
 let reconnectWaveStarted = false;
+let stopping = false;
+let progressTimer = null;
+let probeRunning = false;
+const scheduledTimers = new Set();
+const probeControllers = new Set();
+const startedAt = new Date().toISOString();
+const sessionPrefix = `stress-${Date.now()}-${process.pid}`;
+const generatorLoop = monitorEventLoopDelay({ resolution: 10 });
 const quizAnswerLabels = loadQuizAnswerLabels();
+
+class RequestTracker {
+  constructor(prefix, now = monotonicNow) {
+    this.prefix = prefix;
+    this.now = now;
+    this.sequence = 0;
+    this.pending = new Map();
+    this.counts = Object.fromEntries(['tap', 'quiz'].map(kind => [kind, {
+      sent: 0, acknowledged: 0, accepted: 0, rejected: 0,
+      missing: 0, abandonedOnDisconnect: 0, abandonedOnStateChange: 0, unmatchedAcks: 0
+    }]));
+  }
+
+  begin(kind, state) {
+    const requestId = `${this.prefix}-${++this.sequence}`;
+    this.pending.set(requestId, { kind, runId: state.runId, sentAt: this.now() });
+    this.counts[kind].sent++;
+    return { requestId, runId: state.runId, stateVersion: state.stateVersion };
+  }
+
+  acknowledge(kind, ack) {
+    const request = this.pending.get(ack?.requestId);
+    if (!request || request.kind !== kind || request.runId !== ack?.runId) {
+      this.counts[kind].unmatchedAcks++;
+      return null;
+    }
+    this.pending.delete(ack.requestId);
+    this.counts[kind].acknowledged++;
+    this.counts[kind][ack.success ? 'accepted' : 'rejected']++;
+    return this.now() - request.sentAt;
+  }
+
+  expire(timeoutMs) {
+    for (const [id, request] of this.pending) {
+      if (this.now() - request.sentAt >= timeoutMs) {
+        this.counts[request.kind].missing++;
+        this.pending.delete(id);
+      }
+    }
+  }
+
+  abandon(reason = 'abandonedOnDisconnect') {
+    for (const request of this.pending.values()) this.counts[request.kind][reason]++;
+    this.pending.clear();
+  }
+
+  summary(kind) {
+    return { ...this.counts[kind], pending: [...this.pending.values()].filter(r => r.kind === kind).length };
+  }
+}
+
+function applyState(client, data, now = monotonicNow()) {
+  if (!data || data.runId == null || !Number.isInteger(data.stateVersion) || !Number.isFinite(data.serverNow)) return false;
+  const previous = client.state;
+  if (previous && (previous.runId !== data.runId
+    ? data.serverNow < previous.serverNow
+    : data.stateVersion < previous.stateVersion || data.serverNow < previous.serverNow)) return false;
+  const changed = previous && (previous.runId !== data.runId || previous.stateVersion !== data.stateVersion);
+  if (changed) {
+    cancelQuizAnswer(client);
+  }
+  if (previous && previous.runId !== data.runId) {
+    client.requests.abandon('abandonedOnStateChange');
+    client.answeredQuizIds.clear();
+  }
+  client.state = { ...data, receivedAt: now };
+  client.serverOffset = Math.max(client.serverOffset ?? -Infinity, data.serverNow - now);
+  if (data.self) {
+    client.joined = data.self.joined === true;
+    client.confirmedTeamId = data.self.teamId || null;
+  }
+  return true;
+}
+
+function canSend(client, phase, now = monotonicNow()) {
+  const state = client.state;
+  if (stopping || !client.connected || !client.socket.connected || !client.joined || !client.confirmedTeamId || !state) return false;
+  const age = Math.max(now - state.receivedAt, now + client.serverOffset - state.serverNow);
+  return age >= 0 && age <= CONFIG.stateMaxAgeMs && state.state === phase && state.paused === false
+    && Number.isFinite(state.endsAt) && state.endsAt > state.serverNow + age;
+}
+
+function schedule(callback, delay) {
+  const timer = setTimeout(() => {
+    scheduledTimers.delete(timer);
+    if (!stopping) callback();
+  }, delay);
+  scheduledTimers.add(timer);
+  return timer;
+}
+
+function cancelQuizAnswer(client) {
+  if (client.answerTimer) {
+    clearTimeout(client.answerTimer);
+    scheduledTimers.delete(client.answerTimer);
+    client.answerTimer = null;
+  }
+}
+
+function requestSummary() {
+  const summary = {};
+  for (const kind of ['tap', 'quiz']) {
+    summary[kind] = {};
+    for (const client of clients) {
+      client.requests.expire(CONFIG.ackTimeoutMs);
+      for (const [key, value] of Object.entries(client.requests.summary(kind))) {
+        summary[kind][key] = (summary[kind][key] || 0) + value;
+      }
+    }
+  }
+  return summary;
+}
+
+function progress() {
+  const requests = requestSummary();
+  const status = {
+    at: new Date().toISOString(), state: currentState,
+    online: clients.filter(c => c.connected).length,
+    joinedOnline: clients.filter(c => c.connected && c.joined && c.confirmedTeamId).length,
+    affectedClients: metrics.affectedClients.size, recoveredClients: metrics.recoveredClients.size,
+    disconnectEvents: metrics.disconnects + metrics.intentionalDisconnects,
+    requests, tapP99Ms: percentile(metrics.tapAckLatencies, 99)
+  };
+  log(`Progress ${JSON.stringify(status)}`);
+  return status;
+}
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -174,6 +331,7 @@ function log(message) {
 async function waitUntil(predicate, timeoutMs, label) {
   const start = monotonicNow();
   while (monotonicNow() - start < timeoutMs) {
+    if (stopping) throw new Error('Interrupted');
     if (predicate()) return true;
     await sleep(100);
   }
@@ -182,6 +340,7 @@ async function waitUntil(predicate, timeoutMs, label) {
 
 async function getStaffCookie() {
   const response = await fetch(`${CONFIG.url}/staff-login`, {
+    signal: AbortSignal.timeout(CONFIG.connectTimeoutMs),
     method: 'POST',
     redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -195,9 +354,10 @@ async function getStaffCookie() {
   return setCookie.split(';')[0];
 }
 
-function createSocket(auth, cookie = undefined) {
+function createSocket(auth = {}, cookie = undefined) {
   return io(CONFIG.url, {
-    auth,
+    auth: { ...auth, protocolVersion: 2 },
+    retries: 0,
     ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
     transports: [CONFIG.transport],
     reconnection: true,
@@ -209,10 +369,33 @@ function createSocket(auth, cookie = undefined) {
 
 async function connectHost() {
   const cookie = await getStaffCookie();
-  hostSocket = createSocket({ role: 'control' }, cookie);
+  staffCookie = cookie;
+  const controlSocket = createSocket({ role: 'control' }, cookie);
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { controlSocket.disconnect(); reject(new Error('Control connect timeout')); }, CONFIG.connectTimeoutMs);
+    controlSocket.once('connect', () => { clearTimeout(timer); resolve(); });
+    controlSocket.once('connect_error', error => { clearTimeout(timer); controlSocket.disconnect(); reject(error); });
+  });
+  hostSocket = createSocket({ role: 'host' }, cookie);
+  const emit = hostSocket.emit.bind(hostSocket);
+  hostSocket.emit = (event, ...args) => event.startsWith('control:')
+    ? controlSocket.emit(event, ...args) : emit(event, ...args);
+  const disconnect = hostSocket.disconnect.bind(hostSocket);
+  hostSocket.disconnect = () => { controlSocket.disconnect(); return disconnect(); };
+  hostSocket.on('disconnect', () => {
+    if (!stopping) metrics.hostDisconnects++;
+    lastHostPositionAt = null;
+  });
+  hostSocket.on('connect_error', () => { metrics.hostConnectErrors++; });
+
+  hostSocket.on('game:heartbeat', state => {
+    currentState = state.state;
+    if (state.state !== 'RACING' || state.paused) lastHostPositionAt = null;
+  });
 
   hostSocket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, state => {
     currentState = state.state;
+    if (state.state !== 'RACING' || state.paused) lastHostPositionAt = null;
     metrics.peakTotalPlayers = Math.max(metrics.peakTotalPlayers, Number(state.totalPlayers) || 0);
     if (!raceStartedAt && CONFIG.manualHost && ['COUNTDOWN', 'RACING', 'QUIZ'].includes(state.state)) {
       raceStartedAt = monotonicNow();
@@ -220,6 +403,15 @@ async function connectHost() {
     }
     if (state.racePacing) metrics.latestRacePacing = state.racePacing;
     const stage = state.quizStage;
+    if (!CONFIG.manualHost && !state.paused && state.state === 'QUIZ'
+      && ['awaiting_question', 'reveal', 'summary'].includes(stage?.phase)) {
+      const key = `${state.runId}:${stage.stageNumber}:${stage.flowRevision}`;
+      if (controlSocket.lastAdvance !== key) {
+        controlSocket.lastAdvance = key;
+        controlSocket.emit(CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, { requestId: randomUUID(),
+          runId: state.runId, stageNumber: stage.stageNumber, flowRevision: stage.flowRevision });
+      }
+    }
     if (stage?.phase === 'summary' && !metrics.stageSummaries.some(s => s.stageNumber === stage.stageNumber)) {
       metrics.stageSummaries.push(stage.summary);
     }
@@ -235,6 +427,7 @@ async function connectHost() {
   hostSocket.on(SERVER_TO_CLIENT.GAME_TEAM_UPDATED, observePlayerCount);
 
   hostSocket.on(SERVER_TO_CLIENT.GAME_POSITION_UPDATE, () => {
+    if (currentState !== 'RACING') return;
     const now = monotonicNow();
     metrics.hostPositionUpdates++;
     if (lastHostPositionAt) {
@@ -303,17 +496,25 @@ async function connectHost() {
   });
 }
 
-function createGuest(index) {
-  const socket = createSocket();
+function createGuest(index, socket = createSocket()) {
   const client = {
+    quizInputs: new Map(), acceptedAnswerIds: new Set(), sentTapIds: new Set(), acceptedTapIds: new Set(),
+    expectedCorrect: 0, expectedWrong: 0,
     index,
     socket,
     teamId: TEAM_IDS[index % TEAM_IDS.length],
     nickname: `Stress_${String(index + 1).padStart(3, '0')}`,
     avatar: AVATARS[index % AVATARS.length],
-    sessionId: `stress-session-${String(index + 1).padStart(6, '0')}`,
+    sessionId: `${sessionPrefix}-${String(index + 1).padStart(6, '0')}`,
     connected: false,
     tapTimer: null,
+    requests: new RequestTracker(`${sessionPrefix}-${index}`),
+    state: null,
+    answerTimer: null,
+    confirmedTeamId: null,
+    needsRecovery: false,
+    everJoined: false,
+    joinRequested: false,
     answeredQuizIds: new Set(),
     joined: false,
     teamChosen: false,
@@ -322,18 +523,15 @@ function createGuest(index) {
   };
 
   socket.on('connect', () => {
+    client.connected = true;
+    client.joined = false;
+    client.confirmedTeamId = null;
+    client.state = null;
     if (!client.everConnected) {
       metrics.connected++;
       client.everConnected = true;
-    } else {
-      socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, {
-        nickname: client.nickname,
-        avatar: client.avatar,
-        sessionId: client.sessionId,
-        teamId: client.teamId
-      });
     }
-    client.connected = true;
+    if (client.joinRequested) joinGuest(client);
   });
 
   socket.on('connect_error', () => {
@@ -341,39 +539,45 @@ function createGuest(index) {
   });
 
   socket.on('disconnect', () => {
-    if (client.tapTimer) {
-      clearInterval(client.tapTimer);
-      client.tapTimer = null;
-    }
-    if (client.connected) {
+    stopTapping(client);
+    cancelQuizAnswer(client);
+    client.requests.abandon();
+    if (client.connected && !stopping) {
+      metrics.affectedClients.add(index);
+      client.needsRecovery = client.everJoined;
       if (client.expectingDisconnect) {
+        metrics.intentionalAffectedClients.add(index);
         metrics.intentionalDisconnects++;
         client.expectingDisconnect = false;
       } else {
+        metrics.unexpectedAffectedClients.add(index);
         metrics.disconnects++;
       }
     }
     client.connected = false;
+    client.joined = false;
+    client.confirmedTeamId = null;
+    client.state = null;
   });
 
   socket.on(SERVER_TO_CLIENT.GUEST_JOIN_ACK, ack => {
-    if (ack && ack.success && !client.joined) {
-      client.joined = true;
-      metrics.joinAccepted++;
-    }
-    if (ack && ack.success && !client.teamChosen) {
+    if (!client.connected || !ack?.success) return;
+    client.joined = true;
+    client.confirmedTeamId = ack.teamId || null;
+    recordJoined(client);
+    if (!client.confirmedTeamId) {
       socket.emit(CLIENT_TO_SERVER.GUEST_CHOOSE_TEAM, { teamId: client.teamId });
     }
-    if (ack && ack.reconnected) metrics.recoveredConnections++;
+    refreshTapping(client);
   });
 
-  socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, state => {
-    if (state.state === 'RACING') {
-      startTapping(client);
-    } else {
-      stopTapping(client);
-    }
-  });
+  const receiveState = state => {
+    if (!client.connected || !applyState(client, state)) return;
+    recordJoined(client);
+    refreshTapping(client);
+  };
+  socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, receiveState);
+  socket.on('game:heartbeat', receiveState);
 
   socket.on(SERVER_TO_CLIENT.GAME_POSITION_UPDATE, () => {
     if (index % 25 === 0) metrics.sampleClientPositionUpdates++;
@@ -387,55 +591,142 @@ function createGuest(index) {
     metrics.systemErrors++;
   });
 
-  socket.on('guest:team_chosen', () => {
-    if (client.teamChosen) return;
-    client.teamChosen = true;
-    metrics.teamChosen++;
+  socket.on('guest:team_chosen', data => {
+    if (!client.connected || !client.joined) return;
+    client.confirmedTeamId = data?.teamId || null;
+    recordJoined(client);
+    refreshTapping(client);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => {
     metrics.quizOptions++;
     stopTapping(client);
-    if (!data || !data.quizId || client.answeredQuizIds.has(data.quizId)) return;
+    cancelQuizAnswer(client);
+    if (!data || !data.quizId || data.alreadyAnswered || client.answeredQuizIds.has(data.quizId) || !canSend(client, 'QUIZ')) return;
+    if (data.runId != null && data.runId !== client.state.runId) return;
     if (Math.random() > CONFIG.answerRate) return;
-    client.answeredQuizIds.add(data.quizId);
+    const { runId, stateVersion } = client.state;
     const timeLimitMs = Math.max(1000, Number(data.timeLimit || 10) * 1000);
     const delay = Math.min(timeLimitMs - 250, 300 + Math.floor(Math.random() * 4200));
-    setTimeout(() => {
-      if (!socket.connected) return;
-      socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, {
-        quizId: data.quizId,
-        answer: chooseAnswer(data.quizId)
-      });
+    client.answerTimer = schedule(() => {
+      client.answerTimer = null;
+      if (!canSend(client, 'QUIZ') || client.state.runId !== runId || client.state.stateVersion !== stateVersion) return;
+      client.answeredQuizIds.add(data.quizId);
+      const request = client.requests.begin('quiz', client.state);
+      const answer = chooseAnswer(data.quizId);
+      client.quizInputs.set(request.requestId, { runId, quizId: data.quizId, answer });
+      const payload = { ...request, quizId: data.quizId, answer };
+      let retries = 0;
+      const send = () => {
+        client.answerTimer = null;
+        if (!client.requests.pending.has(request.requestId) || !canSend(client, 'QUIZ')
+          || client.state.runId !== runId || client.state.stateVersion !== stateVersion) return;
+        socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, payload);
+        if (retries > 0) metrics.quizRetries++;
+        if (retries++ < 2) client.answerTimer = schedule(send, 1000);
+      };
+      send();
       metrics.quizAnswersSent++;
     }, Math.max(100, delay));
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK, ack => {
+    const latency = client.requests.acknowledge('quiz', ack);
+    if (latency === null) return;
     metrics.quizAnswerAck++;
-    if (ack && ack.success) metrics.quizAnswerAccepted++;
+    metrics.quizAckLatencies.push(latency);
+    if (ack && ack.success) {
+      metrics.quizAnswerAccepted++;
+      client.acceptedAnswerIds.add(ack.requestId);
+      const input = client.quizInputs.get(ack.requestId);
+      if (input?.answer === quizAnswerLabels.get(input?.quizId)) client.expectedCorrect++;
+      else client.expectedWrong++;
+    }
+    else {
+      const reason = ack?.reason || 'UNKNOWN';
+      metrics.quizRejections[reason] = (metrics.quizRejections[reason] || 0) + 1;
+    }
+  });
+
+  socket.on(SERVER_TO_CLIENT.GAME_TAP_ACK, ack => {
+    const latency = client.requests.acknowledge('tap', ack);
+    if (latency === null) return;
+    metrics.tapAcks++;
+    metrics.tapAckLatencies.push(latency);
+    if (ack?.success) { metrics.tapAccepted++; client.acceptedTapIds.add(ack.requestId); }
+    else {
+      const reason = ack?.reason || 'UNKNOWN';
+      metrics.tapRejections[reason] = (metrics.tapRejections[reason] || 0) + 1;
+    }
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_ROUND_FINISHED, () => {
     stopTapping(client);
+    cancelQuizAnswer(client);
+    client.state = null;
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_MATCH_FINISHED, () => {
     stopTapping(client);
+    cancelQuizAnswer(client);
+    client.state = null;
   });
 
   clients.push(client);
   return client;
 }
 
+function recordJoined(client) {
+  if (!client.joined) return;
+  if (!client.everJoined) {
+    client.everJoined = true;
+    metrics.joinAccepted++;
+  }
+  if (!client.confirmedTeamId) return;
+  client.teamId = client.confirmedTeamId;
+  if (!client.teamChosen) {
+    client.teamChosen = true;
+    metrics.teamChosen++;
+  }
+  if (client.needsRecovery) {
+    client.needsRecovery = false;
+    metrics.recoveredConnections++;
+    metrics.recoveredClients.add(client.index);
+  }
+}
+
+function joinGuest(client) {
+  if (stopping || !client.socket.connected) return;
+  client.socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, {
+    nickname: client.nickname, avatar: client.avatar, sessionId: client.sessionId,
+    ...(client.everJoined ? { teamId: client.teamId } : {})
+  });
+}
+
+function refreshTapping(client) {
+  if (canSend(client, 'RACING')) startTapping(client);
+  else stopTapping(client);
+}
+
+function sendTap(client) {
+  if (!canSend(client, 'RACING')) {
+    stopTapping(client);
+    return false;
+  }
+  const request = client.requests.begin('tap', client.state);
+  client.sentTapIds.add(request.requestId);
+  // canSend checks connectivity and freshness before each individual input.
+  client.socket.emit(CLIENT_TO_SERVER.GUEST_TAP, { ...request, timestamp: Date.now() });
+  metrics.tapsSent++;
+  return true;
+}
+
 function startTapping(client) {
-  if (client.tapTimer || !client.socket.connected) return;
+  if (client.tapTimer || !canSend(client, 'RACING')) return;
   const jitter = 0.85 + Math.random() * 0.3;
   const intervalMs = Math.max(50, Math.round(1000 / CONFIG.tapRate / jitter));
   client.tapTimer = setInterval(() => {
-    if (!client.socket.connected) return;
-    client.socket.emit(CLIENT_TO_SERVER.GUEST_TAP, { timestamp: Date.now() });
-    metrics.tapsSent++;
+    sendTap(client);
   }, intervalMs);
 }
 
@@ -458,44 +749,50 @@ async function connectGuests() {
 
 async function joinAndChooseTeams() {
   clients.forEach((client, index) => {
-    setTimeout(() => {
-      client.socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, {
-        nickname: client.nickname,
-        avatar: client.avatar,
-        sessionId: client.sessionId
-      });
-    }, index * 8);
+    schedule(() => {
+      client.joinRequested = true;
+      joinGuest(client);
+    }, index * CONFIG.joinIntervalMs);
   });
 
   await waitUntil(
     () => metrics.teamChosen >= CONFIG.clients,
-    Math.max(20000, CONFIG.clients * 120),
+    CONFIG.joinTimeoutMs,
     `${CONFIG.clients} team selections`
   );
 }
 
 function startHttpProbe() {
   httpProbeTimer = setInterval(async () => {
-    const guestStarted = monotonicNow();
+    if (probeRunning || stopping) return;
+    probeRunning = true;
     try {
-      const response = await fetch(`${CONFIG.url}/guest/`, { cache: 'no-store' });
-      if (response.ok) metrics.httpLatencies.push(monotonicNow() - guestStarted);
-    } catch {
-      metrics.httpLatencies.push(10000);
-    }
-
-    const healthStarted = monotonicNow();
-    try {
-      const response = await fetch(`${CONFIG.url}/healthz`, { cache: 'no-store' });
-      metrics.healthLatencies.push(monotonicNow() - healthStarted);
-      if (response.ok) metrics.healthSamples.push(await response.json());
-    } catch {
-      metrics.healthLatencies.push(10000);
-    }
+      for (const [endpoint, samples] of [['/guest/', metrics.httpLatencies], ['/healthz', metrics.healthLatencies]]) {
+        if (stopping) break;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        probeControllers.add(controller);
+        const started = monotonicNow();
+        try {
+          const response = await fetch(`${CONFIG.url}${endpoint}`, { cache: 'no-store', signal: controller.signal });
+          const body = await response.text();
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          samples.push(monotonicNow() - started);
+          if (endpoint === '/healthz') metrics.healthSamples.push(JSON.parse(body));
+        } catch {
+          if (!stopping) samples.push(10000);
+        } finally {
+          clearTimeout(timeout);
+          probeControllers.delete(controller);
+        }
+      }
+    } finally { probeRunning = false; }
   }, 5000);
 }
 
 function stopHttpProbe() {
+  for (const controller of probeControllers) controller.abort();
+  probeControllers.clear();
   if (httpProbeTimer) {
     clearInterval(httpProbeTimer);
     httpProbeTimer = null;
@@ -503,6 +800,7 @@ function stopHttpProbe() {
 }
 
 function printSummary() {
+  requestSummary();
   const runMs = metrics.matchFinishedAt && raceStartedAt
     ? metrics.matchFinishedAt - raceStartedAt
     : raceStartedAt ? monotonicNow() - raceStartedAt : 0;
@@ -537,8 +835,10 @@ function printSummary() {
   console.log(`Join locked events: ${metrics.joinLocked}`);
   console.log(`System errors: ${metrics.systemErrors}`);
   console.log(`Taps sent: ${metrics.tapsSent.toLocaleString('en-US')}`);
+  console.log(`Tap acknowledgements: ${metrics.tapAcks}/${metrics.tapsSent}; accepted: ${metrics.tapAccepted}`);
+  console.log(`Tap response p95/p99: ${percentile(metrics.tapAckLatencies, 95).toFixed(1)}ms / ${percentile(metrics.tapAckLatencies, 99).toFixed(1)}ms`);
   console.log(`Quiz starts/results: ${metrics.quizStarts}/${metrics.quizResults}`);
-  console.log(`Three-question settlements: ${metrics.stageSummaries.length}/6`);
+  console.log(`Three-question settlements: ${metrics.stageSummaries.length}/5`);
   console.log(`Tap windows (seconds): ${metrics.tapWindows.map(stage => stage.seconds.toFixed(2)).join(', ')}`);
   console.log(`Final sprint announcements: ${metrics.finalSprintEvents}`);
   console.log(`Quiz answers accepted: ${metrics.quizAnswerAccepted}/${metrics.quizAnswersSent}`);
@@ -551,7 +851,7 @@ function printSummary() {
     const totalTeamVotes = metrics.quizRuns.length * TEAM_IDS.length;
     const correctRate = totalTeamVotes > 0 ? (correctTeamVotes / totalTeamVotes) * 100 : 0;
     console.log(`Quiz answer totals: ${quizTotalAnswers} individual answers`);
-    console.log(`Team plurality outcomes: ${correctTeamVotes}/${totalTeamVotes} correct (${correctRate.toFixed(1)}%)`);
+    console.log(`Team >50% outcomes: ${correctTeamVotes}/${totalTeamVotes} correct (${correctRate.toFixed(1)}%)`);
     console.log(`Quiz active duration avg/p95: ${formatDuration(average(quizDurations))} / ${formatDuration(percentile(quizDurations, 95))}`);
     console.log('Per quiz answers:');
     metrics.quizRuns.forEach((run, index) => {
@@ -578,6 +878,20 @@ function printSummary() {
     url: CONFIG.url,
     mode: CONFIG.manualHost ? 'manualHost' : 'automaticHost',
     configuredClients: CONFIG.clients,
+    startedAt,
+    affectedPlayers: metrics.affectedClients.size,
+    unexpectedAffectedPlayers: metrics.unexpectedAffectedClients.size,
+    recoveredPlayers: metrics.recoveredClients.size,
+    hostDisconnects: metrics.hostDisconnects,
+    hostConnectErrors: metrics.hostConnectErrors,
+    network: metrics.healthSamples.at(-1)?.network || null,
+    players: clients.map(client => ({ nickname: client.nickname, teamId: client.teamId,
+      tap: client.requests.summary('tap'), quiz: client.requests.summary('quiz'),
+      answers: [...client.quizInputs].map(([requestId, input]) => ({ requestId, ...input,
+        acknowledged: client.acceptedAnswerIds.has(requestId) })),
+      expectedCorrect: client.expectedCorrect, expectedWrong: client.expectedWrong })),
+    joinIntervalMs: CONFIG.joinIntervalMs,
+    joinTimeoutMs: CONFIG.joinTimeoutMs,
     expectedTotalPlayers: CONFIG.expectedTotalPlayers,
     completed: !!metrics.matchFinishedAt,
     observedRoundSeconds: Math.round(runMs / 1000),
@@ -591,18 +905,28 @@ function printSummary() {
     connectErrors: metrics.connectErrors,
     systemErrors: metrics.systemErrors,
     tapsSent: metrics.tapsSent,
+    tapAcks: metrics.tapAcks,
+    tapAccepted: metrics.tapAccepted,
+    tapRejections: metrics.tapRejections,
     quizStarts: metrics.quizStarts,
     quizResults: metrics.quizResults,
     stageSummaries: metrics.stageSummaries,
     tapWindows: metrics.tapWindows,
     quizAnswersSent: metrics.quizAnswersSent,
     quizAnswersAccepted: metrics.quizAnswerAccepted,
+    quizRetries: metrics.quizRetries,
     finalSprintEvents: metrics.finalSprintEvents,
     finalAwards: metrics.finalAwards && Array.isArray(metrics.finalAwards.awards)
       ? metrics.finalAwards.awards.length
       : 0,
+    awardResults: metrics.finalAwards?.awards || [],
     performance: {
+      tapAckP95Ms: percentile(metrics.tapAckLatencies, 95),
+      tapAckP99Ms: percentile(metrics.tapAckLatencies, 99),
+      generatorLoopP95Ms: generatorLoop.percentile(95) / 1e6,
       hostUpdateP95Ms: hostP95Gap,
+      hostUpdateP99Ms: percentile(metrics.hostPositionIntervals, 99),
+      hostUpdateMaxGapMs: metrics.hostPositionIntervals.reduce((max, gap) => Math.max(max, gap), 0),
       guestHttpP95Ms: httpP95,
       healthHttpP95Ms: healthP95,
       eventLoopLagP95Ms: percentile(eventLoopLags, 95),
@@ -619,6 +943,11 @@ function printSummary() {
 }
 
 async function cleanup() {
+  stopping = true;
+  clearInterval(progressTimer);
+  for (const timer of scheduledTimers) clearTimeout(timer);
+  scheduledTimers.clear();
+  generatorLoop.disable();
   stopHttpProbe();
   clients.forEach(stopTapping);
   if (!CONFIG.manualHost && hostSocket && hostSocket.connected) {
@@ -630,6 +959,7 @@ async function cleanup() {
 }
 
 async function main() {
+  if (!['receipts', 'ack'].includes(CONFIG.accountingMode)) throw new Error('accountingMode must be receipts or ack');
   log(`Connecting host to ${CONFIG.url}`);
   await connectHost();
   await waitUntil(() => currentState !== 'UNKNOWN', 10000, 'initial game state');
@@ -682,6 +1012,7 @@ async function main() {
   }
 
   startHttpProbe();
+  progressTimer = setInterval(progress, Math.max(1000, CONFIG.progressMs));
   if (CONFIG.manualHost) {
     log(`READY: ${CONFIG.clients} simulated guests are waiting. Start the match from /control/ when the 3 real phones have joined.`);
     await waitUntil(
@@ -702,11 +1033,45 @@ async function main() {
   );
   await sleep(1000);
   const report = printSummary();
+  try {
+    const response = await fetch(`${CONFIG.url}/api/test-accounting`, { headers: { Cookie: staffCookie }, redirect: 'manual', signal: AbortSignal.timeout(5000) });
+    if (response.ok) {
+      const audit = await response.json();
+      const mismatches = [];
+      const acknowledgementDifferences = [];
+      for (const client of clients) {
+        const actual = audit.players.find(player => player.nickname === client.nickname);
+        if (CONFIG.accountingMode === 'ack') {
+          const expected = { tapCount: client.requests.summary('tap').accepted,
+            answeredCount: client.requests.summary('quiz').accepted,
+            correctCount: client.expectedCorrect, wrongCount: client.expectedWrong };
+          if (!actual || Object.entries(expected).some(([key, value]) => actual[key] !== value)) {
+            mismatches.push({ nickname: client.nickname, expected, actual });
+          }
+          continue;
+        }
+        const result = reconcilePlayerAccounting(client, actual, audit.runId, quizAnswerLabels);
+        if (!result.passed) mismatches.push({ nickname: client.nickname, ...result,
+          actual: actual && { nickname: actual.nickname, tapCount: actual.tapCount,
+            answeredCount: actual.answeredCount, correctCount: actual.correctCount,
+            wrongCount: actual.wrongCount, tapReceiptCount: actual.tapReceipts?.length,
+            answerReceiptCount: actual.answerReceipts?.length } });
+        if (result.recoveredReceipts.length || result.recoveredTapReceipts.length) acknowledgementDifferences.push({ nickname: client.nickname,
+          acknowledged: result.acknowledged, receiptBased: result.expected,
+          answerRequestIds: result.recoveredReceipts, tapRequestIds: result.recoveredTapReceipts });
+      }
+      report.accounting = { mode: CONFIG.accountingMode, checked: clients.length, mismatches,
+        acknowledgementDifferences, passed: mismatches.length === 0 };
+    } else report.accounting = { checked: 0, skipped: `HTTP ${response.status}` };
+  } catch (error) { report.accounting = { checked: 0, error: error.message }; }
   const totalAnswers = metrics.quizRuns.reduce((sum, run) => sum + run.totalAnswers, 0);
-  const minimumExpectedAnswers = CONFIG.clients * Math.max(0, Math.min(1, CONFIG.answerRate)) * 18 * 0.9;
+  const minimumExpectedAnswers = CONFIG.clients * Math.max(0, Math.min(1, CONFIG.answerRate)) * 15 * 0.9;
   const runSeconds = report.observedRoundSeconds;
 
   const failed =
+    (report.accounting && report.accounting.passed === false) ||
+    (CONFIG.requireAccounting && report.accounting?.passed !== true) ||
+    metrics.hostDisconnects > 0 || metrics.hostConnectErrors > 0 || metrics.connectErrors > 0 ||
     metrics.connected < CONFIG.clients ||
     metrics.joinAccepted < CONFIG.clients ||
     metrics.teamChosen < CONFIG.clients ||
@@ -716,10 +1081,12 @@ async function main() {
     metrics.intentionalDisconnects !== Math.min(CONFIG.reconnectClients, CONFIG.clients) ||
     metrics.recoveredConnections !== Math.min(CONFIG.reconnectClients, CONFIG.clients) ||
     metrics.systemErrors > 0 ||
-    metrics.quizStarts !== 18 ||
-    metrics.quizResults !== 18 ||
-    metrics.stageSummaries.length !== 6 ||
-    metrics.tapWindows.length !== 6 ||
+    metrics.quizStarts !== 15 ||
+    metrics.tapAcks !== metrics.tapsSent ||
+    percentile(metrics.tapAckLatencies, 95) > 250 ||
+    metrics.quizResults !== 15 ||
+    metrics.stageSummaries.length !== 5 ||
+    metrics.tapWindows.length !== 5 ||
     metrics.tapWindows.some(stage => Math.abs(stage.seconds - DEFAULT_CONFIG.quizStages.tapSeconds) > 0.5) ||
     totalAnswers < minimumExpectedAnswers ||
     metrics.roundFinished !== 1 ||
@@ -756,6 +1123,10 @@ async function main() {
   process.exit(failed ? 1 : 0);
 }
 
+if (require.main === module) {
+process.on('SIGINT', () => { stopping = true; });
+process.on('SIGTERM', () => { stopping = true; });
+generatorLoop.enable();
 main().catch(async error => {
   console.error('');
   console.error('Stress test failed:', error.message);
@@ -768,3 +1139,6 @@ main().catch(async error => {
   await cleanup();
   process.exit(1);
 });
+}
+
+module.exports = { RequestTracker, applyState, canSend };

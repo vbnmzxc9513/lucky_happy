@@ -2,11 +2,13 @@ const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = require('../../shared/events');
 const GuestHandler = require('./GuestHandler');
 const HostHandler = require('./HostHandler');
 const AdminHandler = require('./AdminHandler');
+const RealtimeDelivery = require('./RealtimeDelivery');
 
 class SocketRouter {
   constructor(io, gameManager) {
     this.io = io;
     this.gameManager = gameManager;
+    this.delivery = gameManager.delivery = new RealtimeDelivery(io, gameManager);
     this.guestHandler = new GuestHandler(io, gameManager);
     this.hostHandler = new HostHandler(io, gameManager);
     this.adminHandler = new AdminHandler(io, gameManager);
@@ -27,6 +29,8 @@ class SocketRouter {
     socket.emit(SERVER_TO_CLIENT.CONTROL_ACTION_RESULT, {
       action,
       success,
+      ...(!success && action === 'START_ROUND' && !this.gameManager.mapManager.getCurrentMap()
+        ? { reason: 'NO_MAP_AVAILABLE' } : {}),
       result: success && typeof result === 'object' ? result : null,
       state: this.gameManager.getGameState()
     });
@@ -73,16 +77,46 @@ class SocketRouter {
     });
   }
 
+  registerQuizFlowEvent(socket) {
+    socket.on(CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, (data = {}) => {
+      const allowed = ['control', 'admin'].includes(socket.data?.role)
+        && socket.data?.hasStaffAccess?.() === true;
+      const result = allowed ? this.gameManager.advanceQuizFlow(data) : { success: false, reason: 'FORBIDDEN' };
+      socket.emit(SERVER_TO_CLIENT.CONTROL_ACTION_RESULT, {
+        action: 'ADVANCE_QUIZ_FLOW', requestId: data?.requestId,
+        ...result,
+        ...(allowed ? { state: this.gameManager.getGameState() } : {})
+      });
+    });
+  }
+
   init() {
     this.io.on('connection', (socket) => {
+      if (socket.handshake.auth?.protocolVersion !== 2) {
+        socket.emit(SERVER_TO_CLIENT.SYSTEM_ERROR, { code: 'PROTOCOL_MISMATCH', message: '遊戲已更新，請重新整理頁面。' });
+        socket.disconnect(true);
+        return;
+      }
+      socket.data.protocolVersion = 2;
+      this.registerQuizFlowEvent(socket);
+      this.delivery.instrumentSocket?.(socket);
       const role = socket.data && socket.data.role ? socket.data.role : 'guest';
+      socket.join(['protocol:2', `role:${role}`]);
       if (process.env.QUIET_SOCKET_LOGS !== '1') {
         console.log(`新連線建立: ${socket.id} (${role})`);
       }
 
       // 送出初始化狀態同步與地圖表
-      socket.emit(SERVER_TO_CLIENT.GAME_STATE_SYNC, this.gameManager.getGameState());
-      socket.emit(SERVER_TO_CLIENT.GAME_MAP_LIST, this.gameManager.mapManager.getMapList());
+      this.delivery.sendState(socket);
+      if (role !== 'guest') socket.emit(SERVER_TO_CLIENT.GAME_MAP_LIST, this.gameManager.mapManager.getMapList());
+      socket.on(CLIENT_TO_SERVER.GUEST_SYNC, () => {
+        const now = Date.now();
+        if (now - (socket.data.lastSync || 0) < 500) return;
+        socket.data.lastSync = now;
+        this.delivery.sendState(socket);
+        this.gameManager.emitPlayerStatus(socket.id);
+        this.gameManager.emitActiveQuizRecovery(socket, role);
+      });
 
       if (role === 'admin') {
         this.adminHandler.register(socket);

@@ -18,19 +18,19 @@
     }
 
     sync(state, teamId) {
-      this.config = state.config;
+      this.config = state.config || this.config;
       this.stage = state.quizStage;
       this.paused = !!state.paused;
       this.receivedAt = Date.now();
-      this.serverNow = state.serverNow || Date.now();
+      this.serverNow = (state.paused ? state.pausedAt : state.serverNow) || Date.now();
       const stage = this.stage;
-      const key = stage ? `${stage.stageNumber}:${stage.phase}:${stage.questionNumber}` : null;
+      const key = stage ? `${state.runId || ''}:${teamId || ''}:${stage.stageNumber}:${stage.phase}:${stage.questionNumber}` : null;
       this.summary.hidden = !stage || stage.phase !== 'summary';
       if (this.mode === 'host') document.body.classList.toggle('stage-summary-active', !this.summary.hidden);
       this.summary.classList.toggle('is-paused', this.paused);
       this.label.hidden = !stage || stage.phase === 'summary';
       if (stage?.phase === 'summary' && key !== this.lastKey) {
-        this.renderSummary(state.config.TEAMS, teamId);
+        this.renderSummary(this.config.TEAMS, teamId);
       }
       this.lastKey = key;
       this.tick();
@@ -42,10 +42,10 @@
       const now = this.serverNow + (this.paused ? 0 : Date.now() - this.receivedAt);
       const seconds = Math.max(0, Math.ceil((stage.endsAt - now) / 1000));
       const prefix = `第 ${stage.stageNumber} / ${stage.stageCount} 關`;
-      const suffix = stage.phase === 'tap' ? `${seconds} 秒後連答三題`
+      const suffix = stage.phase === 'tap' ? `${seconds} 秒後等待主持進題`
         : stage.phase === 'sprint' ? `最後衝刺 ${seconds} 秒`
-          : stage.phase === 'reveal' ? `第 ${stage.questionNumber} / 3 題 · 成績公布 ${seconds} 秒`
-          : `第 ${stage.questionNumber} / 3 題`;
+          : stage.phase === 'reveal' ? `第 ${stage.questionNumber} / 3 題 · 統計結果 · 等待主持人`
+          : stage.phase === 'awaiting_question' ? '等待主持人開始本題' : `第 ${stage.questionNumber} / 3 題`;
       this.label.textContent = `${prefix} · ${suffix}`;
       this.label.classList.toggle('is-urgent', stage.phase === 'tap' && seconds <= 3);
       if (stage.phase === 'tap' && seconds > 0 && seconds <= 3 && this.lastBeep !== `${prefix}:${seconds}` && !this.paused) {
@@ -54,8 +54,8 @@
       }
       const next = this.summary.querySelector('.stage-next');
       if (next && stage.phase === 'summary') {
-        next.querySelector('.stage-next-seconds').textContent = seconds;
-        const elapsed = Math.max(0, this.summaryDuration - (stage.endsAt - now) / 1000);
+        next.querySelector('.stage-next-seconds').textContent = '';
+        const elapsed = Math.max(0, (now - this.summaryStartedAt) / 1000);
         this.summary.dataset.beat = elapsed < 2.65 ? 'reveal' : elapsed < 4.8 ? 'celebrate' : 'reward';
         this.summary.querySelector('h2').textContent = elapsed < 2.65 ? this.revealTitle : this.celebrationTitle;
         if (!this.paused && this.summarySoundEnabled) {
@@ -72,9 +72,10 @@
     renderSummary(teams, myTeamId) {
       this.summary.replaceChildren();
       this.summaryDuration = 8;
-      const elapsed = Math.max(0, this.summaryDuration - (this.stage.endsAt - this.serverNow) / 1000);
+      this.summaryStartedAt = this.serverNow;
+      const elapsed = 0;
       this.summary.style.setProperty('--stage-elapsed', `${elapsed}s`);
-      const visibleTeams = teams.filter(t => this.mode === 'host' || t.id === myTeamId);
+      const visibleTeams = teams.filter(t => (this.mode === 'host' || t.id === myTeamId) && this.stage.summary.teamResults[t.id]);
       const results = this.stage.summary.teamResults;
       const perfectCount = visibleTeams.filter(t => results[t.id]?.correctCount === 3).length;
       const highest = Math.max(0, ...visibleTeams.map(t => results[t.id]?.correctCount || 0));
@@ -187,7 +188,7 @@
       countdown.className = 'stage-next-countdown';
       const count = document.createElement('b');
       count.className = 'stage-next-seconds';
-      countdown.append(count, document.createTextNode(' 秒後出發'));
+      countdown.append(count, document.createTextNode('等待主持人繼續'));
       next.append(progress, nextLabel, countdown);
       this.summary.append(heading, grid, next);
     }

@@ -51,30 +51,30 @@ handlers['admin:config_updated'](config);
 handlers['admin:map_list']([weddingMap]);
 handlers['admin:quiz_list']([...weddingQuizzes, ...funQuizzes, ...require('../data/quizzes/wedding-party.json').quizzes]);
 
-assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 18);
-assert.strictEqual(window.document.getElementById('quizMetricCount').textContent, '18 題');
-assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '6:55');
-assert.ok(window.document.querySelector('#questionCountForecast .active').textContent.includes('18 題'));
+assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 15);
+assert.strictEqual(window.document.getElementById('quizMetricCount').textContent, '15 題');
+assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '3:23');
+assert.ok(window.document.querySelector('#questionCountForecast .active').textContent.includes('15 題'));
 
 window.addQuizPlanRow({ quizId: 'wc_004', timeLimit: 8 });
-assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 19);
-assert.strictEqual(window.document.getElementById('quizMetricCount').textContent, '19 題');
+assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 16);
+assert.strictEqual(window.document.getElementById('quizMetricCount').textContent, '16 題');
 window.saveQuizPlan();
 assert.equal(emitted.some(entry => entry.event === 'admin:save_map'), false);
 
 window.autoSpreadQuizPlan();
 const percents = Array.from(window.document.querySelectorAll('.plan-percent-input')).map(input => Number(input.value));
-assert.strictEqual(JSON.stringify(percents), JSON.stringify(Array.from({ length: 19 }, (_, i) => (i + 1) * 5)));
+assert.strictEqual(JSON.stringify(percents), JSON.stringify(Array.from({ length: 16 }, (_, i) => Math.round((i + 1) / 17 * 100))));
 
 window.applyRecommendedQuizPacing();
-assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 18);
+assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 15);
 assert.strictEqual(window.document.getElementById('quizTrackLengthInput').value, '76000');
-assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '6:55');
+assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '3:23');
 
 window.document.getElementById('quizTriggerFrequency').value = '8';
 window.applyQuizFrequencyPlan();
-assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 18);
-assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '6:55');
+assert.strictEqual(window.document.querySelectorAll('.quiz-plan-row').length, 15);
+assert.strictEqual(window.document.getElementById('quizMetricAutoDuration').textContent, '3:23');
 
 window.saveQuizPlan();
 const saveEvent = emitted.find(entry => entry.event === 'admin:save_map');
@@ -83,12 +83,16 @@ assert.ok(saveEvent);
 assert.ok(configEvent);
 assert.strictEqual(saveEvent.data.id, 'wedding-final-showdown');
 assert.strictEqual(saveEvent.data.track.length, 76000);
-assert.strictEqual(saveEvent.data.checkpoints.length, 18);
-assert.strictEqual(new Set(saveEvent.data.checkpoints.map(cp => cp.quizId)).size, 18);
-assert.strictEqual(saveEvent.data.quizPool.length, 18);
-assert.strictEqual(configEvent.data.racePacing.targetQuizCount, 18);
+assert.strictEqual(saveEvent.data.checkpoints.length, 15);
+assert.strictEqual(new Set(saveEvent.data.checkpoints.map(cp => cp.quizId)).size, 15);
+assert.strictEqual(saveEvent.data.quizPool.length, 15);
+assert.strictEqual(configEvent.data.racePacing.targetQuizCount, 15);
 assert.strictEqual(configEvent.data.racePacing.triggerFrequencyPercent, 8);
 
+assert.ok(window.document.querySelector('#mapListContainer .btn-danger').disabled);
+const beforeDelete = emitted.length;
+window.deleteMap('wedding-final-showdown');
+assert.strictEqual(emitted.length, beforeDelete, 'protected map must not emit delete');
 console.log('✅ admin quiz planner test passed');
 window.close();
 process.exit(0);

@@ -56,12 +56,7 @@ dom.window.RaceRenderer = class {
   initTrack() { console.log('[Mock RaceRenderer] initTrack'); }
   updatePositions() {}
 };
-dom.window.QuizDisplay = class {
-  init() {}
-  hide() { console.log('[Mock QuizDisplay] hide'); }
-  showQuiz() {}
-  showResult() {}
-};
+dom.window.eval(fs.readFileSync(path.join(__dirname, '../host/js/quiz-display.js'), 'utf8'));
 dom.window.MapSelectUI = class {
   init() {}
   render() {}
@@ -204,6 +199,22 @@ function runTests() {
   
   socket.trigger('game:state_sync', { state: 'COUNTDOWN', currentMap: { trackLength: 1000 } });
   assertActiveScreen('screen-racing');
+
+  const assert = require('node:assert/strict');
+  const result = { correctAnswer: 'A', correctAnswerText: '正解', options: { A: '正解', B: '另一選項' },
+    distribution: { totalPlayers: 4, answeredCount: 2, unansweredCount: 2, responseRate: .5,
+      options: { A: { count: 2, answeredPercent: 1 }, B: { count: 0, answeredPercent: 0 } } },
+    teamResults: { red: { totalCount: 4, correctCount: 2, correctRate: .5, isCorrect: false } } };
+  for (const questionNumber of [1, 2, 3]) {
+    socket.trigger('game:state_sync', { state: 'QUIZ', quizStage: { phase: 'reveal', questionNumber,
+      stageNumber: 1, stageCount: 5, endsAt: null, reveal: result } });
+    assert.equal(dom.window.document.querySelectorAll('.quiz-statistics').length, 1);
+    assert.ok(dom.window.document.querySelector('.statistics-team').textContent.includes('未達 50%'));
+  }
+  for (const phase of ['summary', 'awaiting_question']) {
+    socket.trigger('game:state_sync', { state: 'QUIZ', quizStage: { phase } });
+    assert.equal(dom.window.document.querySelectorAll('.quiz-statistics').length, 0);
+  }
 
   console.log("\n🎉 ALL UI LOGIC TESTS PASSED SUCCESSFULLY! 🎉");
   dom.window.close();

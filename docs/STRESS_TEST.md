@@ -8,7 +8,7 @@ npm run stress -- --clients 150 --tapRate 5 --reconnectClients 15 --reconnectAtQ
 
 ## 真人主持混合彩排
 
-由 147 個模擬玩家配合 3 支真實手機時，壓測程式只負責玩家行為，不自動重置或開始比賽：
+由 147 個模擬玩家配合 3 支真實手機時，壓測程式只負責玩家行為，不自動重置、開始比賽、進題、結算、下一關或衝刺：
 
 ```powershell
 npm run stress -- --url https://YOUR_DOMAIN --clients 147 --manualHost --expectedTotalPlayers 150 --tapRate 5 --answerRate 0.98 --reconnectClients 15 --reconnectAtQuiz 5 --manualStartTimeoutSeconds 1800 --maxSeconds 720 --enforceDuration true --report reports/manual-host-150.json
@@ -34,7 +34,11 @@ npm run stress -- --clients 150 --tapRate 5 --reconnectClients 15 --reconnectAtQ
 
 Use `STAFF_ACCESS_CODE` when the deployed staff verification code is different from the local default.
 
-## 2026-08-29 Full Confidence Result
+## 現行模式
+
+正式 15 題、5 關，每題與每關之間由主持控制。自動主持模式會送出合法 CONTROL_ADVANCE_QUIZ_FLOW；manualHost 不代替真人按鈕。自動計時部分 203 秒，總時間另加主持停留與暫停。
+
+## 2026-08-29 Full Confidence Result（歷史數據，不代表現行版本）
 
 Environment: local Windows machine, server and stress runner on the same machine, WebSocket transport.
 

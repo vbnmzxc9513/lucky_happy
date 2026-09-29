@@ -56,10 +56,12 @@ class GuestHandler {
       reconnected: !!res.reconnected,
       teamId: player ? player.teamId : null
     });
-    socket.emit(SERVER_TO_CLIENT.GAME_STATE_SYNC, this.gameManager.getGameState());
+    if (this.gameManager.delivery) this.gameManager.delivery.sendState(socket);
+    else socket.emit(SERVER_TO_CLIENT.GAME_STATE_SYNC, this.gameManager.getGameState());
     this.gameManager.emitPlayerStatus(socket.id);
     this.gameManager.emitActiveQuizRecovery(socket, 'guest');
-    this.io.emit(SERVER_TO_CLIENT.GAME_PLAYER_JOINED, { 
+    if (this.gameManager.delivery) this.gameManager.delivery.scheduleRoster();
+    else this.io.emit(SERVER_TO_CLIENT.GAME_PLAYER_JOINED, {
       player: this.gameManager.getPublicPlayer(res.player),
       teams: this.gameManager.teamManager.getAllTeamsInfo(),
       totalPlayers: this.gameManager.teamManager.players.size
@@ -90,7 +92,10 @@ class GuestHandler {
 
     socket.emit('guest:team_chosen', { teamId: val.teamId });
     this.gameManager.upsertPlayerStats(res.player);
-    this.io.emit(SERVER_TO_CLIENT.GAME_TEAM_UPDATED, { 
+    if (this.gameManager.delivery) {
+      this.gameManager.delivery.scheduleRoster();
+      this.gameManager.delivery.sendState(socket);
+    } else this.io.emit(SERVER_TO_CLIENT.GAME_TEAM_UPDATED, {
       teams: this.gameManager.teamManager.getAllTeamsInfo(),
       totalPlayers: this.gameManager.teamManager.players.size
     });
@@ -100,7 +105,9 @@ class GuestHandler {
   handleTap(socket, data) {
     const val = Validators.validateTap(data);
     if (!val.valid) return;
-    const result = this.gameManager.handleTap(socket.id, val.timestamp);
+    const apply = () => this.gameManager.handleTap(socket.id, val.timestamp);
+    const result = this.gameManager.delivery
+      ? this.gameManager.delivery.operation(socket, 'tap', data, apply) : apply();
     socket.emit(SERVER_TO_CLIENT.GAME_TAP_ACK, result);
   }
 
@@ -108,16 +115,24 @@ class GuestHandler {
     const val = Validators.validateQuizAnswer(data);
     if (!val.valid) return;
 
-    const res = this.gameManager.handleQuizAnswer(socket.id, val.quizId, val.answer);
+    const apply = () => this.gameManager.handleQuizAnswer(socket.id, val.quizId, val.answer);
+    const res = this.gameManager.delivery
+      ? this.gameManager.delivery.operation(socket, 'answer', data, apply) : apply();
     socket.emit(SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK, res);
   }
 
   handleDisconnect(socket) {
+    if (!this.gameManager.teamManager.getPlayer(socket.id)) return;
     const retainForReconnect = ['COUNTDOWN', 'RACING', 'QUIZ', 'ROUND_FINISHED', 'MATCH_FINISHED']
       .includes(this.gameManager.state);
+    if (!retainForReconnect && this.gameManager.delivery) {
+      const identity = this.gameManager.teamManager.socketToSession.get(socket.id) || socket.id;
+      this.gameManager.delivery.operations.delete(identity);
+    }
     this.gameManager.cleanupDisconnectedPlayer(socket.id, !retainForReconnect);
     this.gameManager.teamManager.disconnectPlayer(socket.id, retainForReconnect);
-    this.io.emit(SERVER_TO_CLIENT.GAME_TEAM_UPDATED, { 
+    if (this.gameManager.delivery) this.gameManager.delivery.scheduleRoster();
+    else this.io.emit(SERVER_TO_CLIENT.GAME_TEAM_UPDATED, {
       teams: this.gameManager.teamManager.getAllTeamsInfo(),
       totalPlayers: this.gameManager.teamManager.players.size
     });

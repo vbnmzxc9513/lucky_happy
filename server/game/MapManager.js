@@ -53,7 +53,7 @@ class MapManager {
   }
 
   getCurrentMap() {
-    return this.maps.get(this.currentMapId) || this.maps.values().next().value;
+    return this.maps.get(this.currentMapId) || this.maps.values().next().value || null;
   }
 
   normalizeCheckpoint(cp, index) {
@@ -76,6 +76,10 @@ class MapManager {
 
   saveMap(mapData) {
     if (!mapData || !mapData.id) return false;
+    if (mapData.id === 'wedding-final-showdown' && (!Array.isArray(mapData.checkpoints)
+      || mapData.checkpoints.length !== 15
+      || new Set(mapData.checkpoints.map(cp => cp?.quizId)).size !== 15
+      || mapData.checkpoints.some(cp => !cp?.quizId))) return false;
     const normalizedMap = {
       ...mapData,
       checkpoints: (mapData.checkpoints || [])
@@ -96,23 +100,27 @@ class MapManager {
     }
   }
 
+  getDeleteMapError(mapId) {
+    if (mapId === 'wedding-final-showdown') return 'FORMAL_MAP_PROTECTED';
+    if (!this.maps.has(mapId)) return 'MAP_NOT_FOUND';
+    if (this.maps.size <= 1) return 'LAST_MAP_PROTECTED';
+    return null;
+  }
+
   deleteMap(mapId) {
-    if (this.maps.has(mapId)) {
-      this.maps.delete(mapId);
-      try {
-        const filePath = path.join(config.paths.maps, `${mapId}.json`);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      } catch (err) {
-        console.error('刪除地圖檔案失敗:', err);
-      }
-      if (this.currentMapId === mapId) {
-        this.currentMapId = this.maps.keys().next().value || 'cherry-blossom-lane';
-      }
-      return true;
+    if (this.getDeleteMapError(mapId)) return false;
+    try {
+      const filePath = path.join(config.paths.maps, `${mapId}.json`);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (err) {
+      console.error('刪除地圖檔案失敗:', err);
+      return false;
     }
-    return false;
+    this.maps.delete(mapId);
+    if (this.currentMapId === mapId) {
+      this.currentMapId = this.maps.keys().next().value;
+    }
+    return true;
   }
 }
 

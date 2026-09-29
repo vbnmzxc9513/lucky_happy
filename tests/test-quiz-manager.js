@@ -122,13 +122,13 @@ test('calculateResults() should generate results for all 5 teams', () => {
   qm.handleAnswer('socket1', 'red', 'q1', 'A');
   qm.handleAnswer('socket2', 'blue', 'q1', 'B');
   const results = qm.calculateResults();
-  
+
   assert.ok(results.teamResults['red']);
   assert.ok(results.teamResults['blue']);
   assert.ok(results.teamResults['yellow']);
   assert.ok(results.teamResults['pink']);
   assert.ok(results.teamResults['purple']);
-  
+
   assert.strictEqual(results.teamResults.red.teamAnswer, 'A');
   assert.strictEqual(results.teamResults.red.isCorrect, true);
   assert.strictEqual(results.teamResults.blue.teamAnswer, 'B');
@@ -136,7 +136,7 @@ test('calculateResults() should generate results for all 5 teams', () => {
   assert.strictEqual(results.teamResults.yellow.noAnswer, true);
 });
 
-test('Team result should use the most-voted option instead of individual correct rate', () => {
+test('Team result uses correct rate; highest-voted option is display-only', () => {
   const qm = new QuizManager(new MockQuizLoader());
   qm.startQuiz('q1', { red: 3 });
   qm.handleAnswer('r1', 'red', 'q1', 'B');
@@ -171,6 +171,44 @@ test('Quiz timer should freeze while paused and continue with the remaining time
   assert.strictEqual(qm.resumeTimer(pausedAt + 5000), true);
   assert.ok(qm.answerDeadlineAt >= originalDeadline + 4900);
   qm.cancelQuiz();
+});
+
+for (const rate of [0, .49, .5, .501, .51, 1]) {
+  test(`Correct rate ${rate * 100}% uses every member as denominator`, () => {
+    const qm = new QuizManager(new MockQuizLoader());
+    qm.startQuiz('q1', { red: 1000 });
+    const count = Math.round(rate * 1000);
+    for (let i = 0; i < count; i++) qm.handleAnswer(`r${i}`, 'red', 'q1', 'A');
+    const result = qm.calculateResults();
+    const team = result.teamResults.red;
+    assert.strictEqual(team.correctRate, rate);
+    assert.strictEqual(team.isCorrect, rate > .5);
+    assert.strictEqual(team.unansweredCount, 1000 - count);
+    assert.strictEqual(team.wrongCount, 0);
+    assert.deepStrictEqual(team.optionCounts, { A: count, B: 0, C: 0, D: 0 });
+    const d = result.distribution;
+    assert.strictEqual(d.answeredCount + d.unansweredCount, d.totalPlayers);
+    assert.strictEqual(Object.values(d.options).reduce((n, o) => n + o.count, 0), d.answeredCount);
+    assert.strictEqual(d.options.A.answeredPercent, count ? 1 : 0);
+    assert.strictEqual(result.teamResults.blue.correctRate, 0);
+    assert.strictEqual(result.teamResults.blue.isCorrect, false);
+    assert.ok(Object.values(result.teamResults).every(t => Number.isFinite(t.correctRate) && Number.isFinite(t.responseRate)));
+  });
+}
+
+test('Global distribution counts options across teams and excludes unanswered from option percent', () => {
+  const qm = new QuizManager(new MockQuizLoader());
+  qm.startQuiz('q1', { red: 4, blue: 4 });
+  qm.handleAnswer('r1', 'red', 'q1', 'A');
+  qm.handleAnswer('r2', 'red', 'q1', 'B');
+  qm.handleAnswer('b1', 'blue', 'q1', 'B');
+  qm.handleAnswer('b2', 'blue', 'q1', 'C');
+  const result = qm.calculateResults();
+  assert.deepStrictEqual(result.distribution, { totalPlayers: 8, answeredCount: 4,
+    unansweredCount: 4, responseRate: .5, options: {
+      A: { count: 1, answeredPercent: .25 }, B: { count: 2, answeredPercent: .5 },
+      C: { count: 1, answeredPercent: .25 }, D: { count: 0, answeredPercent: 0 }
+    } });
 });
 
 console.log(`\n結果: ${passed} passed, ${failed} failed`);

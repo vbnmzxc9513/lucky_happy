@@ -2,6 +2,8 @@
 
 Lucky Horse requires a Node.js server because the game uses Express and Socket.IO. The production path is Cloudflare DNS, Caddy HTTPS, and a DigitalOcean Ubuntu Droplet. Port 3000 stays private on the Droplet.
 
+For component ownership, runtime state, protocol and failure boundaries, read [`../docs/PROJECT_ARCHITECTURE.md`](../docs/PROJECT_ARCHITECTURE.md) first.
+
 ## Prepared Architecture
 
 ```text
@@ -15,6 +17,10 @@ Repository deployment files:
 - `lucky-horse.service`: systemd process supervision and service hardening.
 - `lucky-horse.env.example`: production environment reference.
 - `verify-public.ps1`: preflight and optional 150-player verification from Windows.
+
+## Pre-deployment regression gate
+
+On the test workstation or isolated CI runner, install the browser test prerequisites described in [README](../README.md), then run `npm run test:predeploy`. This runs the standard suite, the LAN HTTP/mobile Control browser regression, and deployment configuration checks. Missing Playwright or browser binaries fail the gate; do not skip it. This command does not deploy or contact the production game.
 
 ## Prerequisites
 

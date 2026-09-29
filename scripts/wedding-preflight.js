@@ -33,7 +33,7 @@ async function fetchTimed(pathname, options = {}) {
 
 async function connectHost(cookie) {
   const socket = io(SERVER_URL, {
-    auth: { role: 'host' },
+    auth: { role: 'host', protocolVersion: 2 },
     extraHeaders: { Cookie: cookie },
     transports: ['websocket'],
     reconnection: false,
@@ -67,6 +67,12 @@ async function connectHost(cookie) {
       clearTimeout(timer);
       socket.disconnect();
       reject(error);
+    });
+    socket.on('system:error', error => {
+      if (error?.code !== 'PROTOCOL_MISMATCH') return;
+      clearTimeout(timer);
+      socket.disconnect();
+      reject(new Error('PROTOCOL_MISMATCH: update the preflight client and refresh staff pages'));
     });
   });
 }
@@ -125,8 +131,8 @@ async function main() {
     const currentMap = realtime.state.currentMap || {};
     record('host WebSocket', true, `state=${realtime.state.state}, maps=${realtime.mapList.length}`);
     record(
-      'formal 18-question map',
-      currentMap.id === 'wedding-final-showdown' && Array.isArray(currentMap.checkpoints) && currentMap.checkpoints.length === 18,
+      'formal 15-question map',
+      currentMap.id === 'wedding-final-showdown' && Array.isArray(currentMap.checkpoints) && currentMap.checkpoints.length === 15,
       `${currentMap.id || 'no map'}, checkpoints=${(currentMap.checkpoints || []).length}`
     );
     const config = realtime.state.config || {};
@@ -137,9 +143,9 @@ async function main() {
     );
     const stages = config.quizStages || {};
     record(
-      'six-stage pacing and final sprint',
+      'five-stage pacing and final sprint',
       stages.enabled === true && stages.questionsPerStage === 3 && stages.tapSeconds === 8
-        && stages.prepareSeconds === 3 && stages.revealSeconds === 6 && stages.summarySeconds === 8
+        && stages.prepareSeconds === 0 && stages.manualAdvance === true
         && stages.sprintSeconds === 10,
       `tap=${stages.tapSeconds}s, questions/group=${stages.questionsPerStage}, final sprint=${stages.sprintSeconds}s`
     );

@@ -1,6 +1,6 @@
 # 美術與可讀性驗收
 
-> 本文保留修正前紀錄。2026-09-14 修正狀態與覆驗結果請見 [修正覆驗](D:/AI_Project/Lucky_horse/docs/ART_READABILITY_FIXES.md)。
+> 歷史稽核紀錄：本文保留修正前畫面問題，不是現行賽制或時間規格。2026-09-14 修正狀態與覆驗結果請見 [修正覆驗](D:/AI_Project/Lucky_horse/docs/ART_READABILITY_FIXES.md)；現行規格請見 `PROJECT_ARCHITECTURE.md` 與 `FORMAL_GAME_RULES.md`。
 
 日期：2026-09-14。結論：**整體未通過；5 項優先修正，不能以功能測試通過代替美術驗收。**
 
@@ -50,7 +50,7 @@
 
 ### 5. 同一頁同時顯示「18 秒」與「8 秒」
 
-出題頁的「每段連點秒數」輸入框是 18，旁邊說明卻寫 8 秒，總時間是新版的 5:43。這是資訊一致性問題，會讓主持與出題者誤判，不應只以換字體處理。
+當時出題頁的「每段連點秒數」輸入框是 18，旁邊說明卻寫 8 秒，總時間也使用舊試算值。這是當時的資訊一致性問題，會讓主持與出題者誤判，不應只以換字體處理；現行正式值已改為從共用設定計算。
 
 證據：[18／8 同畫面](D:/AI_Project/Lucky_horse/reports/art-audit/admin-quiz-pacing-1366.png)。相關實作：[後台仍寫死 18](D:/AI_Project/Lucky_horse/admin/js/admin-app.js:266)。
 

@@ -1,36 +1,40 @@
-# Race Pacing
+# 正式賽事節奏
 
-Default mode is one decisive round. The formal show now uses 10 quiz checkpoints. The pacing model targets about 6:30, which usually lands closer to 7-8 minutes in full stress tests because real answer penalties and pauses add overhead:
+更新日期：2026-09-29
 
-- Countdown: 3 seconds
-- Quiz checkpoints: at least 10 questions
-- Each quiz: 3 seconds prepare + 10 seconds answer + 3 seconds result
-- Final transition: 5 seconds
-- Racing movement budget: about 228 seconds
+正式 15 題、5 關採主持手動進題。`shared/stage-plan.js` 回傳 `timedSeconds` 與 `totalSeconds: null`，不得把自動計時部分顯示成總時長。
 
-The server adjusts the current track length at round start using the actual player distribution. The estimate assumes about 5 taps per second per player and uses the fastest/largest team as the pacing reference, so the leading team should reach the finish near the target runtime.
+## 自動計時部分
 
-Each team accepts at most 50 players. If the round reaches 9:00, final sprint mode clears active stuns, doubles tap acceleration, and begins scheduling any remaining checkpoints needed to preserve all 10 questions. At 10:00, the current leader finishes as soon as every formal checkpoint has been presented; an exact position tie remains a team tie.
+| 項目 | 次數 | 每次秒數 | 合計 |
+| --- | ---: | ---: | ---: |
+| 開賽倒數 | 1 | 3 | 3 |
+| 連點 | 5 | 8 | 40 |
+| 作答 | 15 | 10 | 150 |
+| 最後衝刺 | 1 | 10 | 10 |
+| 自動計時合計 | | | 203 秒 |
 
-Run the estimator:
+每題之間及每關之間由主持控制，統計與本關結算會持續保留；總時間取決於主持停留時間與暫停，完賽後另有 5 秒頒獎轉場。
+自動壓測以合法 Control 推進等待階段；manualHost 不代按按鈕。15 題版本負載數據須實際重跑，不能套用歷史報告。
 
-```bash
-node scripts/estimate-race-pacing.js
-```
+## 賽道距離
 
-Useful rehearsal counts:
+`GameManager.applyRacePacing()` 在開賽時計算適合畫面與獎勵的 track length。五關模式的計算以：
 
-```bash
-node scripts/estimate-race-pacing.js 50 100 150 200
-```
+- 固定 racing seconds。
+- `maxSpeed` 換算的最大移動速度。
+- 每階段最高四格的答題獎勵。
+- 10% 緩衝。
 
-Baseline estimates:
+作為估算基礎。這個長度用於進度、排名與畫面比例，不是提前完賽門檻；正式模式仍要走完所有階段與最後衝刺。
 
-| Players | Per team | Auto track | Auto total | Fixed 76000 total | Questions |
-|---:|---:|---:|---:|---:|---:|
-| 30 | 6 | 42,924 | 6:30 | 11:02 | 10 |
-| 50 | 10 | 51,050 | 6:30 | 9:08 | 10 |
-| 80 | 16 | 60,600 | 6:30 | 7:47 | 10 |
-| 100 | 20 | 65,982 | 6:30 | 7:14 | 10 |
-| 150 | 30 | 77,440 | 6:30 | 6:25 | 10 |
-| 200 | 40 | 87,100 | 6:30 | 5:55 | 10 |
+## 調整規則
+
+修改下列任一數值時，必須同時更新 `shared/game-config.js`、正式地圖、`shared/stage-plan.js` 的測試預期、本文件與操作驗收時間：
+
+- `countdownSeconds`
+- `quizStages.tapSeconds`
+- 各 checkpoint `timeLimit`
+- `quizStages.sprintSeconds`
+
+不要再使用舊版「10 題、9 分鐘開始衝刺、10 分鐘硬結束」模型估算正式賽事；該守門機制只屬於未啟用 quiz stages 的 legacy 流程。

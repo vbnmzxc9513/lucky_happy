@@ -4,11 +4,12 @@
  */
 
 const socket = io({ autoConnect: false });
+let protocolMismatch = false;
 let allMaps = [];
 let allQuizzes = [];
 let currentConfig = window.GameConfig || {};
 let selectedQuizPlanMapId = 'wedding-final-showdown';
-const MIN_FORMAL_QUIZ_COUNT = 18;
+const MIN_FORMAL_QUIZ_COUNT = 15;
 const DEFAULT_EXPECTED_PLAYERS = 150;
 const DEFAULT_FORMAL_TRACK_LENGTH = 76000;
 const DEFAULT_TRIGGER_FREQUENCY_PERCENT = 9;
@@ -25,7 +26,7 @@ function setupAdminPresentationViewport() {
 
 function connectPrivilegedSocket(role) {
   if (typeof socket.connect !== 'function') return;
-  socket.auth = { role };
+  socket.auth = { ...socket.auth, role, protocolVersion: 2 };
   socket.connect();
 }
 
@@ -237,6 +238,7 @@ function getControlNumber(id, min, max, fallback) {
 }
 
 function getTargetQuizCount() {
+  if (getSelectedQuizPlanMap()?.id === 'wedding-final-showdown') return 15;
   const pacing = getRacePacingConfig();
   const fallback = Math.max(MIN_FORMAL_QUIZ_COUNT, Number(pacing.targetQuizCount || MIN_FORMAL_QUIZ_COUNT));
   return Math.ceil(getControlNumber('quizTargetQuestionCount', MIN_FORMAL_QUIZ_COUNT, 60, fallback) / 3) * 3;
@@ -353,9 +355,19 @@ socket.on('connect', () => {
 
 socket.on('disconnect', () => {
   const badge = document.getElementById('connectionStatus');
-  badge.textContent = '🔴 與伺服器連線中斷，正在重連...';
+  badge.textContent = protocolMismatch ? '頁面版本已過期，請重新整理頁面。' : '🔴 與伺服器連線中斷，正在重連...';
   badge.style.borderColor = '#B86B53';
   badge.style.color = '#B86B53';
+});
+
+socket.on('system:error', error => {
+  if (error?.code !== 'PROTOCOL_MISMATCH') return;
+  protocolMismatch = true;
+  const badge = document.getElementById('connectionStatus');
+  badge.textContent = '頁面版本已過期，請重新整理頁面。';
+  badge.style.borderColor = '#B86B53';
+  badge.style.color = '#B86B53';
+  showToast(badge.textContent, true);
 });
 
 socket.on('connect_error', (err) => {
@@ -413,7 +425,7 @@ socket.on('admin:response', (res) => {
   if (res && res.success) {
     showToast(`✨ 操作成功：${res.action}`);
   } else {
-    showToast(`⚠️ 操作失敗：${res ? res.action : '未知錯誤'}`, true);
+    showToast(`⚠️ 操作失敗：${res ? res.action : '未知錯誤'}${res?.reason ? `（${res.reason}）` : ''}`, true);
   }
 });
 
@@ -465,7 +477,7 @@ function renderMapList() {
       </div>
       <div>
         <button class="btn-secondary" onclick="editMap('${map.id}')">✏️ 編輯</button>
-        <button class="btn-danger" onclick="deleteMap('${map.id}')">🗑️</button>
+        <button class="btn-danger" onclick="deleteMap('${map.id}')" ${map.id === 'wedding-final-showdown' || allMaps.length <= 1 ? 'disabled title="正式地圖及最後一張地圖不可刪除"' : ''}>🗑️</button>
       </div>
     `;
     container.appendChild(item);
@@ -584,6 +596,10 @@ function saveMap() {
 }
 
 function deleteMap(mapId) {
+  if (mapId === 'wedding-final-showdown' || allMaps.length <= 1) {
+    showToast('正式地圖及最後一張地圖不可刪除。', true);
+    return;
+  }
   if (confirm(`確定要刪除賽道地圖 "${mapId}" 嗎？`)) {
     socket.emit('admin:delete_map', { mapId });
   }
@@ -847,7 +863,7 @@ function applyRecommendedQuizPacing() {
   applyQuizFrequencyPlan();
   document.querySelectorAll('.plan-time-input').forEach(input => { input.value = 10; });
   updateQuizPacing();
-  showToast('已套用正式版：18 題、6 關、每次連點 8 秒、揭曉 6 秒，約 6:55。');
+  showToast('已套用正式版：15 題、5 關、每次連點 8 秒，逐題及結算由主持人推進。');
 }
 
 function getQuizPlanRows() {
@@ -877,6 +893,10 @@ function saveQuizPlan() {
   if (!currentConfig.quizStages?.enabled) ensureMinimumQuizRows(getTargetQuizCount(), false);
   const checkpoints = getQuizPlanRows();
   const quizPool = checkpoints.map(cp => cp.quizId).filter(Boolean);
+  if (map.id === 'wedding-final-showdown' && checkpoints.length !== 15) {
+    showToast('正式地圖固定 15 題、5 關；其他題數請另建自訂地圖。', true);
+    return;
+  }
   if (currentConfig.quizStages?.enabled && (checkpoints.length % 3 !== 0
     || quizPool.length !== checkpoints.length || new Set(quizPool).size !== checkpoints.length)) {
     showToast('每關需要 3 題，請選擇不重複的題目並補齊整組後再儲存。', true);
@@ -907,16 +927,16 @@ function updateQuizPacing() {
     const plan = window.StagePlan.estimate(rows, currentConfig);
     document.getElementById('quizMetricCount').textContent = `${plan.questionCount} 題`;
     document.getElementById('quizMetricQuestionSeconds').textContent = `${plan.stageCount} 關 × 3 題`;
-    document.getElementById('quizMetricAutoDuration').textContent = formatSeconds(plan.totalSeconds);
+    document.getElementById('quizMetricAutoDuration').textContent = formatSeconds(plan.timedSeconds);
     document.getElementById('quizMetricFixedDuration').textContent = formatSeconds(plan.racingSeconds);
-    document.getElementById('quizFrequencyHint').textContent = `每段連點 ${currentConfig.quizStages.tapSeconds} 秒，接著連答三題、結算 8 秒。`;
+    document.getElementById('quizFrequencyHint').textContent = `每段連點 ${currentConfig.quizStages.tapSeconds} 秒，接著由主持人逐題開始，三題後手動結算。`;
     document.getElementById('quizPacingSummary').textContent = rows.length % 3
       ? '尚有未滿三題的關卡，請補齊或移除後再儲存。'
-      : `預估 ${formatSeconds(plan.totalSeconds)}，不含主持暫停與最終頒獎；人數與手速不影響關卡時間。`;
-    document.getElementById('questionCountForecast').innerHTML = [12, 15, 18, 21, 24].map(count => {
+      : `預估 ${formatSeconds(plan.timedSeconds)}，僅含自動計時部分；總時間另加每題、每關的主持停留與暫停。`;
+    document.getElementById('questionCountForecast').innerHTML = (getSelectedQuizPlanMap()?.id === 'wedding-final-showdown' ? [15] : [12, 15, 18, 21, 24]).map(count => {
       const average = plan.questionCount ? plan.answerSeconds / plan.questionCount : 10;
       const estimate = window.StagePlan.estimate(Array.from({ length: count }, () => ({ timeLimit: average })), currentConfig);
-      return `<div class="${count === rows.length ? 'active' : ''}"><span>${count} 題</span><strong>${formatSeconds(estimate.totalSeconds)}</strong></div>`;
+      return `<div class="${count === rows.length ? 'active' : ''}"><span>${count} 題</span><strong>${formatSeconds(estimate.timedSeconds)}</strong></div>`;
     }).join('');
     return;
   }

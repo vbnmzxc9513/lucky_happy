@@ -20,9 +20,13 @@ npm test
 
 到 https://github.com/vbnmzxc9513/lucky_happy 確認 main 的最新提交與本機 `git rev-parse HEAD` 一致。下面 clone 指令假設倉庫可匿名讀取；若是 private，不要為方便而改公開，先配置唯讀 deploy key，再使用 SSH repo URL。私有倉庫的金鑰也必須讓安裝腳本使用的 luckyhorse 使用者可讀取，單純在 root 登入 GitHub 並不足夠；遇到此情況先停在這一步處理權限。
 
-## 2. 準備網域
+## 2. 準備網域（Cloudflare 實際點選路徑）
 
 需要一個你控制的網域，例如已購買的 example.com，為遊戲建立 game.example.com。這裡所有 example.com 與 YOUR_SERVER_IP 都是佔位符，必須換成你的資料。
+
+Cloudflare 登入後點選：`Home` → `Domains` → 頁面上方 `Buy domain`。進入 `Register domain` 後，使用 `Search for a domain name` 欄位搜尋。不是點 `Add domain`，因為它只用來加入已經購買的網域。
+
+搜尋結果選定可購買名稱後點 `Purchase`，期限選 1 年，填寫英文／拼音聯絡資料與付款方式。`Complete purchase` 會正式扣款並接受網域註冊條款，必須由本人確認及點擊。購買後立即到電子信箱完成 ICANN 聯絡信箱驗證，否則網域可能被暫停解析。
 
 GitHub Pages 的 github.io 網址不能當成你可設定 DNS 的網域。網址不必包含 www；game.你的網域 即可。網域費通常與主機費分開。
 
@@ -46,7 +50,7 @@ Create → Droplets，選擇：
 - Region：Singapore，作為台灣婚禮的初始選擇，之後仍要從實際場地測網路。
 - Image：Ubuntu 24.04 LTS x64。
 - Type：Basic／Shared CPU。
-- 規格：Regular，1 vCPU、2 GiB RAM、50 GiB SSD，官方目前列 USD 12／月；以結帳畫面為準。
+- 規格：190 人婚禮場次選 Regular，2 vCPU、2 GiB RAM、60 GiB SSD，官方目前列 USD 18／月；以結帳畫面為準。原本 1 vCPU／2 GiB 的 USD 12 方案只在完成同規格公網壓測後使用。
 - Authentication：SSH Key，貼入上一步公鑰並勾選。
 - 主機名稱：lucky-horse-wedding。
 - 一台即可；本方案不需要另購 Database、Load Balancer 或 Kubernetes。備份等加購會另計費。
@@ -147,7 +151,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy\verify-public.p
 .\deploy\verify-public.ps1 -Domain game.example.com -StaffAccessCode 1009 -RunStress
 ```
 
-此命令測 150 人及 15 人重連。需確認完整 18 題、六次結算、四獎、無系統錯誤；測完回大廳清除測試玩家，再用真手機完整走一局。部署成功不等同已通過實際婚禮網路、音響與投影驗收。
+此命令測 150 人及 15 人重連。需確認完整 15 題、五次結算、四獎、無系統錯誤；測完回大廳清除測試玩家，再用真手機完整走一局。部署成功不等同已通過實際婚禮網路、音響與投影驗收。
 
 ## 10. 失敗時看這裡
 

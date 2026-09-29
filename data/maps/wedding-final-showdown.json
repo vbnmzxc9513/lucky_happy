@@ -1,7 +1,7 @@
 {
   "id": "wedding-final-showdown",
   "name": "幸福一戰決勝負",
-  "description": "婚禮正式版：六關、每關三題，連點十八秒，約六分四十三秒。",
+  "description": "婚禮正式版：五關、15 題，每關連點 8 秒；主持人手動進題與結算。",
   "thumbnail": "🏇",
   "difficulty": 2,
   "track": {
@@ -143,33 +143,6 @@
       },
       "quizId": "party_005",
       "timeLimit": 10
-    },
-    {
-      "id": "final_cp_16",
-      "trigger": {
-        "type": "team_progress",
-        "percent": 84
-      },
-      "quizId": "party_006",
-      "timeLimit": 10
-    },
-    {
-      "id": "final_cp_17",
-      "trigger": {
-        "type": "team_progress",
-        "percent": 89
-      },
-      "quizId": "party_007",
-      "timeLimit": 10
-    },
-    {
-      "id": "final_cp_18",
-      "trigger": {
-        "type": "team_progress",
-        "percent": 95
-      },
-      "quizId": "party_008",
-      "timeLimit": 10
     }
   ],
   "items": {
@@ -196,10 +169,7 @@
     "party_002",
     "party_003",
     "party_004",
-    "party_005",
-    "party_006",
-    "party_007",
-    "party_008"
+    "party_005"
   ],
   "config": {
     "baseBoost": 0.5,

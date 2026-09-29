@@ -1,46 +1,82 @@
-# Wedding Day Runbook
+# 婚禮當天操作手冊
 
-The complete rehearsal checklist and evidence form is in `docs/WEDDING_OPERATION_TEST_PLAN.md`.
+更新日期：2026-09-29
 
-## One Week Before
+完整案例與記錄表見 [`WEDDING_OPERATION_TEST_PLAN.md`](WEDDING_OPERATION_TEST_PLAN.md)。技術架構見 [`PROJECT_ARCHITECTURE.md`](PROJECT_ARCHITECTURE.md)。
 
-1. Freeze questions, team names, awards, and track settings.
-2. Run `npm run test:confidence` from the release commit.
-3. Run the 150-client stress test from a second computer against the DigitalOcean URL.
-4. Confirm the local LAN backup uses the same release commit and question data.
+## 活動前一週
 
-## One Hour Before
+1. 凍結題庫、題序、隊伍名稱、角色圖片與獎項文字。
+2. 記錄 release commit，確認正式站與 LAN 備援使用相同版本和資料。
+3. 在測試工作站執行 `npm run test:predeploy`（含 Control 瀏覽器回歸），再執行 `npm run test:confidence`；瀏覽器依賴安裝方式見 README。
+4. 在核准的隔離環境執行預定人數的公開 HTTPS 壓測與逐玩家對帳。
+5. 用真實 iPhone、Android 與較舊手機完成一局。
+6. 演練 WAN 失效後切換 LAN、顯示新 QR、全員重新報到。
 
-1. Connect the host computer by wired Ethernet when possible and keep it on AC power.
-2. Disable sleep, automatic OS updates, and browser power saving for the event window.
-3. Open the 16:9 host screen at 100% browser zoom and enter full screen.
-4. Run the read-only production check:
+## 活動前一小時
+
+1. Host 電腦接有線網路與 AC 電源，關閉睡眠、自動更新與省電。
+2. 以 100% 瀏覽器縮放開啟 `/host/`，確認 16:9 全螢幕無裁切。
+3. 開啟 `/control/`；正式操作只使用控制台，不在投影頁控制賽事。
+4. 點擊一次投影的「啟用音效」，確認場地音響可聽見 Ready 音。
+5. 執行唯讀 preflight：
 
 ```powershell
-$env:SERVER_URL="https://YOUR_DOMAIN"
-$env:STAFF_ACCESS_CODE="1009"
+$env:SERVER_URL="https://正式網域"
+$env:STAFF_ACCESS_CODE="活動驗證碼"
 npm run preflight
 ```
 
-The production process must set `PUBLIC_BASE_URL=https://YOUR_DOMAIN`. The preflight QR check fails when the generated guest URL is only `localhost` or `127.0.0.1`.
+必須為 13/13，且狀態為 `LOBBY`。同時確認正式地圖為 15 題、每隊上限 50、每關連點 8 秒、最後衝刺 10 秒。
 
-All preflight checks must pass and the reported state must be `LOBBY`. It must also report `max=50 players/team`, `sprint=540s`, and `deadline=600s`.
+## 活動前 30 分鐘
 
-## Thirty Minutes Before
+1. 至少用一支 iPhone、一支 Android 與一支較舊手機掃 QR。
+2. 確認 QR 是正式 HTTPS 網域或手機可連的 LAN IP，不含 localhost。
+3. 三支手機加入不同隊伍，鎖屏、切背景與重新整理後仍恢復原隊。
+4. 確認投影顯示五條跑道，題目、倒數及結算文字無遮擋。
+5. 由操作員測一次暫停／恢復，再重置回空白 Lobby。
+6. 確認 LAN 備援可以啟動，但不要同時讓賓客掃到兩個環境。
 
-1. Scan the QR code with at least one iPhone and one Android phone.
-2. Join different teams, lock and unlock both phones, then confirm they reconnect.
-3. Confirm the projector shows the full QR code and all five team lanes without scrolling.
-4. Click `啟用音效` once and confirm the ready chime is audible through the venue sound system.
-5. Keep the DigitalOcean dashboard and a terminal ready, but do not deploy new code.
-6. Confirm no team card can exceed 50 players; ask guests to choose another team when a card shows full.
+## 正式流程
 
-## Emergency Actions
+1. 投影顯示 Lobby QR，賓客輸入暱稱並選隊。
+2. 控制台確認人數、五隊容量與未選隊提示。
+3. 投影依序展示規則及選隊畫面。
+4. 操作員按開始；未選隊者會被分配到人數最少的未滿隊伍。
+5. 每關連點後按「開始第 1 題」；每題統計後按「下一題」；第三題後按「顯示本關結算」，再按「開始下一關」，第五關後按「開始最後衝刺」。
+6. 完賽後進入四個獎項；由操作員控制揭曉、上一個、下一個。
+7. 活動結束後再重置，不要在賓客仍觀看頒獎時清場。
 
-- A few phones disconnect: wait for automatic recovery; their team and statistics are retained.
-- Host browser refreshes during a quiz: reopen `/host`; the current question and remaining time are restored.
-- Internet venue failure: switch guests and host to the prepared local LAN server and restart the match.
-- Node process or VPS restarts: current race state is held in memory and cannot be resumed; return to the lobby and restart the single match.
-- Slow participation: let the built-in final sprint run. It starts at 9:00, preserves all 10 questions, and requests the leader decision at 10:00.
+總時間取決於主持停留時間；自動計時部分為 203 秒，另有 5 秒頒獎轉場。
 
-The local LAN backup is important because it covers venue or ISP failure, which application stress tests cannot prevent.
+## 故障處置
+
+| 狀況 | 標準處置 |
+| --- | --- |
+| 少量手機離線 | 等待自動重連；若影響答題，主持暫停 |
+| 手機顯示正在同步 | 不要連點；等待新鮮權威狀態恢復 |
+| 投影頁關閉或重整 | 重新開啟 `/host/`、登入並再次啟用音效 |
+| 控制台頁關閉 | 重新開啟 `/control/`；狀態由伺服器快照恢復 |
+| 題目中暫停 | 倒數會凍結；確認後再恢復 |
+| Node／VPS 重啟 | 不嘗試恢復舊局，回 Lobby 全員重新報到 |
+| WAN／正式站失效 | 切到已驗證 LAN 備援，投影新 QR，重新開賽 |
+| 音響失效 | 遊戲可繼續；技術人員修復後重開 Host 並啟用音效 |
+
+不要在婚禮進行中部署、修改題庫、更新 Caddy、重啟 Node 或以壓測工具連到正式賽局。
+
+## Go／No-Go
+
+以下任一項不成立即為 No-Go：
+
+- preflight 13/13、狀態為 Lobby。
+- QR 可由現場手機首次載入。
+- 三種真實手機可登入、選隊、連點、作答及重連。
+- 投影與音響可用，控制台可暫停／恢復。
+- 正式站與 LAN 備援 release 一致。
+- 15 題、五次結算、四獎與逐玩家對帳已在核准環境完成驗證。
+- 操作員與技術人員知道 Node 重啟後必須重賽。
+
+### 主持手機與 LAN 備援
+
+主持手機建議直向操作；手機尺寸下的進題／暫停（或繼續）按鈕固定於底部，橫向也可直接操作，連線狀態持續顯示。一般斷線顯示「網路中斷，正在重連」，等待自動重連與最新狀態；只有明確驗證失敗才重新登入。LAN HTTP 不依賴 `crypto.randomUUID()`，控制台與 Guest 共用具 fallback 的 ID 產生器。演練時須用實際 LAN IP，不只測 localhost。

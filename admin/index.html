@@ -9,9 +9,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;1,600&family=Noto+Serif+TC:wght@400;600;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/admin.css?v=17">
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/shared/events.js?v=12"></script>
-  <script src="/shared/game-config.js?v=16"></script>
-  <script src="/shared/stage-plan.js?v=1"></script>
+  <script src="/shared/events.js?v=20260929"></script>
+  <script src="/shared/game-config.js?v=20260929"></script>
+  <script src="/shared/stage-plan.js?v=20260929"></script>
 </head>
 <body>
   <div class="luxury-bg-glow"></div>
@@ -266,7 +266,7 @@
               </label>
               <label class="pacing-control">
                 <span>每回合題數</span>
-                <input type="number" id="quizTargetQuestionCount" class="luxury-input" min="18" max="60" step="3" value="18" onchange="ensureMinimumQuizRows(); autoSpreadQuizPlan(false); updateQuizPacing()">
+                <input type="number" id="quizTargetQuestionCount" class="luxury-input" min="15" max="60" step="3" value="15" onchange="ensureMinimumQuizRows(); autoSpreadQuizPlan(false); updateQuizPacing()">
               </label>
               <label class="pacing-control">
                 <span>每段連點秒數</span>
@@ -278,14 +278,14 @@
               <span>開賽時自動調整賽道顯示距離</span>
             </label>
             <div class="pacing-action-row">
-              <button class="btn-secondary" onclick="applyRecommendedQuizPacing()">正式版 18 題</button>
+              <button class="btn-secondary" onclick="applyRecommendedQuizPacing()">正式版 15 題</button>
               <button class="btn-secondary" onclick="applyQuizFrequencyPlan()">套用題數</button>
             </div>
             <div class="pacing-hint" id="quizFrequencyHint">每段連點 8 秒，接著連答三題。</div>
             <div class="quiz-metric-grid">
-              <div class="quiz-metric"><span>題目數</span><strong id="quizMetricCount">18 題</strong></div>
-              <div class="quiz-metric"><span>關卡配置</span><strong id="quizMetricQuestionSeconds">6 關 × 3 題</strong></div>
-              <div class="quiz-metric primary"><span>預估遊戲總長</span><strong id="quizMetricAutoDuration">6:55</strong></div>
+              <div class="quiz-metric"><span>題目數</span><strong id="quizMetricCount">15 題</strong></div>
+              <div class="quiz-metric"><span>關卡配置</span><strong id="quizMetricQuestionSeconds">5 關 × 3 題</strong></div>
+              <div class="quiz-metric primary"><span>自動計時部分（另加主持停留）</span><strong id="quizMetricAutoDuration">3:23 + 主持停留</strong></div>
               <div class="quiz-metric"><span>累計連點時間</span><strong id="quizMetricFixedDuration">1:58</strong></div>
             </div>
             <div class="pacing-summary" id="quizPacingSummary">目前設定接近婚禮正式節奏。</div>
@@ -373,6 +373,6 @@
       <p>🏇 Lucky Horse v1.1 Wedding Event System — Authoritative State Guardrails & Zero Silent Failures Enabled.</p>
     </footer>
   </div>
-  <script src="js/admin-app.js?v=18"></script>
+  <script src="js/admin-app.js?v=20"></script>
 </body>
 </html>

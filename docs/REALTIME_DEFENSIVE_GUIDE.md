@@ -1,93 +1,176 @@
-# 🛡️ Lucky Horse v1.1 — 即時互動防禦性工程與制度指南 (Engineering Guide)
+# 即時互動防禦性工程指南
 
-本指南旨在把本次 **Lucky Horse v1.1 婚禮互動賽馬遊戲** 開發過程中積累的架構判斷與錯誤排除經驗，轉換為**可長期沿用的制度與標準規範**。
-透過這套制度與指南，未來無論是資淺工程師、或是執行日常維護的 AI 模型，都能清楚理解系統核心機制，避免再次發生「點擊沒反應 (Silent Failure)」、「狀態不同步 (State Desync)」與「埠號衝突 (`EADDRINUSE`)」等典型高並發互動系統 Bug。
+更新日期：2026-09-29
 
----
+本指南描述目前 Network Protocol v2 的工程規則。完整元件關係見 [`PROJECT_ARCHITECTURE.md`](PROJECT_ARCHITECTURE.md)。
 
-## 🏗️ 1. 問題根源分析與防禦性修復架構
+## 1. 核心不變量
 
-在實時多人互動 (Real-time Multi-player Interactive) 系統中，最易出現的漏洞就是 **「樂觀假設客戶端狀態與伺服器完全同步」**。
-以下是我們在選隊押注無反應 Bug 中發現的根源，以及我們建立的三重防禦架構：
+1. 伺服器是位置、得分、答案、階段與獎項的唯一權威。
+2. 未登入的手機不能因收到全域狀態而跳過登入生命週期。
+3. 任何被拒絕的操作都要有可辨識的 ACK 或錯誤事件。
+4. 點擊不重送；答案只以相同 request ID 有限重送。
+5. 舊局、舊協定與截止時間後的操作一律拒絕；點擊另檢查 stateVersion，答案以 runId + quizId + deadline 驗證。
+6. 重連必須恢復玩家、隊伍、個人統計與答案鎖。
+7. 暫停、重置與同時操作不得留下幽靈 timer 或重複獎勵。
 
-### 1.1 狀態不同步與靜默失敗時序圖 (修復對照)
+## 2. 連線與狀態恢復
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Guest as 📱 手機賓客
-    participant UI as 前端 (guest-app.js)
-    participant Socket as WebSocket 路由
-    participant TeamMgr as 後端 (TeamManager)
-
-    Note over Guest,TeamMgr: ❌ 修復前：盲目廣播覆蓋 + 靜默失敗
-    Guest->>UI: 打開網頁 (目前在登入頁)
-    UI->>Socket: 連線建立 (Connect)
-    Socket-->>UI: 廣播當前狀態 (GAME_STATE_SYNC: LOBBY)
-    UI->>UI: ❌ 沒檢查登入狀態，直接強制跳轉到選隊頁！
-    Guest->>UI: 點選「👉 押注支持紅隊」
-    UI->>Socket: 發送選隊事件 (GUEST_CHOOSE_TEAM)
-    Socket->>TeamMgr: chooseTeam(socketId, 'red')
-    TeamMgr-->>Socket: ❌ 報錯 PLAYER_NOT_FOUND (因為沒註冊)
-    Note over Socket: ❌ 靜默忽略錯誤，完全沒吐回前端！<br>玩家點擊毫無反應！
-
-    Note over Guest,TeamMgr: 🛡️ 修復後：生命週期檢查 + 自動補註冊 + 視覺確認
-    Guest->>UI: 打開網頁 (目前在登入頁)
-    UI->>Socket: 連線建立 (Connect)
-    Socket-->>UI: 廣播當前狀態 (GAME_STATE_SYNC: LOBBY)
-    UI->>UI: 🛡️ 檢查 isJoined === false，保持在登入頁！
-    Guest->>UI: 輸入暱稱「阿明」，點擊進入大廳
-    UI->>Socket: 發送 GUEST_JOIN
-    UI->>UI: 標記 isJoined = true，進入選隊頁
-    Guest->>UI: 點選「👉 押注支持紅隊」
-    UI->>Socket: 發送選隊事件 (GUEST_CHOOSE_TEAM)
-    Socket->>TeamMgr: chooseTeam(socketId, 'red')
-    Note over TeamMgr: ⚡ 即使異常未登入，也自動調用 addPlayer 補註冊！
-    TeamMgr-->>Socket: 回傳成功 (Success)
-    Socket-->>UI: 廣播隊伍更新與確認 (guest:team_chosen)
-    UI->>Guest: ✨ 橫幅亮起，按鈕顯示「✅ 已成功押注 紅隊！」
+```text
+手機建立 Socket(protocolVersion=2)
+  → 伺服器送最小化狀態快照
+  → 手機以 localStorage sessionId 重新 Join
+  → 伺服器遷移舊 socket 身分與統計
+  → 手機要求同步
+  → 伺服器送目前狀態、個人狀態、題目與答案收據
+  → 權威時間新鮮後才重新啟用輸入
 ```
 
----
+手機端 `GuestNetwork.ready()` 必須同時滿足：Socket 在線、身份恢復、完成同步、沒有 fatal protocol error，且最近權威時間不超過三秒。
 
-## 📊 2. 防禦性工程制度標準對照表
+若 heartbeat 表示狀態或 paused flag 已改變，但本地快照尚未更新，手機應停用輸入並要求新快照，不可自行猜測狀態。
 
-為確保長期維護穩定性，系統中所有通訊與狀態操作必須嚴格落實下表準則：
+## 3. 操作冪等與過期防護
 
-| 檢查面向 | 潛在致命陷阱 (Pitfalls) | 標準防禦性做法 (Institutional Rule) | 實作檔案與位置 |
-| :--- | :--- | :--- | :--- |
-| **前端狀態路由** | 盲目跟隨伺服器廣播跳轉畫面，導致用戶正在輸入表單或尚未登入時被強制拉走。 | **本地會話權威驗證**：收到狀態廣播時，必須先檢驗 `myPlayerInfo.isJoined`，未加入前一律鎖定在登入頁。 | `guest/js/guest-app.js`<br>*(GAME_STATE_SYNC)* |
-| **後端異常處理** | 處理業務邏輯失敗時（如找不到玩家、隊伍無效），只 return `false`，未透過 Socket 回報，造成靜默失敗。 | **零靜默失敗承諾**：失敗必發封包！依性質分流為業務阻擋 (`GAME_JOIN_LOCKED`) 或系統錯誤 (`SYSTEM_ERROR`)。 | `server/websocket/GuestHandler.js`<br>*(handleChooseTeam)* |
-| **高並發容錯** | 婚禮網路不穩，手機鎖屏重連或跳步驟發送封包時，後端拋錯拒絕，導致玩家卡死。 | **自動補註冊機制 (Self-Healing)**：若用戶漏了 Join 直接選隊或互動，後端自動分配預設稱呼納入遊戲，保證流程順暢。 | `server/game/TeamManager.js`<br>*(chooseTeam)* |
-| **用戶互動回饋** | 手機端點擊按鈕後，要等後端處理完再變化 UI，網路稍慢就會覺得「卡卡的、按了沒反應」。 | **樂觀 UI 回饋與明確狀態**：觸控點擊 50ms 內即時給予振動/特效，且按鈕文字清楚展示狀態 (`✅ 已押注`)。 | `guest/js/guest-app.js`<br>*(team_chosen)* |
-| **伺服器進程管理** | 修改程式碼重啟時，常因舊進程未釋放連接埠而當機 (`EADDRINUSE :::3000`)。 | **優雅關閉 (Graceful Shutdown)**：監聽 `SIGINT`/`SIGTERM`，重啟前主動切斷 WebSocket 迴圈並釋放 TCP 埠號。 | `server/index.js`<br>*(process.on)* |
+點擊與答案封包必須包含：
 
----
-
-## 🛠️ 3. 日常開發與測試的標準作業流程 (SOP)
-
-為了讓未來開發者與小型 AI 模型都能順利協作，請在專案中遵循以下標準測試與部署流程：
-
-### 3.1 啟動開發環境伺服器 (保持常駐)
-請在終端機開啟**第一個獨立視窗**執行以下指令。此視窗為伺服器核心，**在進行測試或改寫程式碼時，請保持該視窗開啟**：
-```bash
-npm run dev
+```js
+{
+  requestId,
+  runId,
+  stateVersion,
+  // tap: timestamp
+  // answer: quizId, answer
+}
 ```
-> **優雅重啟**：當我們修改了後端程式碼需要重啟時，請在這個視窗按下 `Ctrl + C`，系統將觸發我們新設的「優雅關閉機制」釋放 `3000` 埠，隨後即可再次執行 `npm run dev`，杜絕 `EADDRINUSE` 錯誤。
 
-### 3.2 執行百人高並發壓力測試 (模擬實戰)
-在伺服器運作時，請開啟**第二個獨立終端機視窗**執行壓力測試腳本：
-```bash
-npm test
-```
-**測試通過指標 (成功判斷標準)**：
-1. 終端機顯示 `✅ [成功] 所有 120 個連線已建立！`
-2. 顯示 `✅ [成功] 全部 120 名賓客已完成登入並加入紅/藍兩隊！`
-3. 伺服器沒有產生任何一筆 `UnhandledPromiseRejection` 或記憶體溢位 (`Out of Memory`)。
-4. 當在大螢幕端按下「開始對抗賽」後，伺服器能以 30fps 順暢廣播百人的高頻點擊加速與突襲答題！
+伺服器按下列順序驗證：
 
----
+1. `requestId` 格式合法。
+2. `runId` 等於目前比賽。
+3. 玩家存在且連線身分有效。
+4. 相同 request ID 若曾執行，內容必須一致並回傳原結果。
+5. 點擊要求 `stateVersion` 等於權威版本；答案在相同 runId、quizId 且伺服器期限內仍可接受較早的展示版本。
+6. 仍在允許的賽事／題目階段與截止時間內。
+7. 最後才執行遊戲邏輯並把結果放入 operation ledger。
 
-## 📝 4. 結語：制度化讓系統越用越強
+同一 session 重連後沿用同一份 operation ledger，因此答案 ACK 遺失後以同一 ID 重送不會重複計分。重置會更換 `runId` 並清空帳本。
 
-透過把「狀態檢查、靜默失敗防護、自動容錯、優雅釋放」固化入 `.agents/AGENTS.md` 與本工程指南，我們不僅解決了這次的 Bug，更為 Lucky Horse 專案建立了一道永久的防火牆。未來任何 AI 模型接手時，都會優先讀取這些規範，讓程式碼品質維持在最高水準！
+## 4. 可靠與可丟棄事件
+
+適合 volatile：
+
+- 高頻位置更新。
+- 每秒 heartbeat。
+
+必須可靠：
+
+- 狀態快照與狀態切換。
+- 加入、選隊、點擊與答案 ACK。
+- 題目準備、選項、答案揭曉、階段結算。
+- 完賽、頒獎與控制台結果。
+
+遺失一個位置 frame 可以由下一 frame 修正；遺失答案 ACK 或狀態轉換可能造成使用者誤判，所以不能使用 volatile。
+
+## 5. 角色分流與最小資料
+
+- Host 約 30 Hz，收到全部隊伍位置。
+- Guest 最多 5 Hz，只收到自己隊伍的位置、暈眩與名次。
+- Control／Admin 最多 2 Hz，收到操作需要的全隊資訊。
+- Guest 快照不得包含完整 roster、題庫、道具清單、完整 Admin config 或完整頒獎排名。
+- 題目文字只送 Staff；Guest 只收選項 map 與截止時間。
+
+新增廣播前必須先回答：哪些角色需要、是否可 volatile、是否可合併、是否會洩漏題目或管理資料。
+
+## 6. 前端即時回饋
+
+觸控視覺回饋可以在網路 ACK 前顯示，但不得提前增加權威個人點擊數或隊伍距離。
+
+- 點擊：立即按壓／振動；ACK 後顯示接受、爆擊或拒絕原因。
+- 選隊：按鈕可顯示等待，但必須等伺服器確認才保存隊伍。
+- 答題：送出後立即鎖按鈕；若權威拒絕，先同步狀態，再由恢復 payload 決定是否重新開放。
+- 離線、資料過期或恢復中：停用輸入並顯示明確 banner。
+
+## 7. 暫停與重置
+
+暫停時必須停止：
+
+- 物理更新 loop。
+- race guard。
+- managed timeout。
+- QuizManager timeout。
+
+恢復時要平移 race start、stage end、quiz deadline、stun deadline 與 checkpoint timeline。不可只重新開始 UI 倒數。
+
+重置時必須：
+
+- 更換 `runId`、重設 `stateVersion`。
+- 遞增 `flowToken`。
+- 清除所有 managed timeout、quiz timer、delivery ledger 與 progress buffer。
+- 清空玩家、隊伍、個人統計與舊答案。
+- 回到 Lobby 並重新廣播快照。
+
+## 8. 靜默失敗禁止事項
+
+下列情況必須回應：
+
+- 加入被鎖：`GAME_JOIN_LOCKED`。
+- 隊伍額滿：`GAME_TEAM_FULL`，玩家保留原隊。
+- 特權不足：`SYSTEM_ERROR/FORBIDDEN`。
+- 舊頁面：`SYSTEM_ERROR/PROTOCOL_MISMATCH` 後斷線。
+- 點擊或答案：一律回對應 ACK，包含 `success`、`reason`、`requestId`、`runId`。
+- 控制台操作：`CONTROL_ACTION_RESULT`，包含最新 state。
+
+驗證器拒絕畸形輸入時，也應避免讓正常使用者長期停在等待狀態；新增輸入流程要同時設計前端 timeout 或錯誤回復。
+
+## 9. 修改檢查表
+
+新增或修改即時功能時：
+
+1. 先更新 `shared/events.js`。
+2. 定義角色、payload、可靠性與權威來源。
+3. 補 validator 與伺服器狀態 guard。
+4. 決定是否需要 request ID 冪等。
+5. 補重連 recovery payload。
+6. 補暫停、重置、舊局與截止時間測試。
+7. 驗證 Guest payload 沒有多餘資料。
+8. 跑 `npm test`；高風險協定改動再跑 `npm run test:confidence`。
+
+## 10. 測試重點
+
+現有測試涵蓋：
+
+- 190 人角色分流與 snapshot 大小。
+- duplicate／conflicting request ID。
+- reconnect 後的 answer receipt 與 tap accounting。
+- 離線或過期資料不產生輸入。
+- 30 人 Socket 重連。
+- 同時搶最後名額、同時開賽、重複暫停／恢復。
+- reset 後沒有舊題目 callback。
+
+公開 HTTPS 與場地網路仍要另做測量；單元測試不能證明 ISP、Wi-Fi、瀏覽器音訊或投影設備可用。
+
+## 手動進題與統計契約（15 題、5 關）
+
+`CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
+伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
+`CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
+Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
+
+`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第三題統計必須先保留，再由主持切到結算。
+自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
+
+每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。
+全場分布的 totalPlayers = answeredCount + unansweredCount；options 每項保留 count 和 answeredPercent（0–1 比例）。
+answeredPercent 分母為全場已作答人數；無人回答時為 0。Host 顯示為百分比到小數一位。
+每隊 correctRate 的分母是本題開始時的 totalCount，包含未作答；嚴格 > 0.5 才 isCorrect，50% 為 false，空隊為 0／false。
+
+Host／Control／Admin 收完整全場分布與五隊統計；Guest 僅收正解及自己的 teamResult（totalCount、correctCount、correctRate、isCorrect）。
+Guest 重連快照不含其他隊結果、options 分布或 results 歷史；只附自己的答案鎖與 answer，以及本隊關卡結算。
+等待、作答剩餘時間、統計、結算與衝刺皆由伺服器快照／題目恢復事件重建，不依賴 DOM。
+
+驗收需涵蓋所有等待 phase 重連、雙控制台競態、暫停／重置、0%、49%、50%、50.1%、51%、100%、空隊、全場分布守恆與 Guest 隔離。
+本版完整負載、公開 HTTPS、真實手機與場地投影須重新驗證；有日期的歷史壓測報告保持原始數據。
+
+純投影切換不增加 stateVersion。正式地圖 wedding-final-showdown 在儲存與開賽時必須剛好 15 題；其他題數需另建自訂地圖。推進缺少或畸形 requestId 回 INVALID_REQUEST_ID，不改變狀態。

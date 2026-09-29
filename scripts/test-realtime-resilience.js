@@ -1,4 +1,5 @@
 const assert = require('assert');
+const { randomUUID } = require('node:crypto');
 const { io } = require('socket.io-client');
 const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = require('../shared/events');
 
@@ -43,7 +44,7 @@ async function getStaffCookie() {
 
 function createSocket(auth = undefined, cookie = undefined) {
   const socket = io(SERVER_URL, {
-    auth,
+    auth: { role: 'guest', ...auth, protocolVersion: 2 },
     ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
     transports: ['websocket'],
     reconnection: true,
@@ -51,6 +52,20 @@ function createSocket(auth = undefined, cookie = undefined) {
     reconnectionDelay: 100,
     timeout: 5000
   });
+  let lastState = null;
+  socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, state => { lastState = state; });
+  const emit = socket.emit.bind(socket);
+  socket.emit = (event, data, ...args) => {
+    if (event === CLIENT_TO_SERVER.GUEST_TAP || event === CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER) {
+      data = {
+        requestId: randomUUID(),
+        runId: lastState?.runId,
+        stateVersion: lastState?.stateVersion,
+        ...data
+      };
+    }
+    return emit(event, data, ...args);
+  };
   sockets.push(socket);
   return socket;
 }
@@ -88,7 +103,7 @@ async function createGuest(index) {
 
 async function assertUnauthorizedHostIsRejected() {
   const socket = io(SERVER_URL, {
-    auth: { role: 'host' },
+    auth: { role: 'host', protocolVersion: 2 },
     transports: ['websocket'],
     reconnection: false,
     timeout: 3000
@@ -100,6 +115,21 @@ async function assertUnauthorizedHostIsRejected() {
 
 async function main() {
   console.log(`Realtime resilience test: ${SERVER_URL}, ${GUEST_COUNT} guests`);
+  const [guestPage, teamImage] = await Promise.all([
+    fetch(`${SERVER_URL}/guest/`),
+    fetch(`${SERVER_URL}/assets/heipi_cowboy_nobg.webp?v=1`)
+  ]);
+  assert.strictEqual(guestPage.status, 200);
+  assert.match(guestPage.headers.get('cache-control') || '', /no-cache/);
+  assert.strictEqual(teamImage.status, 200);
+  assert.match(teamImage.headers.get('cache-control') || '', /max-age=86400/);
+  console.log('PASS HTML revalidates while versioned static assets use a one-day cache');
+  const legacy = io(SERVER_URL, { transports: ['websocket'], reconnection: false, auth: { role: 'guest' } });
+  try {
+    const error = await waitForEvent(legacy, SERVER_TO_CLIENT.SYSTEM_ERROR, () => true, 5000);
+    assert.equal(error.code, 'PROTOCOL_MISMATCH');
+  } finally { legacy.disconnect(); }
+  console.log('PASS legacy protocol is rejected with an explicit refresh message');
   await assertUnauthorizedHostIsRejected();
   console.log('PASS staff socket rejects requests without a verified session');
 
@@ -194,15 +224,15 @@ async function main() {
   const firstGuest = guests[0];
   const firstQuizOptions = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data.quizId === 'wc_001');
   const hostQuiz = waitForEvent(host, SERVER_TO_CLIENT.GAME_QUIZ_START, data => data.quizId === 'wc_001');
-  admin.emit(CLIENT_TO_SERVER.ADMIN_FORCE_TRIGGER, {
-    type: 'QUIZ',
-    targetId: 'wc_001',
-    timeLimit: 8
-  });
+  const waiting = await waitForEvent(control, SERVER_TO_CLIENT.GAME_STATE_SYNC,
+    state => state.quizStage?.phase === 'awaiting_question');
+  control.emit(CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, { requestId: randomUUID(), runId: waiting.runId,
+    stageNumber: waiting.quizStage.stageNumber, flowRevision: waiting.quizStage.flowRevision });
   await Promise.all([firstQuizOptions, hostQuiz]);
 
   const answerAck = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
-  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A' });
+  const firstAnswerId = randomUUID();
+  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: firstAnswerId });
   assert.strictEqual((await answerAck).success, true);
 
   const oldSocketId = firstGuest.socket.id;
@@ -229,10 +259,16 @@ async function main() {
   });
   firstGuest.socket.io.engine.close();
   await reconnected;
-  await Promise.all([recoveredJoin, recoveredOptions]);
+  const [, restoredOptions] = await Promise.all([recoveredJoin, recoveredOptions]);
+  assert.equal(restoredOptions.alreadyAnswered, true);
+  assert.equal(restoredOptions.receipt.requestId, firstAnswerId);
+  assert.equal(restoredOptions.receipt.quizId, 'wc_001');
+  assert.equal(restoredOptions.receipt.answer, 'A');
 
   const duplicateAck = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
-  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A' });
+  const duplicateAnswerId = randomUUID();
+  assert.notStrictEqual(duplicateAnswerId, firstAnswerId);
+  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: duplicateAnswerId });
   const duplicate = await duplicateAck;
   assert.strictEqual(duplicate.success, false);
   assert.strictEqual(duplicate.reason, 'ALREADY_ANSWERED');

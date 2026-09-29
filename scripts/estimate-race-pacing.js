@@ -5,6 +5,7 @@ class MockIo {
 }
 
 function formatDuration(seconds) {
+  if (seconds === null) return 'manual host';
   const rounded = Math.round(seconds);
   const minutes = Math.floor(rounded / 60);
   const rest = rounded % 60;
@@ -53,7 +54,7 @@ function main() {
   const playerCounts = totals.length ? totals : [30, 50, 80, 100, 150, 200];
   const rows = playerCounts.map(count => estimate(count));
 
-  console.log('Assumptions: 18 questions in 6 groups; 8 sec tapping, 3 sec prepare, 3 x (10 sec answer + 2 sec reveal), 8 sec summary; final sprint 10 sec.');
+  console.log('Assumptions: 15 questions in 5 groups; 8 sec tapping, 10 sec per answer; manual start/reveal/summary; final sprint 10 sec.');
   console.log('');
   console.log('| Players | Per team | Auto track | Auto total | Fixed 76000 total | Questions |');
   console.log('|---:|---:|---:|---:|---:|---:|');

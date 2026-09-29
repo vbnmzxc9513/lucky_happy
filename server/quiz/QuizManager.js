@@ -210,6 +210,9 @@ class QuizManager {
       quizId: this.currentQuiz.id,
       correctAnswer: this.currentQuiz.correctAnswer,
       correctAnswerText: this.currentQuiz.correctAnswerText,
+      options: { ...this.currentQuiz.optionMap },
+      distribution: { totalPlayers: 0, answeredCount: 0, unansweredCount: 0, responseRate: 0,
+        options: Object.fromEntries(Object.keys(this.currentQuiz.optionMap).map(label => [label, { count: 0, answeredPercent: 0 }])) },
       teamResults: {}
     };
 
@@ -223,8 +226,13 @@ class QuizManager {
       const leaders = sortedVotes.filter(([, count]) => count === highestVotes);
       const hasTie = leaders.length > 1;
       const teamAnswer = !hasTie && leaders.length === 1 ? leaders[0][0] : null;
-      const isCorrect = teamAnswer === this.currentQuiz.correctAnswer;
       const correctCount = ans.votes[this.currentQuiz.correctAnswer] || 0;
+      const correctRate = ans.total > 0 ? correctCount / ans.total : 0;
+      const isCorrect = correctRate > 0.5;
+      const optionCounts = Object.fromEntries(Object.keys(this.currentQuiz.optionMap).map(label => [label, ans.votes[label] || 0]));
+      result.distribution.totalPlayers += ans.total;
+      result.distribution.answeredCount += ans.responded;
+      for (const [label, count] of Object.entries(optionCounts)) result.distribution.options[label].count += count;
       const effect = isCorrect
         ? { effect: 'large_boost', val: this.config.quizThresholds.LARGE_BOOST }
         : { effect: 'stun', val: this.config.stunDuration };
@@ -236,6 +244,8 @@ class QuizManager {
         voteCounts: { ...ans.votes },
         answeredCount: ans.responded,
         correctCount,
+        correctRate,
+        optionCounts,
         wrongCount: ans.responded - correctCount,
         teamWrongCount: ans.responded - correctCount + Math.max(0, ans.total - ans.responded),
         unansweredCount: Math.max(0, ans.total - ans.responded),
@@ -245,6 +255,12 @@ class QuizManager {
       };
     }
 
+    const distribution = result.distribution;
+    distribution.unansweredCount = distribution.totalPlayers - distribution.answeredCount;
+    distribution.responseRate = distribution.totalPlayers > 0 ? distribution.answeredCount / distribution.totalPlayers : 0;
+    for (const option of Object.values(distribution.options)) {
+      option.answeredPercent = distribution.answeredCount > 0 ? option.count / distribution.answeredCount : 0;
+    }
     this.currentQuiz = null;
     this.timeoutCallback = null;
     this.answerWindowOpenedAt = null;

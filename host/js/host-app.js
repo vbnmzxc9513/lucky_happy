@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function connectPrivilegedSocket(role) {
     if (typeof socket.connect !== 'function') return;
-    socket.auth = { role };
+    socket.auth = { ...socket.auth, role, protocolVersion: 2 };
     socket.connect();
   }
   
@@ -347,7 +347,29 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('主控端連線驗證失敗:', err.message);
     document.getElementById('game-state-label').innerText = '主持端驗證失敗，請回到工作人員選單重新輸入驗證碼。';
   });
+  let networkState = null, positionSequence = -1, clockOffset = -Infinity;
+  let lastPositionAt = performance.now(), lastSyncRequestAt = -Infinity;
+  const requestFreshState = () => {
+    const now = performance.now();
+    if (socket.connected && now - lastSyncRequestAt >= 1000) {
+      lastSyncRequestAt = now;
+      socket.emit('guest:sync');
+    }
+  };
   socket.on('disconnect', () => raceRenderer.disconnect?.());
+  const freshnessTimer = setInterval(() => {
+    if (networkState?.state === 'RACING' && !networkState.paused && performance.now() - lastPositionAt > 3000) {
+      raceRenderer.disconnect?.();
+      document.getElementById('game-state-label').innerText = '網路不穩，正在同步賽況';
+      requestFreshState();
+    }
+  }, 500);
+  window.addEventListener('pagehide', () => clearInterval(freshnessTimer));
+  window.addEventListener('pageshow', event => { if (event.persisted) window.location.reload(); });
+  socket.on(SERVER_TO_CLIENT.SYSTEM_ERROR, (error) => {
+    if (error?.code !== 'PROTOCOL_MISMATCH') return;
+    document.getElementById('game-state-label').innerText = '頁面版本已過期，請重新整理頁面。';
+  });
 
   socket.on('game:map_list', (list) => {
     currentMapList = list;
@@ -355,6 +377,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 2. 接收全量狀態同步
   socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, (state) => {
+    if (state.runId && Number.isFinite(state.serverNow)) {
+      if (networkState && state.serverNow < networkState.serverNow) return;
+      if (networkState?.runId === state.runId && state.stateVersion < networkState.stateVersion) return;
+      const now = performance.now();
+      clockOffset = Math.max(clockOffset, state.serverNow - now);
+      if (now + clockOffset - state.serverNow > 3000) { requestFreshState(); return; }
+      if (networkState?.runId !== state.runId || networkState?.stateVersion !== state.stateVersion) positionSequence = -1;
+      networkState = state;
+      lastPositionAt = now;
+    }
     console.log('狀態同步:', state);
     currentServerState = state.state;
     currentPresentation = state.presentation || currentPresentation;
@@ -366,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
     syncGameConfig(state.config);
     quizDisplay.paused = !!state.paused;
     stageDisplay?.sync(state);
-    if (state.quizStage?.phase === 'summary') quizDisplay.hide();
+    if (['summary', 'awaiting_question'].includes(state.quizStage?.phase)) quizDisplay.hide();
     if (state.quizStage?.phase === 'reveal' && state.quizStage.reveal) {
       quizDisplay.showResult(state.quizStage.reveal);
     }
@@ -515,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
     gameSound.play('sprint');
     showFinalSprint(data, true);
     const ticker = document.getElementById('ticker-text');
-    if (ticker) ticker.innerText = '終極衝刺！最後一分鐘，所有隊伍全力加速！';
+    if (ticker) ticker.innerText = '終極衝刺！最後 10 秒，所有隊伍全力加速！';
   });
 
   const joinedPlayersSet = new Set();
@@ -581,6 +613,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 4. 接收高頻位置更新 (30fps)
   socket.on(SERVER_TO_CLIENT.GAME_POSITION_UPDATE, (data) => {
     if (currentServerState !== 'RACING') return;
+    if (data.runId) {
+      const now = performance.now();
+      if (data.runId !== networkState?.runId || data.stateVersion !== networkState?.stateVersion || data.seq <= positionSequence) return;
+      clockOffset = Math.max(clockOffset, data.serverNow - now);
+      if (now + clockOffset - data.serverNow > 1000) { requestFreshState(); return; }
+      positionSequence = data.seq;
+      lastPositionAt = now;
+    }
     raceRenderer.updatePositions(data.teams);
     
     // 畫面糾正：若收到位置更新卻不在賽道畫面，強制拉回 (防止主持人誤觸跳離)

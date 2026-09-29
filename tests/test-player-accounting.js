@@ -18,6 +18,11 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
     const advance = ms => {
       for (let n = 0; n < ms; n += 50) t.mock.timers.tick(Math.min(50, ms - n));
     };
+    const next = () => {
+      check(game.advanceQuizFlow({ requestId: 'test-advance', runId: game.runId, stageNumber: game.quizStage.stageNumber,
+        flowRevision: game.quizStage.flowRevision }).success, true, 'manual advance');
+      advance(0); t.mock.timers.tick(0);
+    };
     const teams = ['red', 'blue', 'yellow', 'pink', 'purple'];
     const distance = Object.fromEntries(teams.map(id => [id, 10]));
     const players = Array.from({ length: count }, (_, i) => ({
@@ -65,7 +70,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
       check(game.startRound(), true, 'start');
       check(game.startRound(), false, 'duplicate start');
       advance(3000);
-      for (let stage = 0; stage < 6; stage++) {
+      for (let stage = 0; stage < 5; stage++) {
         check(game.quizStage.phase, 'tap', 'tap phase');
         const tapStart = Date.now();
         for (let batch = 0; batch < 21; batch++) {
@@ -79,7 +84,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
           }
         }
         advance(8000 - (Date.now() - tapStart));
-        advance(3000);
+        next();
         const stageCorrect = Object.fromEntries(teams.map(id => [id, 0]));
         for (let q = 0; q < 3; q++) {
           check(game.quizStage.phase, 'answer', 'question phase');
@@ -137,8 +142,8 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
           check(game.quizStage.phase, 'reveal', 'deadline');
           const result = game.quizStage.reveal;
           for (const tid of teams) {
-            const expectedCorrect = votes[tid].A > votes[tid].B;
-            check(result.teamResults[tid].isCorrect, expectedCorrect, `team plurality ${tid}`);
+            const expectedCorrect = votes[tid].A / (count / 5) > 0.5;
+            check(result.teamResults[tid].isCorrect, expectedCorrect, `team correct rate ${tid}`);
             check(result.teamResults[tid].answeredCount, votes[tid].A + votes[tid].B, 'vote conservation');
             check(result.teamResults[tid].correctCount, votes[tid].A, 'correct people per question');
             check(result.teamResults[tid].wrongCount, votes[tid].B, 'wrong people per question');
@@ -151,6 +156,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
           for (const p of players) answer(p, id, 'A', false);
           game.handleQuizResults(result);
           advance(6000);
+          next();
         }
         for (const tid of teams) {
           const reward = [0, 1500, 3000, 6000][stageCorrect[tid]];
@@ -162,6 +168,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
         }
         check(game.showStageSummary(game.flowToken), false, 'no second payout');
         advance(8000);
+        next();
       }
       advance(15000);
       check(game.state, 'MATCH_FINISHED', 'match completed');
@@ -169,7 +176,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
       check(awards.length, 4, 'four awards');
       for (const p of players) {
         verifyPlayer(p);
-        check(p.expected.unansweredCount + p.times.length, 18, 'all questions accounted');
+        check(p.expected.unansweredCount + p.times.length, 15, 'all questions accounted');
       }
       for (const [id, key, speed, positive] of [
         ['most-correct', 'correct', true, true], ['highest-clicks', 'taps', false, false],

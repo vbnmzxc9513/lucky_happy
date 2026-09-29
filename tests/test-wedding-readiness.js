@@ -38,17 +38,17 @@ function loadQuizCatalog() {
   return catalog;
 }
 
-test('Formal wedding map has 18 unique questions in six ordered groups', () => {
+test('Formal wedding map has 15 unique questions in five ordered groups', () => {
   const map = require('../data/maps/wedding-final-showdown.json');
   const quizzes = loadQuizCatalog();
   assert.strictEqual(config.totalRounds, 1);
-  assert.strictEqual(map.checkpoints.length, 18);
+  assert.strictEqual(map.checkpoints.length, 15);
   assert.deepStrictEqual(
     map.checkpoints.map(checkpoint => checkpoint.trigger.percent),
-    Array.from({ length: 18 }, (_, i) => Math.round((i + 1) * 100 / 19))
+    Array.from({ length: 15 }, (_, i) => Math.round((i + 1) * 100 / 19))
   );
-  assert.strictEqual(new Set(map.checkpoints.map(checkpoint => checkpoint.id)).size, 18);
-  assert.strictEqual(new Set(map.checkpoints.map(checkpoint => checkpoint.quizId)).size, 18);
+  assert.strictEqual(new Set(map.checkpoints.map(checkpoint => checkpoint.id)).size, 15);
+  assert.strictEqual(new Set(map.checkpoints.map(checkpoint => checkpoint.quizId)).size, 15);
 
   for (const checkpoint of map.checkpoints) {
     assert.strictEqual(checkpoint.trigger.type, 'team_progress');

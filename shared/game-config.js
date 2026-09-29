@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = {
       color: "red",
       hex: "#ef4444",
       slogan: "⚡ 西部狂野 奔馳無敵 ⚡",
-      imgPath: "/assets/heipi_cowboy_nobg.png",
+      imgPath: "/assets/heipi_cowboy_nobg.webp?v=1",
       runImgPath: "/assets/heipi_cowboy_run.png"
     },
     {
@@ -22,7 +22,7 @@ const DEFAULT_CONFIG = {
       color: "blue",
       hex: "#3b82f6",
       slogan: "💨 一飛沖天 直達雲端 💨",
-      imgPath: "/assets/heipi_balloon_nobg.png",
+      imgPath: "/assets/heipi_balloon_nobg.webp?v=1",
       runImgPath: "/assets/heipi_balloon_run.png"
     },
     {
@@ -31,7 +31,7 @@ const DEFAULT_CONFIG = {
       color: "yellow",
       hex: "#f59e0b",
       slogan: "🎂 慶祝派對 幸運滿分 🎂",
-      imgPath: "/assets/heipi_birthday_nobg.png",
+      imgPath: "/assets/heipi_birthday_nobg.webp?v=1",
       runImgPath: "/assets/heipi_birthday_run.png"
     },
     {
@@ -40,7 +40,7 @@ const DEFAULT_CONFIG = {
       color: "pink",
       hex: "#ec4899",
       slogan: "👑 閃亮登場 甜美致勝 👑",
-      imgPath: "/assets/heipi_pink_nobg.png",
+      imgPath: "/assets/heipi_pink_nobg.webp?v=1",
       runImgPath: "/assets/heipi_princess_run.png"
     },
     {
@@ -49,7 +49,7 @@ const DEFAULT_CONFIG = {
       color: "purple",
       hex: "#8b5cf6",
       slogan: "🌸 皇阿瑪駕到 所向披靡 🌸",
-      imgPath: "/assets/heipi_purple_nobg.png",
+      imgPath: "/assets/heipi_purple_nobg.webp?v=1",
       runImgPath: "/assets/heipi_gege_run.png"
     }
   ],
@@ -67,9 +67,9 @@ const DEFAULT_CONFIG = {
     enabled: true,
     questionsPerStage: 3,
     tapSeconds: 8,
-    prepareSeconds: 3,
-    revealSeconds: 6,
-    summarySeconds: 8,
+    prepareSeconds: 0,
+    manualAdvance: true,
+
     sprintSeconds: 10,
     rewardUnitPx: 1500,
     rewardSteps: [0, 1, 2, 4]
@@ -77,8 +77,8 @@ const DEFAULT_CONFIG = {
   shuttleRace: { legLength: 1500 },
   racePacing: {
     enabled: true,
-    targetGameSeconds: 415,
-    targetQuizCount: 18,
+    targetGameSeconds: null, // 正式模式總時間由主持停留時間決定
+    targetQuizCount: 15,
     expectedPlayers: 150,
     triggerFrequencyPercent: 9,
     expectedTapRatePerPlayer: 5,
@@ -97,7 +97,7 @@ const DEFAULT_CONFIG = {
     initialTeamSpeed: 10,
     checkpointCatchupBufferSeconds: 3
   },
-  
+
   // 答題正確率獎懲門檻
   quizThresholds: {
     HIGH_CORRECT: 0.7,         // >= 70% 衝刺加速

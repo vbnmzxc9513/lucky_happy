@@ -10,10 +10,13 @@ const { SERVER_TO_CLIENT } = require('../../shared/events');
 const DEFAULT_CONFIG = require('../../shared/game-config');
 const StagePlan = require('../../shared/stage-plan');
 const ShuttleRace = require('../../shared/shuttle-race');
+const { randomUUID } = require('node:crypto');
 
 class GameManager {
   constructor(io) {
     this.io = io;
+    this.runId = randomUUID();
+    this.stateVersion = 0;
     this.state = 'LOBBY'; // LOBBY -> MAP_SELECT -> ROUND_LOBBY -> COUNTDOWN -> RACING -> QUIZ -> ROUND_FINISHED -> MATCH_FINISHED
     this.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
     
@@ -78,7 +81,7 @@ class GameManager {
   emitPresentationUpdate() {
     const payload = this.getPresentationState();
     this.io.emit(SERVER_TO_CLIENT.GAME_PRESENTATION_UPDATED, payload);
-    this.broadcastStateSync();
+    this.broadcastStateSync(false);
     return payload;
   }
 
@@ -110,7 +113,9 @@ class GameManager {
     return true;
   }
 
-  broadcastStateSync() {
+  broadcastStateSync(advanceVersion = true) {
+    if (advanceVersion) this.stateVersion++;
+    if (this.delivery) return this.delivery.broadcastState();
     this.io.emit(SERVER_TO_CLIENT.GAME_STATE_SYNC, this.getGameState());
   }
 
@@ -118,23 +123,27 @@ class GameManager {
     const map = this.mapManager.getCurrentMap();
     const matchStatus = this.roundManager.getMatchStatus();
     return {
+      runId: this.runId,
+      stateVersion: this.stateVersion,
       state: this.state,
       roundStatus: matchStatus,
       finalWinner: this.state === 'MATCH_FINISHED' ? this.roundManager.getFinalWinner() : null,
       finalAwards: this.state === 'MATCH_FINISHED' ? this.buildFinalAwardsPayload() : null,
-      currentMap: {
+      mapError: map ? null : 'NO_MAP_AVAILABLE',
+      currentMap: map ? {
         id: map.id,
         name: map.name,
         trackLength: map.track ? map.track.length : 1000,
         checkpoints: map.checkpoints || []
-      },
+      } : null,
       teams: this.teamManager.getAllTeamsInfo(),
       activeItems: this.itemManager.getActiveItems(),
       players: Array.from(this.teamManager.players.values()).map(player => this.getPublicPlayer(player)),
       totalPlayers: this.teamManager.players.size,
       racePacing: this.lastRacePacing,
       quizStage: this.quizStage,
-      serverNow: this.isPaused ? this.pausedAt : Date.now(),
+      serverNow: Date.now(),
+      endsAt: this.quizStage?.endsAt || null,
       finalSprint: this.getFinalSprintState(),
       paused: this.isPaused,
       pausedAt: this.pausedAt,
@@ -179,7 +188,8 @@ class GameManager {
 
   setStagePhase(phase, seconds) {
     this.quizStage.phase = phase;
-    this.quizStage.endsAt = Date.now() + seconds * 1000;
+    this.quizStage.flowRevision = (this.quizStage.flowRevision || 0) + 1;
+    this.quizStage.endsAt = Number.isFinite(seconds) ? Date.now() + seconds * 1000 : null;
   }
 
   beginTapStage() {
@@ -206,7 +216,45 @@ class GameManager {
     if (!this.quizStage || this.quizStage.phase !== 'tap' || this.isPaused) return false;
     this.clearManagedTimeout('stage-tap');
     this.quizStage.questionNumber = 1;
-    return this.startStageQuestion();
+    this.stopLoop();
+    this.setStagePhase('awaiting_question');
+    this.setState('QUIZ');
+    return true;
+  }
+
+  advanceQuizFlow(data = {}) {
+    const reject = reason => ({ success: false, reason });
+    if (!data || typeof data.requestId !== 'string' || !/^[A-Za-z0-9_.:-]{1,100}$/.test(data.requestId)) return reject('INVALID_REQUEST_ID');
+    if (!data || data.runId !== this.runId) return reject('STALE_RUN');
+    if (this.isPaused) return reject('GAME_PAUSED');
+    const stage = this.quizStage;
+    if (!this.usesQuizStages() || this.state !== 'QUIZ' || !stage) return reject('INVALID_PHASE');
+    if (data.stageNumber !== stage.stageNumber || data.flowRevision !== stage.flowRevision) return reject('STALE_FLOW');
+    if (stage.phase === 'awaiting_question') this.startStageQuestion();
+    else if (stage.phase === 'reveal') {
+      if (stage.questionNumber < stage.questionsPerStage) {
+        stage.questionNumber++;
+        this.startStageQuestion();
+      } else this.showStageSummary(this.flowToken);
+    } else if (stage.phase === 'summary') {
+      if (stage.completedQuestions < this.stageQuestions.length) this.beginTapStage();
+      else this.beginStageSprint();
+    } else return reject('INVALID_PHASE');
+    return { success: true };
+  }
+
+  beginStageSprint() {
+    const token = this.flowToken;
+    const seconds = this.config.quizStages.sprintSeconds;
+    this.quizStage.summary = null;
+    this.setStagePhase('sprint', seconds);
+    this.hardFinishAt = this.quizStage.endsAt;
+    this.setState('RACING');
+    this.activateFinalSprint(token);
+    this.startLoop();
+    this.scheduleManagedTimeout('stage-finish', () => {
+      if (token === this.flowToken && this.state === 'RACING') this.finishRound(this.getDeadlineLeader(), 'stage_sprint');
+    }, seconds * 1000);
   }
 
   startStageQuestion() {
@@ -214,8 +262,7 @@ class GameManager {
     const cp = this.stageQuestions[stage.completedQuestions];
     if (!cp) return false;
     this.checkpointEngine.takeNextUntriggeredCheckpoint();
-    const prepare = stage.questionNumber === 1 ? this.config.quizStages.prepareSeconds : 0;
-    this.setStagePhase('prepare', prepare);
+    this.setStagePhase('prepare', 0);
     stage.reveal = null;
     return this.triggerQuiz(cp.quizId, cp.timeLimit, true);
   }
@@ -231,21 +278,16 @@ class GameManager {
       result.effect = 'stage_pending';
       result.val = 0;
     }
-    this.setStagePhase('reveal', settings.revealSeconds);
+    this.setStagePhase('reveal');
     this.broadcastStateSync();
-    this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, results);
-    this.scheduleManagedTimeout('quiz-result', () => {
-      if (token !== this.flowToken || this.state !== 'QUIZ') return;
-      if (stage.questionNumber < settings.questionsPerStage) {
-        stage.questionNumber++;
-        this.startStageQuestion();
-      } else this.showStageSummary(token);
-    }, settings.revealSeconds * 1000);
+    if (this.delivery) this.delivery.quizResult(results);
+    else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, results);
   }
 
   showStageSummary(token) {
     const stage = this.quizStage;
-    if (!stage || stage.phase !== 'reveal') return false;
+    if (token !== this.flowToken || this.isPaused || !stage || stage.phase !== 'reveal'
+      || stage.questionNumber !== stage.questionsPerStage) return false;
     const settings = this.config.quizStages;
     const teamResults = {};
     for (const [id, team] of Object.entries(this.teamManager.teams)) {
@@ -259,25 +301,8 @@ class GameManager {
     }
     stage.reveal = null;
     stage.summary = { stageNumber: stage.stageNumber, teamResults };
-    this.setStagePhase('summary', settings.summarySeconds);
+    this.setStagePhase('summary');
     this.broadcastStateSync();
-    this.scheduleManagedTimeout('stage-summary', () => {
-      if (token !== this.flowToken || this.state !== 'QUIZ') return;
-      if (stage.completedQuestions < this.stageQuestions.length) this.beginTapStage();
-      else {
-        stage.summary = null;
-        this.setStagePhase('sprint', settings.sprintSeconds);
-        this.hardFinishAt = stage.endsAt;
-        this.setState('RACING');
-        this.activateFinalSprint(token);
-        this.startLoop();
-        this.scheduleManagedTimeout('stage-finish', () => {
-          if (token === this.flowToken && this.state === 'RACING') {
-            this.finishRound(this.getDeadlineLeader(), 'stage_sprint');
-          }
-        }, settings.sprintSeconds * 1000);
-      }
-    }, settings.summarySeconds * 1000);
     return true;
   }
 
@@ -598,7 +623,7 @@ class GameManager {
         targetGameSeconds: plan.totalSeconds, targetRacingSeconds: plan.racingSeconds,
         estimatedSpeedPxPerSecond: Math.round(maxSpeed), fastestTeamSize: this.getCurrentFastestTeamSize(),
         totalPlayers: this.teamManager.players.size, quizCount: plan.questionCount,
-        stageCount: plan.stageCount, overheadSeconds: plan.totalSeconds - plan.racingSeconds
+        stageCount: plan.stageCount, timedSeconds: plan.timedSeconds, overheadSeconds: plan.timedSeconds - plan.racingSeconds
       };
     }
     const pacing = this.getRacePacingConfig();
@@ -675,8 +700,11 @@ class GameManager {
   // 主持人開始局
   startRound() {
     if (this.state !== 'LOBBY' && this.state !== 'ROUND_LOBBY' && this.state !== 'MAP_SELECT') return false;
+    const map = this.mapManager.getCurrentMap();
+    if (!map) return false;
     if (this.usesQuizStages()) {
-      const checkpoints = this.mapManager.getCurrentMap().checkpoints || [];
+      const checkpoints = map.checkpoints || [];
+      if (map.id === 'wedding-final-showdown' && checkpoints.length !== 15) return false;
       if (!checkpoints.length || checkpoints.length % this.config.quizStages.questionsPerStage !== 0
         || new Set(checkpoints.map(cp => cp.quizId)).size !== checkpoints.length
         || checkpoints.some(cp => !this.quizLoader.getQuizById(cp.quizId))) return false;
@@ -711,7 +739,6 @@ class GameManager {
       });
     }
 
-    const map = this.mapManager.getCurrentMap();
     this.applyRacePacing(map);
     console.log(`[GameManager] startRound. Map: ${map.name}, checkpoints: ${map.checkpoints ? map.checkpoints.length : 0}`);
     this.teamManager.resetRoundPositions();
@@ -801,14 +828,15 @@ class GameManager {
         isStunned: team.isStunned
       };
     }
-    this.io.emit(SERVER_TO_CLIENT.GAME_POSITION_UPDATE, { teams: teamsUpdate });
+    if (this.delivery) this.delivery.positions(teamsUpdate);
+    else this.io.emit(SERVER_TO_CLIENT.GAME_POSITION_UPDATE, { teams: teamsUpdate });
   }
 
   handleTap(socketId, timestamp) {
     const reject = (reason) => ({
       success: false,
       reason,
-      status: this.buildPlayerStatus(socketId)
+      status: this.buildTapStatus(socketId)
     });
     if (this.isPaused) return reject('GAME_PAUSED');
     if (this.state !== 'RACING') return reject('NOT_RACING');
@@ -841,7 +869,7 @@ class GameManager {
     team.speed += boost;
     this.checkpointEngine.recordTap();
     this.recordPlayerTap(socketId);
-    const status = this.buildPlayerStatus(socketId);
+    const status = this.buildTapStatus(socketId);
     return {
       success: true,
       critical,
@@ -856,10 +884,7 @@ class GameManager {
   triggerQuiz(quizId, timeLimit = null, stageContinuation = false) {
     if (this.isPaused) return false;
     if (this.usesQuizStages() && !stageContinuation) {
-      if (this.state !== 'RACING') return false;
-      const next = this.stageQuestions[this.quizStage?.completedQuestions];
-      if (quizId && quizId !== next?.quizId) return false;
-      return this.startStageQuestions();
+      return false;
     }
     if (this.state !== 'RACING' && !(stageContinuation && this.state === 'QUIZ')) return false;
     const flowToken = this.flowToken;
@@ -869,7 +894,7 @@ class GameManager {
 
     // 廣播 3 秒準備倒數
     const prepareSeconds = stageContinuation
-      ? (this.quizStage.questionNumber === 1 ? this.config.quizStages.prepareSeconds : 0)
+      ? 0
       : this.getQuizPrepareSeconds();
     this.pendingQuiz = {
       quizId,
@@ -908,19 +933,28 @@ class GameManager {
       }
 
       // 分屏廣播：Host 收到題目、選項與倒數
-      this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_START, {
+      const start = {
         quizId: qData.quizId,
         question: qData.question,
         options: qData.optionList || qData.options,
-        timeLimit: qData.timeLimit
-      });
+        timeLimit: qData.timeLimit,
+        ...this.delivery?.envelope(),
+        endsAt: this.quizManager.answerDeadlineAt
+      };
+      if (this.delivery) this.delivery.staff(SERVER_TO_CLIENT.GAME_QUIZ_START, start);
+      else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_START, start);
 
       // Guest 只收到選項 A/B/C/D 與倒數 (無題目文字)
-      this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, {
+      const options = {
+        alreadyAnswered: false,
         quizId: qData.quizId,
         options: qData.optionMap || qData.options,
-        timeLimit: qData.timeLimit
-      });
+        timeLimit: qData.timeLimit,
+        ...this.delivery?.envelope(),
+        endsAt: this.quizManager.answerDeadlineAt
+      };
+      if (this.delivery) this.io.to('role:guest').emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, options);
+      else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, options);
     }, prepareSeconds * 1000);
     return true;
   }
@@ -935,13 +969,15 @@ class GameManager {
     if (result && result.success) {
       this.recordPlayerQuizResult(socketId, result.isCorrect, result.answerTimeMs);
       if (result.teamProgress) {
-        this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PROGRESS, result.teamProgress);
+        if (this.delivery) this.delivery.scheduleProgress(result.teamProgress);
+        else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PROGRESS, result.teamProgress);
       }
     }
     return result;
   }
 
   handleQuizResults(results, flowToken = this.flowToken) {
+    this.delivery?.flushProgress();
     // 狀態防護：若已經被重置為 LOBBY，則忽略此結果
     if (this.state !== 'QUIZ') return;
 
@@ -961,7 +997,8 @@ class GameManager {
       return;
     }
 
-    this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, results);
+    if (this.delivery) this.delivery.quizResult(results);
+    else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, results);
 
     // 套用答題獎懲
     const teams = this.teamManager.teams;
@@ -1011,11 +1048,13 @@ class GameManager {
         this.presentation.awardIndex = 0;
         this.presentation.revealedAwardIndexes = [];
         this.setState('MATCH_FINISHED');
-        this.io.emit(SERVER_TO_CLIENT.GAME_MATCH_FINISHED, {
+        const finished = {
           finalWinner: this.roundManager.getFinalWinner(),
           matchStatus: this.roundManager.getMatchStatus(),
           finalAwards: this.buildFinalAwardsPayload()
-        });
+        };
+        if (this.delivery) this.delivery.matchFinished(finished);
+        else this.io.emit(SERVER_TO_CLIENT.GAME_MATCH_FINISHED, finished);
       }, this.getFinalTransitionSeconds() * 1000);
     } else {
       // 5 秒後自動進入下局的大廳 (ROUND_LOBBY)
@@ -1040,6 +1079,9 @@ class GameManager {
   }
 
   resetGame() {
+    this.delivery?.reset();
+    this.runId = randomUUID();
+    this.stateVersion = 0;
     this.flowToken++;
     this.stopLoop();
     this.clearAllManagedTimeouts();
@@ -1108,7 +1150,8 @@ class GameManager {
       };
     }
     this.broadcastStateSync();
-    this.io.emit(SERVER_TO_CLIENT.ADMIN_CONFIG_UPDATED, this.config);
+    if (this.delivery) this.delivery.staff(SERVER_TO_CLIENT.ADMIN_CONFIG_UPDATED, this.config);
+    else this.io.emit(SERVER_TO_CLIENT.ADMIN_CONFIG_UPDATED, this.config);
     return true;
   }
 
@@ -1258,6 +1301,13 @@ class GameManager {
     };
   }
 
+  buildTapStatus(socketId) {
+    const player = this.teamManager.getPlayer(socketId);
+    const count = this.playerStats.get(socketId)?.tapCount || 0;
+    return { joined: !!player, teamId: player?.teamId || null, tapCount: count,
+      nextCriticalIn: count % 20 === 0 ? 20 : 20 - count % 20 };
+  }
+
   emitPlayerStatus(socketId) {
     return this.emitToSocket(
       socketId,
@@ -1310,7 +1360,10 @@ class GameManager {
           quizId: activeQuiz.quizId,
           options: activeQuiz.optionMap,
           alreadyAnswered: this.quizManager.answeredSet.has(`${socket.id}:${activeQuiz.quizId}`),
+          receipt: this.delivery?.answerReceipts(socket.id).find(receipt => receipt.quizId === activeQuiz.quizId) || null,
           timeLimit: activeQuiz.timeLimit,
+          ...this.delivery?.envelope(),
+          endsAt: this.quizManager.answerDeadlineAt,
           recovered: true
         });
       }

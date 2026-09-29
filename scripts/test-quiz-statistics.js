@@ -1,0 +1,35 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const { JSDOM } = require('jsdom');
+const GameManager = require('../server/game/GameManager');
+const game = new GameManager({ emit() {} });
+game.quizManager.startQuiz('wc_001', { red: 2, blue: 4 });
+game.quizManager.handleAnswer('r', 'red', 'wc_001', game.quizManager.currentQuiz.correctAnswer);
+const result = game.quizManager.calculateResults();
+const host = new JSDOM(fs.readFileSync('host/index.html', 'utf8'), { runScripts: 'outside-only' });
+const guest = new JSDOM(fs.readFileSync('guest/index.html', 'utf8'), { runScripts: 'outside-only' });
+try {
+  host.window.GameConfig = game.config;
+  host.window.eval(fs.readFileSync('host/js/quiz-display.js', 'utf8'));
+  const display = new host.window.QuizDisplay();
+  display.showResult(result);
+  assert.equal(host.window.document.querySelectorAll('.statistics-option').length, 4);
+  assert.equal(host.window.document.querySelectorAll('.statistics-team').length, 5);
+  assert.ok(host.window.document.querySelector('.statistics-heading').textContent.includes('未作答 5'));
+  assert.ok(host.window.document.querySelector('.statistics-team').textContent.includes('未達 50%'));
+  display.showResult(result);
+  assert.equal(host.window.document.querySelectorAll('.quiz-statistics').length, 1);
+  display.showQuiz('Next', ['A', 'B'], 10);
+  assert.equal(host.window.document.querySelectorAll('.quiz-statistics').length, 0);
+  display.hide();
+  guest.window.eval(fs.readFileSync('guest/js/quiz-ui.js', 'utf8'));
+  const phone = new guest.window.QuizUI(() => true);
+  phone.showWaiting();
+  assert.ok(guest.window.document.getElementById('quiz-lock-msg').textContent.includes('等待主持人'));
+  phone.showTeamResult(result.teamResults.red, result);
+  const text = guest.window.document.getElementById('quiz-lock-msg').textContent;
+  assert.ok(text.includes('正確答案') && text.includes('1 / 2') && text.includes('50.0%'));
+  assert.ok(text.includes('未達 50%') && text.includes('等待主持人進入下一題'));
+  assert.ok([...guest.window.document.querySelectorAll('.opt-btn')].every(button => button.disabled));
+  console.log('PASS persistent host statistics and private guest result DOM');
+} finally { host.window.close(); guest.window.close(); game.resetGame(); }

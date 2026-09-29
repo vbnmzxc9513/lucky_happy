@@ -1,4 +1,5 @@
 const assert = require('assert');
+const { randomUUID } = require('node:crypto');
 const { io } = require('socket.io-client');
 const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = require('../shared/events');
 
@@ -41,13 +42,27 @@ async function getStaffCookie() {
 
 function createSocket(auth, cookie) {
   const socket = io(SERVER_URL, {
-    auth,
+    auth: { role: 'guest', ...auth, protocolVersion: 2 },
     ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
     transports: ['websocket'],
     reconnection: false,
     timeout: 5000,
     autoConnect: false
   });
+  let lastState = null;
+  socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, state => { lastState = state; });
+  const emit = socket.emit.bind(socket);
+  socket.emit = (event, data, ...args) => {
+    if (event === CLIENT_TO_SERVER.GUEST_TAP || event === CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER) {
+      data = {
+        requestId: randomUUID(),
+        runId: lastState?.runId,
+        stateVersion: lastState?.stateVersion,
+        ...data
+      };
+    }
+    return emit(event, data, ...args);
+  };
   sockets.push(socket);
   return socket;
 }
@@ -117,6 +132,7 @@ async function main() {
   const cookie = await getStaffCookie();
   const controlA = await connectRole('control', cookie);
   const controlB = await connectRole('control', cookie);
+  const projection = await connectRole('host', cookie);
   const admin = await connectRole('admin', cookie);
 
   try {
@@ -238,7 +254,7 @@ async function main() {
     assert.strictEqual(duplicateResume.success, false);
     console.log('PASS countdown pause/resume is idempotent across two control consoles');
 
-    await waitForEvent(controlA, SERVER_TO_CLIENT.GAME_STATE_SYNC, data => data.state === 'RACING', 7000);
+    await waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_STATE_SYNC, data => data.state === 'RACING', 7000);
     let lastTapResult = null;
     for (let index = 0; index < 20; index++) {
       const tapAck = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_TAP_ACK);
@@ -277,27 +293,29 @@ async function main() {
     )).success, true);
     console.log('PASS forced items work during racing and are rejected while paused');
 
-    const quizOptions = waitForEvent(
-      winnerGuest,
-      SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS,
-      data => data && data.quizId === 'wc_001',
-      10000
-    );
-    const quizResult = await sendControl(
-      controlA,
-      CLIENT_TO_SERVER.CONTROL_FORCE_QUIZ,
-      'FORCE_QUIZ',
-      { quizId: 'wc_001', timeLimit: 2 }
-    );
-    assert.strictEqual(quizResult.success, true);
-    assert.strictEqual(quizResult.state.state, 'QUIZ');
-    const overlappingQuiz = await sendControl(
-      controlB,
-      CLIENT_TO_SERVER.CONTROL_FORCE_QUIZ,
-      'FORCE_QUIZ',
-      { quizId: 'wc_002', timeLimit: 2 }
-    );
+    const waiting = await waitForEvent(controlA, SERVER_TO_CLIENT.GAME_STATE_SYNC,
+      data => data.quizStage?.phase === 'awaiting_question', 10000);
+    const advanceData = { runId: waiting.runId, stageNumber: waiting.quizStage.stageNumber,
+      flowRevision: waiting.quizStage.flowRevision, requestId: randomUUID() };
+    for (const socket of [projection, winnerGuest]) {
+      const rejected = await sendControl(socket, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', advanceData);
+      assert.strictEqual(rejected.reason, 'FORBIDDEN');
+      assert.strictEqual(rejected.state, undefined);
+    }
+    await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_PAUSE_GAME, 'PAUSE_GAME');
+    const pausedAdvance = await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', advanceData);
+    assert.strictEqual(pausedAdvance.reason, 'GAME_PAUSED');
+    await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_RESUME_GAME, 'RESUME_GAME');
+    const quizOptions = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS,
+      data => data?.quizId === 'wc_001');
+    const advanceResults = await Promise.all([controlA, controlB].map(socket =>
+      sendControl(socket, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', advanceData)));
+    assert.strictEqual(advanceResults.filter(result => result.success).length, 1);
+    assert.strictEqual(advanceResults.find(result => !result.success).reason, 'STALE_FLOW');
+    const overlappingQuiz = await sendControl(controlB, CLIENT_TO_SERVER.CONTROL_FORCE_QUIZ,
+      'FORCE_QUIZ', { quizId: 'wc_002' });
     assert.strictEqual(overlappingQuiz.success, false);
+    console.log('PASS legal manual advance, role isolation, paused rejection and concurrent controls');
     const pausedQuiz = await sendControl(
       controlA,
       CLIENT_TO_SERVER.CONTROL_PAUSE_GAME,
@@ -323,10 +341,13 @@ async function main() {
     await quizOptions;
 
     const answerAck = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
-    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A' });
+    const firstAnswerId = randomUUID();
+    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: firstAnswerId });
     assert.strictEqual((await answerAck).success, true);
     const duplicateAnswerAck = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
-    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A' });
+    const duplicateAnswerId = randomUUID();
+    assert.notStrictEqual(duplicateAnswerId, firstAnswerId);
+    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: duplicateAnswerId });
     const duplicateAnswer = await duplicateAnswerAck;
     assert.strictEqual(duplicateAnswer.success, false);
     assert.strictEqual(duplicateAnswer.reason, 'ALREADY_ANSWERED');
@@ -343,7 +364,10 @@ async function main() {
     assert.strictEqual(finalReset.success, true);
     assert.strictEqual(finalReset.state.state, 'LOBBY');
     assert.strictEqual(finalReset.state.totalPlayers, 0);
-    await sleep(6500);
+    const staleAdvance = await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW,
+      'ADVANCE_QUIZ_FLOW', advanceData);
+    assert.strictEqual(staleAdvance.reason, 'STALE_RUN');
+    await sleep(11000);
     controlA.off(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, ghostCounter);
     assert.strictEqual(ghostQuizResults, 0);
     const healthResponse = await fetch(`${SERVER_URL}/healthz`, { cache: 'no-store' });

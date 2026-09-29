@@ -2,17 +2,13 @@
  * 手機賓客端主程式：管理登入、選隊、點擊與分屏答題
  */
 document.addEventListener('DOMContentLoaded', () => {
-  const socket = io();
+  const socket = io({ auth: { protocolVersion: 2 }, reconnectionDelay: 500,
+    reconnectionDelayMax: 5000, randomizationFactor: 0.5 });
   const stageDisplay = window.StageDisplay ? new window.StageDisplay('guest') : null;
   const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = window.GameEvents;
 
   const SESSION_STORAGE_KEY = 'luckyHorseGuestSessionV1';
-  const createSessionId = () => {
-    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-      return window.crypto.randomUUID();
-    }
-    return `guest_${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
-  };
+  const createSessionId = window.GameClientId.create;
   const loadSavedPlayer = () => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(SESSION_STORAGE_KEY) || 'null');
@@ -53,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const emitJoin = (allowUnjoined = false) => {
-    if ((!myPlayerInfo.isJoined && !allowUnjoined) || !myPlayerInfo.nickname || registrationPending) return;
+    if (!socket.connected || (!myPlayerInfo.isJoined && !allowUnjoined) || !myPlayerInfo.nickname || registrationPending) return;
     registrationPending = true;
     setJoinPending(true);
     socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, {
@@ -65,12 +61,60 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const tapHandler = new window.TapHandler((timestamp) => {
-    socket.emit(CLIENT_TO_SERVER.GUEST_TAP, { timestamp });
-  });
+    return network.tap(timestamp);
+  }, () => network.canTap());
 
   const quizUI = new window.QuizUI((answer) => {
-    socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: window.currentQuizId, answer });
+    return network.answer(answer);
   });
+
+  let networkUiFrame = null;
+  let renderedNetworkStatus;
+  let renderedCanTap;
+  let renderedCanAnswer;
+  const renderNetworkUi = () => {
+    networkUiFrame = null;
+    const status = network.status();
+    if (status !== renderedNetworkStatus) {
+      renderedNetworkStatus = status;
+      const banner = document.getElementById('network-status');
+      if (banner) {
+        banner.hidden = status === 'online';
+        banner.textContent = { offline: '連線中，請稍候', recovering: '正在同步遊戲',
+          stale: '網路不穩，正在同步', protocol: '遊戲已更新，請重新整理頁面' }[status] || '';
+      }
+    }
+    const canTap = network.canTap();
+    if (canTap !== renderedCanTap) {
+      renderedCanTap = canTap;
+      tapHandler.setEnabled?.(canTap);
+    }
+    const canAnswer = network.canAnswer();
+    if (canAnswer !== renderedCanAnswer) {
+      renderedCanAnswer = canAnswer;
+      document.querySelectorAll('.opt-btn').forEach(button => { button.disabled = !canAnswer; });
+    }
+  };
+  const scheduleNetworkUi = () => {
+    if (networkUiFrame !== null) return;
+    networkUiFrame = window.requestAnimationFrame
+      ? window.requestAnimationFrame(renderNetworkUi) : window.setTimeout(renderNetworkUi, 0);
+  };
+  const network = new window.GuestNetwork({ socket, requestId: createSessionId, onChange: scheduleNetworkUi });
+  const networkTimer = setInterval(() => network.tick(), 200);
+  window.addEventListener('pagehide', () => {
+    clearInterval(networkTimer);
+    network.disconnect();
+    if (networkUiFrame !== null) {
+      if (window.cancelAnimationFrame) window.cancelAnimationFrame(networkUiFrame);
+      else clearTimeout(networkUiFrame);
+      networkUiFrame = null;
+    }
+  });
+  window.addEventListener('pageshow', event => { if (event.persisted) window.location.reload(); });
+  socket.on('disconnect', () => { registrationPending = false; network.disconnect(); });
+  socket.on('connect_error', () => network.disconnect());
+  socket.on('game:heartbeat', data => network.heartbeat(data));
 
   // 畫面切換
   const showScreen = (screenId) => {
@@ -95,6 +139,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const updatePlayerStatus = (status) => {
     if (!status) return;
+    const setText = (element, value) => {
+      if (element && element.textContent !== value) element.textContent = value;
+    };
     const tapCount = Number(status.tapCount || 0);
     const rank = status.teamRank ? `第 ${status.teamRank}` : '--';
     const progress = Math.min(100, Math.max(0, Number(status.teamProgressPercent || 0)));
@@ -104,13 +151,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressEl = document.getElementById('my-team-progress');
     const criticalEl = document.getElementById('next-critical-count');
     const criticalFill = document.getElementById('critical-progress-fill');
-    if (tapEl) tapEl.innerText = tapCount.toLocaleString('zh-TW');
-    if (rankEl) rankEl.innerText = rank;
-    if (progressEl) progressEl.innerText = status.teamShuttle
-      ? `${status.teamShuttle.laps} 圈 · ${Math.floor(status.teamShuttle.progress)}%` : `${progress.toFixed(0)}%`;
-    if (criticalEl) criticalEl.innerText = nextCritical;
-    if (criticalFill) criticalFill.style.width = `${(tapCount % 20) / 20 * 100}%`;
-    showPauseOverlay(!!status.paused);
+    setText(tapEl, tapCount.toLocaleString('zh-TW'));
+    if ('teamRank' in status) setText(rankEl, rank);
+    if ('teamShuttle' in status || 'teamProgressPercent' in status) setText(progressEl, status.teamShuttle
+      ? `${status.teamShuttle.laps} 圈 · ${Math.floor(status.teamShuttle.progress)}%` : `${progress.toFixed(0)}%`);
+    setText(criticalEl, String(nextCritical));
+    if (criticalFill) {
+      const width = `${(tapCount % 20) / 20 * 100}%`;
+      if (criticalFill.style.width !== width) criticalFill.style.width = width;
+    }
+    if ('paused' in status) showPauseOverlay(!!status.paused);
   };
 
   const hideFinalSprint = () => {
@@ -188,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         card.innerHTML = `
             <div class="choice-card-header">
-                <img src="${team.imgPath}" alt="${team.name}" class="choice-dog-img">
+                <img src="${team.imgPath}" alt="${team.name}" class="choice-dog-img" loading="lazy" decoding="async">
                 <div class="choice-title-wrap">
                     <h3>${team.name}</h3>
                     <div class="choice-slogan">${team.slogan}</div>
@@ -201,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         
         card.onclick = () => {
+          if (!network.ready()) return;
           if (card.classList.contains('is-full') && myPlayerInfo.teamId !== team.id) {
             showTeamSelectMessage(`${team.name} 已達 ${maxMembers} 人上限，請選擇其他隊伍。`);
             return;
@@ -228,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- WebSocket 事件聽取 ---
   socket.on('connect', () => {
+    network.connect(myPlayerInfo.isJoined);
     console.log('連線成功:', socket.id);
     // 斷線重連機制 (Auto-Healing)
     if (myPlayerInfo.isJoined) {
@@ -241,6 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     registrationPending = false;
     setJoinPending(false);
     if (data && data.success) {
+      network.identityRestored();
       myPlayerInfo.isJoined = true;
       if (data.teamId) myPlayerInfo.teamId = data.teamId;
       persistPlayer();
@@ -270,14 +323,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, (state) => {
+    if (!network.applySnapshot(state)) return;
+    updatePlayerStatus(state.self);
     currentGameState = state.state;
     syncGameConfig(state.config);
     quizUI.paused = !!state.paused;
-    stageDisplay?.sync(state, myPlayerInfo.teamId);
+    stageDisplay?.sync(myPlayerInfo.isJoined && state.self.joined ? state : { ...state, quizStage: null }, myPlayerInfo.teamId);
     if (state.quizStage?.phase === 'summary') quizUI.disableAll();
+    if (state.quizStage?.phase === 'awaiting_question') quizUI.showWaiting();
     if (state.quizStage?.phase === 'reveal') {
       quizUI.disableAll();
-      quizUI.showTeamResult(state.quizStage.reveal?.teamResults[myPlayerInfo.teamId]);
+      quizUI.showTeamResult(state.quizStage.reveal?.teamResult, state.quizStage.reveal);
+      if (state.quizStage.reveal?.answer) {
+        document.querySelectorAll('.opt-btn').forEach(button => button.classList.toggle('selected', button.dataset.opt === state.quizStage.reveal.answer));
+      }
     }
     showPauseOverlay(!!state.paused);
     if (state.finalSprint && state.finalSprint.active) {
@@ -294,9 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (currentGameState === 'LOBBY' || currentGameState === 'MAP_SELECT' || currentGameState === 'ROUND_LOBBY') {
-      const registeredOnServer = Array.isArray(state.players)
-        ? state.players.some(player => player && player.socketId === socket.id)
-        : true;
+      const registeredOnServer = state.self.joined;
       if (myPlayerInfo.isJoined && !registeredOnServer && !registrationPending) {
         emitJoin();
       }
@@ -306,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('screen-login');
       }
     } else if (currentGameState === 'COUNTDOWN' || currentGameState === 'RACING' || currentGameState === 'QUIZ') {
-      if (myPlayerInfo.teamId) {
+      if (myPlayerInfo.isJoined && myPlayerInfo.teamId) {
         if (currentGameState === 'QUIZ') {
           showScreen('screen-quiz'); // 若在答題中重連，強制切換至答題畫面
         } else {
@@ -407,6 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_TAP_ACK, (result) => {
+    if (!network.tapAck(result)) return;
     tapHandler.showAckFeedback(result);
     if (result && result.status) updatePlayerStatus(result.status);
   });
@@ -416,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on(SERVER_TO_CLIENT.GAME_RESUMED, () => showPauseOverlay(false));
 
   socket.on(SERVER_TO_CLIENT.SYSTEM_ERROR, (err) => {
+    if (err.code === 'PROTOCOL_MISMATCH') { network.protocolError(); return; }
     registrationPending = false;
     setJoinPending(false);
     alert('⚠️ 系統提示：' + (err.message || '操作發生錯誤'));
@@ -456,14 +515,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 高頻位置更新中檢查自己隊伍是否暈眩
   socket.on(SERVER_TO_CLIENT.GAME_POSITION_UPDATE, (data) => {
-    if (!myPlayerInfo.teamId || !data.teams) return;
-    const myTeamData = data.teams[myPlayerInfo.teamId];
+    if (!network.position(data)) return;
+    if (!myPlayerInfo.teamId) return;
+    const myTeamData = data.self?.teamId === myPlayerInfo.teamId ? data.self : data.teams?.[myPlayerInfo.teamId];
     if (myTeamData) {
       tapHandler.setStunned(myTeamData.isStunned);
       if (window.ShuttleRace?.enabled(window.GameConfig)) {
         const distance = window.ShuttleRace.measure(myTeamData.position, window.GameConfig);
         document.getElementById('my-team-progress').textContent = `${distance.laps} 圈 · ${Math.floor(distance.progress)}%`;
-        document.getElementById('my-team-rank').textContent = `第 ${window.ShuttleRace.rank(data.teams)[myPlayerInfo.teamId]}`;
+        const rank = data.self?.teamRank ?? window.ShuttleRace.rank(data.teams)[myPlayerInfo.teamId];
+        document.getElementById('my-team-rank').textContent = `第 ${rank}`;
       }
     }
   });
@@ -478,28 +539,30 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, (data) => {
+    if (!network.applyOptions(data)) return;
     window.currentQuizId = data.quizId;
     if (myPlayerInfo.isJoined) {
       showScreen('screen-quiz');
     }
     quizUI.showOptions(data.options, data.timeLimit);
-    if (data.alreadyAnswered) {
+    if (data.alreadyAnswered || network.submission) {
       quizUI.isAnswered = true;
       quizUI.disableAll();
       const message = document.getElementById('quiz-lock-msg');
       message.style.display = 'block';
-      message.innerText = '本題已作答，答案已保留';
+      message.innerText = network.submission?.state === 'pending'
+        ? '答案傳送中，等待確認' : '本題已作答，答案已保留';
     }
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK, (result) => {
+    if (!network.answerAck(result)) return;
     quizUI.showAnswerAck(result);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, (data) => {
-    quizUI.stopTimer();
-    const teamResult = data && data.teamResults ? data.teamResults[myPlayerInfo.teamId] : null;
-    quizUI.showTeamResult(teamResult);
+    if (!network.acceptCurrent(data) || !myPlayerInfo.isJoined) return;
+    quizUI.showTeamResult(data.teamResult, data);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_ROUND_FINISHED, () => {

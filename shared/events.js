@@ -8,6 +8,7 @@ const CLIENT_TO_SERVER = {
   GUEST_CHOOSE_TEAM: 'guest:choose_team',
   GUEST_TAP: 'guest:tap',
   GUEST_QUIZ_ANSWER: 'guest:quiz_answer',
+  GUEST_SYNC: 'guest:sync',
   HOST_SELECT_MAP: 'host:select_map',
   HOST_START_ROUND: 'host:start_round',
   HOST_PAUSE_GAME: 'host:pause_game',
@@ -17,6 +18,7 @@ const CLIENT_TO_SERVER = {
   CONTROL_SET_PRESENTATION: 'control:set_presentation',
   CONTROL_SELECT_MAP: 'control:select_map',
   CONTROL_START_ROUND: 'control:start_round',
+  CONTROL_ADVANCE_QUIZ_FLOW: 'control:advance_quiz_flow',
   CONTROL_PAUSE_GAME: 'control:pause_game',
   CONTROL_RESUME_GAME: 'control:resume_game',
   CONTROL_RESET_GAME: 'control:reset_game',
@@ -34,6 +36,7 @@ const CLIENT_TO_SERVER = {
 
 const SERVER_TO_CLIENT = {
   GAME_STATE_SYNC: 'game:state_sync',
+  GAME_HEARTBEAT: 'game:heartbeat',
   GAME_POSITION_UPDATE: 'game:position_update',
   GAME_TEAM_UPDATED: 'game:team_updated',
   GAME_QUIZ_PREPARE: 'game:quiz_prepare',   // 賽前 3 秒倒數

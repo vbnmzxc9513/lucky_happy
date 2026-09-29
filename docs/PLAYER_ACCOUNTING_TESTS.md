@@ -12,7 +12,7 @@ critical taps, answered/correct/wrong counts and answer latency. Expectations
 come from the action schedule rather than copying server counters.
 
 After each question, compare server counters with the independent ledger.
-After each stage, check majority results and reward distance. At completion,
+After each stage, check strict > 50% correct-rate results and reward distance. At completion,
 compare the full individual award rankings and winners, not only the number
 of awards. Check reset removes players, statistics and pending game flow.
 
@@ -23,11 +23,12 @@ Accounting rules:
 - Team display counts skipping as wrong: correctCount plus teamWrongCount equals
   the question's team size. unansweredCount is a subset of teamWrongCount;
   wrongCount still represents submitted incorrect answers for reconciliation.
-- Accepted answers plus skipped questions equals 18 for these full-match participants.
+- Accepted answers plus skipped questions equals 15 for these full-match participants.
 - Rejected, duplicate, invalid, expired and paused answers must not alter statistics.
 - Reconnecting retains identity and the answer lock, without duplicating statistics.
 - Answer latency excludes paused time.
-- Team answers use submitted votes; ties and no votes are incorrect for the team.
+- Team correctness uses correctCount / team size captured at question start, strictly > 0.5.
+  Unanswered players stay in the denominator; exactly 50% and empty teams are incorrect.
 - Stage rewards for 0/1/2/3 correct answers are 0/1500/3000/6000 distance, paid once.
 - Individual correct/wrong ties use average latency across all accepted answers,
   then join time. Skippers cannot win the wrong-answer award.
@@ -40,7 +41,8 @@ Accounting rules:
 | Mixed | 190 | Same independent accounting at larger player count |
 | Silent | 150 | No accepted taps or answers; no fictitious correct/wrong winner |
 
-All scenarios execute six tap stages, 18 answers/reveals, six settlements,
+Tests explicitly advance each waiting phase using the authoritative Control command.
+All scenarios execute five tap stages, 15 answers/reveals, five settlements,
 final sprint, four awards and reset. Mixed scenarios reconnect players after
 an accepted answer and attempt another answer from both old and new sockets.
 

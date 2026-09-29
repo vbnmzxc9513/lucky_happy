@@ -6,10 +6,8 @@
     const answerSeconds = checkpoints.reduce((sum, cp) => sum + Math.max(1, Math.min(60,
       Number(cp.timeLimit) || config.quizTimeLimit || 10)), 0);
     const racingSeconds = stageCount * stages.tapSeconds + stages.sprintSeconds;
-    const totalSeconds = (config.countdownSeconds || 0) + racingSeconds + answerSeconds
-      + questionCount * stages.revealSeconds
-      + stageCount * (stages.prepareSeconds + stages.summarySeconds);
-    return { questionCount, stageCount, answerSeconds, racingSeconds, totalSeconds };
+    const timedSeconds = (config.countdownSeconds || 0) + racingSeconds + answerSeconds;
+    return { questionCount, stageCount, answerSeconds, racingSeconds, timedSeconds, totalSeconds: null, manualAdvance: true };
   }
   const api = { estimate };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

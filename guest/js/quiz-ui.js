@@ -100,6 +100,7 @@ class QuizUI {
   }
 
   selectOption(optStr, btnEl) {
+    if (this.onAnswerCallback && this.onAnswerCallback(optStr) === false) return;
     this.isAnswered = true;
     this.disableAll();
     if (btnEl) btnEl.classList.add('selected');
@@ -107,12 +108,9 @@ class QuizUI {
     const lockMsg = document.getElementById('quiz-lock-msg');
     if (lockMsg) {
       lockMsg.style.display = 'block';
-      lockMsg.innerText = '🔒 答案已鎖定送出';
+      lockMsg.innerText = '答案傳送中，等待確認';
     }
 
-    if (this.onAnswerCallback) {
-      this.onAnswerCallback(optStr);
-    }
   }
 
   showAnswerAck(result) {
@@ -131,11 +129,18 @@ class QuizUI {
 
     lockMsg.classList.add(result.isCorrect ? 'is-correct' : 'is-wrong');
     lockMsg.innerHTML = result.isCorrect
-      ? '<strong>答對了！</strong><span>漂亮命中，等待隊伍多數決</span>'
-      : '<strong>差一點！</strong><span>答案已計入隊伍多數決</span>';
+      ? '<strong>答對了！</strong><span>漂亮命中，等待隊伍答對率結算</span>'
+      : '<strong>差一點！</strong><span>答案已鎖定，等待統計</span>';
   }
 
-  showTeamResult(teamResult) {
+  showWaiting() {
+    this.stopTimer(); this.disableAll();
+    document.getElementById('mobile-quiz-timer').innerText = '—';
+    const message = document.getElementById('quiz-lock-msg');
+    message.style.display = 'block'; message.textContent = '等待主持人開始本題';
+  }
+
+  showTeamResult(teamResult, result = {}) {
     this.disableAll();
     this.stopTimer();
     const lockMsg = document.getElementById('quiz-lock-msg');
@@ -143,15 +148,11 @@ class QuizUI {
     lockMsg.classList.remove('is-correct', 'is-wrong');
     lockMsg.classList.add(teamResult.isCorrect ? 'is-correct' : 'is-wrong');
     lockMsg.style.display = 'block';
-    if (teamResult.noAnswer) {
-      lockMsg.innerHTML = '<strong>本隊未作答</strong><span>這題沒有形成隊伍答案</span>';
-    } else if (teamResult.hasTie) {
-      lockMsg.innerHTML = '<strong>隊內票數平手</strong><span>這題沒有形成唯一答案</span>';
-    } else {
-      lockMsg.innerHTML = teamResult.isCorrect
-        ? `<strong>隊伍答對！</strong><span>${teamResult.effect === 'stage_pending' ? '本關累積一題，三題後一起領獎勵' : '多數決成功，獲得大幅加速'}</span>`
-        : `<strong>隊伍答錯</strong><span>多數選擇 ${teamResult.teamAnswer || '--'}</span>`;
-    }
+    this.isAnswered = true;
+    document.getElementById('mobile-quiz-timer').innerText = '—';
+    lockMsg.textContent = `正確答案：${result.correctAnswer || ''} ${result.correctAnswerText || ''}\n`
+      + `本隊答對 ${teamResult.correctCount} / ${teamResult.totalCount} 人（${(teamResult.correctRate * 100).toFixed(1)}%）\n`
+      + `${teamResult.isCorrect ? '本題答對（超過 50%）' : '未達 50%（須嚴格大於 50%）'}\n等待主持人進入下一題`;
   }
 
   disableAll() {

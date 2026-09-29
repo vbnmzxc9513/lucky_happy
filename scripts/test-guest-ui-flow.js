@@ -14,18 +14,7 @@ const dom = new JSDOM(htmlContent, {
   runScripts: "outside-only"
 });
 
-dom.window.GameEvents = {
-  CLIENT_TO_SERVER: { GUEST_JOIN: 'guest:join', GUEST_CHOOSE_TEAM: 'guest:choose_team', GUEST_TAP: 'guest:tap', GUEST_QUIZ_ANSWER: 'guest:quiz_answer' },
-  SERVER_TO_CLIENT: {
-    GAME_STATE_SYNC: 'game:state_sync',
-    GAME_TEAM_UPDATED: 'game:team_updated',
-    GUEST_JOIN_ACK: 'guest:join_ack',
-    SYSTEM_ERROR: 'system:error',
-    GAME_JOIN_LOCKED: 'game:join_locked',
-    GAME_TEAM_FULL: 'game:team_full',
-    GAME_FINAL_SPRINT: 'game:final_sprint'
-  }
-};
+dom.window.GameEvents = require('../shared/events');
 dom.window.GameConfig = {
   TEAMS: [
     { id: 'red', name: 'Red Team', color: 'red' },
@@ -33,15 +22,24 @@ dom.window.GameConfig = {
   ]
 };
 dom.window.TapHandler = class { init() {} stop() {} };
-dom.window.QuizUI = class { init() {} showOptions() {} hide() {} };
+dom.window.eval(fs.readFileSync(path.join(__dirname, '../guest/js/quiz-ui.js'), 'utf8'));
+dom.window.scrollTo = () => {};
 dom.window.alert = () => {};
+dom.window.eval(fs.readFileSync(path.join(__dirname, '../guest/js/guest-network.js'), 'utf8'));
+dom.window.eval(fs.readFileSync(path.join(__dirname, '../shared/client-id.js'), 'utf8'));
 dom.window.io = () => {
   const socket = {
     handlers: {},
     id: "guest-socket-123",
+    connected: true,
     on(event, cb) { this.handlers[event] = cb; },
     emit(event, data) { console.log(`[Mock Socket Emit] ${event}`, data); },
-    trigger(event, data) { if (this.handlers[event]) this.handlers[event](data); }
+    trigger(event, data) {
+      if (event === 'game:state_sync') data = { runId: 'test-run', stateVersion: 1,
+        serverNow: Date.now(), paused: false, endsAt: Date.now() + 10000,
+        self: { joined: true, teamId: 'red', tapCount: 0 }, ...data };
+      if (this.handlers[event]) this.handlers[event](data);
+    }
   };
   dom.window.mockSocket = socket;
   return socket;
@@ -69,6 +67,7 @@ function assertActiveScreen(expectedId) {
 function runTests() {
   const socket = dom.window.mockSocket;
   if (!socket) { console.error("Mock socket not found!"); process.exit(1); }
+  socket.trigger('connect');
 
   console.log("\n--- TEST 1: Initial Sync (LOBBY) ---");
   socket.trigger('game:state_sync', { state: 'LOBBY', teams: [] });
@@ -148,6 +147,32 @@ function runTests() {
   console.log("\n--- TEST 8: Next Round Start ---");
   socket.trigger('game:state_sync', { state: 'COUNTDOWN', teams: [] });
   assertActiveScreen('screen-racing');
+
+  console.log("\n--- TEST 9: Final authoritative count survives a delayed ACK ---");
+  socket.trigger('game:state_sync', { state: 'MATCH_FINISHED', stateVersion: 2,
+    self: { joined: true, teamId: 'red', tapCount: 31 }, teams: [] });
+  assertActiveScreen('screen-waiting');
+  if (dom.window.document.getElementById('my-tap-count').textContent !== '31') {
+    console.error('Final server snapshot must replace the last acknowledged tap count.');
+    process.exit(1);
+  }
+
+  const assert = require('node:assert/strict');
+  for (const phase of ['awaiting_question', 'reveal', 'summary', 'answer']) {
+    socket.trigger('game:state_sync', { state: 'QUIZ', stateVersion: 3, teams: [], quizStage: {
+      phase, stageNumber: 1, stageCount: 5, questionNumber: 3, endsAt: null,
+      reveal: { correctAnswer: 'A', correctAnswerText: '正解', alreadyAnswered: true, answer: 'B',
+        teamResult: { totalCount: 10, correctCount: 5, correctRate: .5, isCorrect: false } }
+    } });
+    assertActiveScreen('screen-quiz');
+    if (phase === 'reveal') {
+      const text = dom.window.document.getElementById('quiz-lock-msg').textContent;
+      assert.ok(text.includes('5 / 10') && text.includes('50.0%') && text.includes('未達 50%'));
+      assert.ok(text.includes('等待主持人進入下一題'));
+      assert.ok(dom.window.document.querySelector('[data-opt="B"]').classList.contains('selected'));
+      assert.ok([...dom.window.document.querySelectorAll('.opt-btn')].every(button => button.disabled));
+    }
+  }
 
   console.log("\n🎉 ALL GUEST UI LOGIC TESTS PASSED SUCCESSFULLY! 🎉");
   process.exit(0);

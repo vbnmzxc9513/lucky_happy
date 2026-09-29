@@ -1,205 +1,126 @@
-# 🛡️ Lucky Horse — 婚禮互動賽馬與默契大考驗：完整遊戲企劃與系統架構白皮書 (GAME_DESIGN.md)
+# Lucky Horse 產品與設計原則
 
-> **本文件為 Lucky Horse 婚禮遊戲的最高設計憲章與架構總覽**。
-> 本專案為千人現場婚禮設計，致力於打破傳統派對遊戲「安裝繁瑣、畫質粗俗、網路易斷、無法彩排」的痛點。
-> 未來所有接手本專案的 AI 模型（無論參數規模大小）與開發人員，在進行任何新功能開發、UI 設計或系統維護時，**必須嚴格遵守本文件的架構設計、美學規範與資料結構**。
+更新日期：2026-09-29
 
----
+本文件只保存產品目標、體驗原則與不變量。現行技術架構、資料流與檔案責任以 [`docs/PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md) 為準；具體數值以 `shared/game-config.js` 與正式地圖 JSON 為準。
 
-## 🌟 1. 遊戲核心概念與特色 (Executive Summary)
+## 1. 產品定位
 
-**Lucky Horse** 是一款專為頂級婚禮盛宴量身訂製的**「多螢幕即時對抗派對遊戲」**。
-在婚禮現場，新郎與新娘分別代表**「🔴 新郎應援陣營 (Groom Team)」**與**「🔵 新娘應援陣營 (Bride Team)」**。全場數百位賓客無需下載安裝任何 App，只需用手機相機掃描現場大螢幕投影的 QR Code，即可秒速加入對抗賽！
+Lucky Horse 是婚禮現場的多螢幕即時派對遊戲。它不是追求複雜競技深度，而是讓大量賓客在零安裝、低學習成本下共同參與一段可由主持人掌握節奏的表演。
 
-```mermaid
-graph TD
-    subgraph Host[🖥️ 大螢幕投影端 /host]
-        H1[賽事倒數與皇家賽道]
-        H2[突襲答題題目與倒數展示]
-        H3[總冠軍榮耀積分板]
-    end
+現行正式玩法為五隊、單局、五關 15 題：手機負責輸入，投影負責敘事與共同注意力，控制台負責現場節奏，後台負責賽前配置與彩排。
 
-    subgraph Guest[📱 手機賓客遙控端 /guest]
-        G1[喜帖風登入與陣營選擇]
-        G2[香檳金狂點衝刺按鈕]
-        G3[專讀大螢幕：A/B/C/D 選項控制器]
-    end
+## 2. 體驗原則
 
-    subgraph Admin[⚙️ 後台配置與彩排中心 /admin]
-        A1[賽事參數與陣營名稱動態自訂]
-        A2[地圖關卡與里程碑編輯器]
-        A3[新人專屬題庫 CRUD]
-        A4[🤖 AI 虛擬賓客百人模擬預演引擎]
-    end
+### 2.1 零安裝、快速報到
 
-    Guest <== WebSocket 雙向毫秒級同步 ==> Host
-    Admin <== WebSocket 權威設定覆寫與彩排控制 ==> Host
-```
+賓客以手機相機掃 QR Code 進入 `/guest/`，輸入暱稱並選隊。流程不可要求下載 App、建立帳號或理解複雜規則。
 
-### 🎯 六大獨創創新機制
-1. **🚀 零安裝與斷線自癒 (Zero-Install & Self-Healing)**：純 HTML5 + Vanilla JS 打造，行動優先設計，0.5 秒瞬間載入。具備自動補註冊與斷線重連快照還原機制。
-2. **🏆 權威三局制賽制 (Three-Round Match)**：固定三局對抗，局間休息開放重新選擇陣營與新賓客入席，累計幸福積分決定總冠軍。
-3. **📺 答題分屏共讀互動 (Split-Screen Quiz Focus)**：當賽道到達里程碑觸發突襲關卡時，**「題目與倒數計時僅顯示在大螢幕」**，而賓客手機端**「僅顯示 A / B / C / D 四個專屬配色按鈕」**，創造全場抬頭注視大螢幕、共同為新人祝福的沉浸氛圍！
-4. **⚖️ 動態人數平衡公式 (Dynamic Fairness Engine)**：為避免新郎與新娘親友桌數不等導致不公，系統後端自動採用平衡公式：`實際進度貢獻 = 基礎加速力 / sqrt(該隊當前總人數)`，人少隊伍單次點擊貢獻更高，保證絕對公平！
-5. **💎 皇家宴會級奢華美學 (Luxury Wedding Aesthetics)**：嚴格對照「婚禮主色調（藏青、白紗、奶茶、湖水綠）」與「賓客穿搭建議（酒紅、灰藍、霧玫粉、薰衣草紫）」，徹底告別電競霓虹感。
-6. **🤖 全功能後台與模擬彩排控制台 (Admin & Simulation Rehearsal Center)**：內建 AI 虛擬賓客模擬器，主持人無需準備百支手機，在單台電腦即可一鍵產生 20~100 名虛擬機器人自動加入、點擊與作答，隨時進行全流程彩排與大螢幕壓力測試！
+### 2.2 投影建立共同注意力
 
----
+答題時，投影顯示題目、完整選項、倒數與隊伍進度；手機只顯示 A/B/C/D 等選項控制器。這個分屏設計刻意讓賓客抬頭看同一個畫面，而不是各自低頭閱讀。
 
-## 🎨 2. 頂級婚禮奢華美學與設計語彙 (Design System & Tokens)
+### 2.3 主持節奏優先
 
-為確保專案質感達到 **「$100,000 頂級婚禮宴會」** 的標準，所有 CSS 檔案（`host.css`, `guest.css`, `admin.css`）必須統一採用以下 Design Tokens：
+賽事狀態與投影畫面分離。主持人可以在不改變賽事的情況下切換大廳、規則、選隊、賽道與頒獎畫面；也可以暫停、恢復或在確認後重置。
 
-### 2.1 核心配色表 (Color Palette Mapping)
-```css
-:root {
-  /* --- 婚禮主色調 Wedding Core Palette --- */
-  --navy-dark: #132238;          /* 深藍色/藏青色 - 沉穩、優雅、經典 (主背景與深色基底) */
-  --navy-card: rgba(26, 43, 76, 0.82); /* 藏青玻璃磨砂卡片 (Glassmorphism) */
-  --wedding-white: #FAF9F5;      /* 白紗 - 純淨、浪漫、永恆 (主字體與明亮區塊) */
-  --milktea: #D8C3A5;            /* 奶茶色 - 溫柔、柔和、質感 (高亮標題、金邊、 CTA 按鈕) */
-  --milktea-light: #EAE0CE;      /* 奶茶高光版 */
-  --lake-green: #7AB8B1;         /* 湖水綠 - 廳內桌巾 (點綴、特效、進度條、計時器) */
+五關題序固定，每題與每關之間由主持人手動推進。只有倒數、連點、作答與最後衝刺自動計時，總時間取決於主持停留時間。
 
-  /* --- 陣營對抗與賓客穿搭色系 (Factions & Options) --- */
-  /* 🔴 新郎應援陣營 Groom Team */
-  --team-red-main: #88303C;      /* 酒紅色 Burgundy - 成熟、優雅、喜慶 */
-  --team-red-light: #C98CA7;     /* 霧玫粉 Dusty Rose - 浪漫、柔和 */
-  
-  /* 🔵 新娘應援陣營 Bride Team */
-  --team-blue-main: #4A6B8A;     /* 灰藍色 Slate Blue - 清新、知性、高貴 */
-  --team-blue-light: #9B8AA4;    /* 薰衣草紫 Lavender - 優雅、氣質 */
+### 2.4 立即回饋、伺服器最終裁決
 
-  /* ❓ 突襲答題選項配色 (A / B / C / D) */
-  --dusty-rose: #C98CA7;         /* 選項 A 專屬邊框與高亮 */
-  --lavender: #9B8AA4;           /* 選項 B 專屬邊框與高亮 */
-  --sage-green: #8FAD91;         /* 選項 C 專屬邊框與高亮 */
-  --champagne: #DFD1BA;          /* 選項 D 專屬邊框與高亮 */
-  --terracotta: #B86B53;         /* 磚橘色 - 暈眩/停滯/倒數警告 */
-}
-```
+手機觸控後應立即有按壓、振動或視覺回饋，但位置、得分、答案與獎項只能由伺服器決定。樂觀 UI 不等於樂觀計分。
 
-### 2.2 皇家排版與字體規範 (Typography)
-* **英文與數字標題**：採用 **`Cinzel`**（羅馬精品碑文體）與 **`Cormorant Garamond`**（優雅法式宋體），讓局數、倒數秒數與戰報呈現頂級名錶般的精緻感。
-* **中文標題與內文**：採用 **`Noto Serif TC`**（思源宋體）作為各級標題與儀式稱謂，搭配現代清晰的 **`Outfit`** / **`Noto Sans TC`** 處理動態數值與按鈕說明。
+### 2.5 斷線是正常狀況
 
----
+婚禮現場會發生鎖屏、背景切換、Wi-Fi／行動網路切換與重新整理。系統必須保存穩定 session，恢復原隊、個人統計、目前題目與答案鎖，並在權威狀態過期時停止接受輸入。
 
-## 🏗️ 3. 系統狀態機與架構設計 (State Machine & Architecture)
+### 2.6 明確失敗，不靜默卡住
 
-遊戲核心由 Node.js 後端 `GameManager` 作為權威狀態機（Authoritative State Machine），驅動大螢幕、手機端與後台的同步：
+加入被鎖、隊伍額滿、版本過期、狀態過期或操作被拒絕時，必須向使用者或控制台回傳明確結果。不得以單純 `return false` 讓按鈕看起來沒有反應。
 
-```mermaid
-stateDiagram-v2
-    [*] --> LOBBY: 初始化 / 重新開啟
-    LOBBY --> MAP_SELECT: 主持人開啟地圖選擇
-    MAP_SELECT --> ROUND_LOBBY: 確認賽道地圖
-    ROUND_LOBBY --> COUNTDOWN: 按下「全員就位！開啟比賽」
-    COUNTDOWN --> RACING: 3秒賽前倒數結束 (開啟高頻點擊)
-    
-    state RACING {
-        [*] --> Running
-        Running --> ItemTriggered: 觸發道具 (加速/暈眩)
-        ItemTriggered --> Running
-    }
+## 3. 現行賽制不變量
 
-    RACING --> QUIZ: 賽道進度到達關卡里程碑 (例如 30%, 60%)
-    QUIZ --> RACING: 10秒答題倒數結束 / 結算獎懲
-    RACING --> ROUND_FINISHED: 任一陣營到達終點 (100%)
-    
-    ROUND_FINISHED --> ROUND_LOBBY: 進入下一局 (第 2/3 局)
-    ROUND_FINISHED --> MATCH_FINISHED: 完成三局對抗 / 結算總冠軍
-    MATCH_FINISHED --> LOBBY: 重新開啟全新賽事
-```
+- 五隊，每隊最多 50 人。
+- 預設單局決勝。
+- 五關、每關三題，共 15 題；題目不得重複且必須存在。
+- 每關先連點，再答三題，最後一次性發放階段獎勵。
+- 團隊答對率 = 答對人數 / 本題開始時隊伍總人數，嚴格 > 50% 才算答對；剛好 50% 不算答對。
+- 三題答對 0／1／2／3 題對應 0／1／2／4 格。
+- 15 題與五次結算完成後才可進入最後衝刺及完賽。
+- 最終頒發隊伍冠軍、答題王、手速王與越挫越勇獎。
+- 未作答不增加個人的答錯題數。
 
----
+調整這些規則時，必須同時修改設定、地圖、架構文件、畫面、壓測預期與回歸測試。
 
-## ⚙️ 4. 全功能後台配置與模擬彩排控制台 (/admin)
+## 4. 公平性原則
 
-為落實「判斷力制度化與高可拓展性」，我們設計了獨立的後台管理中心 `http://localhost:3000/admin`。
-後台具備四大核心模組與 **AI 虛擬賓客模擬引擎**：
+每次點擊的推進力依 `baseBoost / sqrt(teamSize)` 計算，以降低隊伍人數不均的影響。這是優勢壓縮，不是數學上的完全抵消；仍需以每隊容量、開賽前自動分隊及主持引導控制人數差。
 
-### 4.1 賽事與陣營動態配置 (Team & Racing Config)
-* **動態陣營名稱**：支援隨時修改紅/藍兩隊顯示名稱（如：「新郎親友應援團 vs 新娘閨蜜應援團」），送出後 WebSocket 在 50ms 內實時更新全場畫面。
-* **勝利里程與門檻**：可調整 `trackLength`（預設 1000px，對應約 500~1500 次有效點擊，可依現場賓客多寡彈性伸縮）。
-* **物理與競速參數**：調整基礎加速係數 `baseBoost`、摩擦阻力 `friction`、最高限速 `maxSpeed` 與點擊防刷冷卻 `tapCooldown`（預設 50ms，上限 20次/秒）。
+答題率分母包含未作答者；空隊伍為 0%，不算答對。答案送出即鎖定，重送不得重複計分。
 
-### 4.2 賽道地圖與關卡規則設計 (Map & Checkpoints Designer)
-* **地圖 CRUD**：新增、修改或刪除賽道地圖（如：「🌸 浪漫櫻花大道」、「✨ 星空婚禮禮堂」）。
-* **里程碑關卡觸發器**：設定該地圖在達到幾百分比時（如：30%、60%、85%）自動觸發指定的互動問題。
+## 5. 視覺與聲音語彙
 
-### 4.3 互動題庫與突襲關卡編輯器 (Quiz & Question Bank)
-* **新人專屬題庫 CRUD**：後台直接編輯題目與選項（例如：「新郎新娘第一次一起出國是去哪裡？」 A.日本 B.法國 C.冰島 D.瑞士）。
-* **獎懲配置**：設定答題倒數時間（預設 10 秒）、答對率 > 70% 的衝刺獎勵（`LARGE_BOOST: +150px`）與答錯懲罰（`STUN: 暈眩停滯 3000ms`）。
+整體風格是婚禮宴會與童趣角色的結合，不使用高飽和電競霓虹作為主視覺。現行介面以薄荷綠、深綠、香檳金與白色為主要框架，五隊使用可辨識的紅、藍、黃、粉、紫角色色彩。
 
-### 4.4 🤖 AI 虛擬賓客百人彩排預演引擎 (Bot Simulation Rehearsal Center) 【專利級創新】
-在婚禮彩排時，主持人與新人往往苦於「找不到 100 個人一起測試大螢幕與網路穩定度」。
-本系統在後端建立 **In-Memory Bot Simulation Engine**：
-* **🤖 一鍵產生虛擬賓客**：可選擇產生 **20 人 / 50 人 / 100 人** 虛擬機器人。系統會在記憶體內自動為其分配「熱情賓客_1~100」的稱呼與頭像，並自動平衡加入紅藍兩隊。
-* **🚀 自動瘋狂點擊模擬**：當進入 `RACING` 狀態時，虛擬機器人會以每秒 5~15 次的隨機頻率自動發送 `GUEST_TAP` 封包，驅動大螢幕馬匹極速前進！
-* **📝 自動突襲關卡作答**：當觸發 `QUIZ` 關卡時，虛擬機器人會在 1~6 秒內隨機選擇 A/B/C/D 作答，完美模擬現場百人同時作答的分流回饋與正確率結算！
-* **⚡ 上帝模式現場控台 (Live GM Tools)**：遊戲中途可隨時「一鍵強制觸發突襲答題」、「一鍵釋放暴風雨減速 / 幸運金幣道具」、「一鍵跳轉局數與重置遊戲」。
+投影必須在 16:9、100% 瀏覽器縮放下無水平捲動、重要文字不被角色遮擋。手機選隊、連點與答題要以單手操作和 320–430 px 寬度為設計基準。
 
----
+音效只由投影端播放，且必須由工作人員先進行一次使用者操作以解除瀏覽器 autoplay 限制。音效是輔助；關鍵狀態不能只靠聲音表達。
 
-## 📡 5. WebSocket 通訊協定與事件清單 (Event Catalog)
+## 6. 現場可靠性原則
 
-任何未來接手的 AI 模型或工程師在增加或修改功能時，**必須先於 `shared/events.js` 定義事件名稱**，並於本章節歸檔：
+- 比賽中拒絕陌生 session 加入，但允許原玩家重連。
+- 隊伍額滿時，換隊失敗仍保留原隊。
+- 暫停必須凍結階段、題目、暈眩與最後衝刺時間。
+- 重置必須取消舊題目、舊 callback、操作帳本與所有玩家資料。
+- Host、Control 重新整理後必須由完整狀態快照恢復。
+- Node／VPS 重啟不嘗試猜測恢復比賽；回 Lobby 重賽。
+- 正式站不可在活動進行中部署，且必須有相同 release 的 LAN 備援。
 
-### 5.1 客戶端發往伺服器 (CLIENT_TO_SERVER)
-| 事件名稱 (Constant) | 傳送來源 | 封包內容 (Payload Structure) | 說明與後端邏輯 |
-| :--- | :--- | :--- | :--- |
-| `GUEST_JOIN` | 📱 手機端 | `{ nickname: string, avatar: string }` | 賓客設定稱呼與頭像入席 |
-| `GUEST_CHOOSE_TEAM` | 📱 手機端 | `{ teamId: 'red' \| 'blue' }` | 選擇應援陣營（具備自動補註冊容錯） |
-| `GUEST_TAP` | 📱 手機端 | `{ timestamp: number }` | 瘋狂點擊應援（經過 50ms 冷卻防抖驗證） |
-| `GUEST_QUIZ_ANSWER` | 📱 手機端 | `{ quizId: string, answer: 'A'\|'B'\|'C'\|'D' }` | 關卡作答（送出後立即鎖定） |
-| `HOST_SELECT_MAP` | 🖥️ 大螢幕 | `{ mapId: string }` | 主持人選擇賽道地圖 |
-| `HOST_START_ROUND` | 🖥️ 大螢幕 | `{}` | 全員就位，開始本局 3 秒倒數與比賽 |
-| `HOST_NEXT_ROUND` | 🖥️ 大螢幕 | `{}` | 結算完畢，進入下一局大廳 |
-| `ADMIN_UPDATE_CONFIG` | ⚙️ 後台 | `{ trackLength, teamNames, ... }` | 更新遊戲與陣營參數 |
-| `ADMIN_SAVE_MAP` | ⚙️ 後台 | `{ mapId, name, trackLength, checkpoints }` | 儲存/修改地圖規則 |
-| `ADMIN_SAVE_QUIZ` | ⚙️ 後台 | `{ quizId, question, options, answer, ... }` | 儲存/修改題庫內容 |
-| `ADMIN_SPAWN_BOTS` | ⚙️ 後台 | `{ count: number }` | 啟動 AI 虛擬賓客百人模擬彩排 |
-| `ADMIN_CLEAR_BOTS` | ⚙️ 後台 | `{}` | 清除所有虛擬機器人 |
-| `ADMIN_FORCE_TRIGGER`| ⚙️ 後台 | `{ type: 'QUIZ'\|'ITEM', targetId?: string }` | 上帝模式強制觸發關卡或道具 |
+## 7. 安全與權限原則
 
-### 5.2 伺服器發往客戶端 (SERVER_TO_CLIENT)
-| 事件名稱 (Constant) | 接收對象 | 封包內容 (Payload Structure) | 說明與前端渲染規範 |
-| :--- | :--- | :--- | :--- |
-| `GAME_STATE_SYNC` | 全體 | `{ state, roundStatus, currentMap, teams, activeItems, config }` | 全量狀態校正廣播 |
-| `GAME_POSITION_UPDATE`| 🖥️ 大螢幕 | `{ teams: { red: {position, speed}, blue: {...} } }` | 30fps 高頻位置與速度廣播 |
-| `GAME_QUIZ_START` | 🖥️ 大螢幕 | `{ quizId, question, timeLimit }` | **僅發給 Host**：顯示題目與計時器 |
-| `GAME_QUIZ_OPTIONS` | 📱 手機端 | `{ quizId, options: ['A','B','C','D'], timeLimit }` | **僅發給 Guest**：顯示四選項與計時器 |
-| `GAME_QUIZ_RESULT` | 全體 | `{ correctAns, teamResults: { red: {rate, effect}, ... } }` | 揭曉正確答案與雙方答對率獎懲 |
-| `GAME_JOIN_LOCKED` | 📱 手機端 | `{ reason: 'RACE_IN_PROGRESS' }` | 提示比賽進行中，暫時鎖定加入 |
-| `SYSTEM_ERROR` | 📱 / ⚙️ | `{ code, message }` | 零靜默失敗！回報明確錯誤訊息 |
+- `/guest/` 公開；`/host/`、`/control/`、`/admin/` 需要工作人員 session。
+- 投影角色沒有賽事控制權。
+- 所有特權 Socket 事件在伺服器再次檢查角色，不信任前端隱藏按鈕。
+- 正式 Node 只綁 loopback，由 HTTPS reverse proxy 對外服務。
+- 公開狀態不得包含穩定 session identifier、完整題庫或管理資料。
 
----
+## 8. 資料與發布原則
 
-## 🛡️ 6. 永續開發與防禦性工程制度 (Defensive Engineering)
+隊伍、地圖、題目、道具與事件契約皆由版本控制管理。後台可供彩排與內容編輯，但 release freeze 後不得直接在線上更改資料。
 
-本專案已固化下述五大防禦準則至 `.agents/AGENTS.md` 與 `docs/REALTIME_DEFENSIVE_GUIDE.md`：
-1. **雙向狀態檢查**：前端收到任何 `GAME_STATE_SYNC` 時，務必先檢驗本地會話生命週期 (`myPlayerInfo.isJoined`)，未加入前嚴禁盲目跳轉選隊或賽場頁面。
-2. **零靜默失敗承諾**：後端處理任何 `chooseTeam`, `handleTap`, `handleAnswer` 時，若邏輯判定失敗，**100% 必須發送對應錯誤封包 (`GAME_JOIN_LOCKED` 或 `SYSTEM_ERROR`)** 回前端，杜絕「按了沒反應」。
-3. **自動容錯與補註冊 (Self-Healing)**：若斷線賓客或新連線未發送 `GUEST_JOIN` 就直接點擊選隊或互動，後端 `TeamManager` 自動調用 `addPlayer` 為其補齊預設身份，平滑納入遊戲。
-4. **50ms 樂觀觸發回饋**：手機端點擊押注或狂點應援時，前端在 **50ms 內**即時給予按鈕變色、振動與 +1 浮動字樣回饋，消除網路 RTT 焦慮。
-5. **優雅關閉防衝突 (Graceful Shutdown)**：伺服器監聽 `SIGINT` 與 `SIGTERM`，重啟前自動停止廣播迴圈並呼叫 `server.close()` 釋放 `3000` 連接埠，徹底杜絕 `EADDRINUSE` 當機。
+Network Protocol v2 的前後端必須共同部署並重新整理所有客戶端。任何單獨更新伺服器或頁面、讓兩個協定版本共存的做法都不受支援。
 
----
+## 9. 驗收原則
 
-## 🏁 7. 快速啟動與驗證流程
+本機單元與模擬壓測驗證程式正確性，不驗證婚禮場地網路。正式 Go／No-Go 必須同時具備：
 
-### 7.1 啟動遊戲與後台伺服器
-```bash
-npm run dev
-```
-啟動後系統同時開啟四大端口：
-* 🖥️ **大螢幕投影端**：`http://localhost:3000/host`
-* 📱 **手機賓客端**：`http://localhost:3000/guest`
-* ⚙️ **後台配置與彩排中心**：`http://localhost:3000/admin`
+- 自動回歸與 preflight 通過。
+- 逐玩家計分帳本可對帳。
+- 公開 HTTPS 負載測試符合門檻。
+- 真實 iPhone、Android 與較舊手機完成一局彩排。
+- 投影、音響、HDMI 與 LAN 備援演練通過。
 
-### 7.2 一鍵模擬彩排 SOP
-1. 打開電腦瀏覽器前往 `http://localhost:3000/admin`。
-2. 在「🤖 模擬預演與現場控台」分頁，點擊 **「產生 100 名虛擬賓客」**。
-3. 切換至大螢幕端 `http://localhost:3000/host`，驗證大廳是否瞬間湧入 100 人並平衡分隊。
-4. 點擊「🚀 全員就位！開啟比賽」，驗證 100 名虛擬機器人自動狂點衝刺與突襲關卡自動作答的震撼大螢幕視覺！
+有日期的測試報告只代表該次 release、測試產生器與網路路徑，不應被改寫成永久效能保證。
+
+## 手動進題與統計契約（15 題、5 關）
+
+`CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
+伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
+`CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
+Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
+
+`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第三題統計必須先保留，再由主持切到結算。
+自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
+
+每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。
+全場分布的 totalPlayers = answeredCount + unansweredCount；options 每項保留 count 和 answeredPercent（0–1 比例）。
+answeredPercent 分母為全場已作答人數；無人回答時為 0。Host 顯示為百分比到小數一位。
+每隊 correctRate 的分母是本題開始時的 totalCount，包含未作答；嚴格 > 0.5 才 isCorrect，50% 為 false，空隊為 0／false。
+
+Host／Control／Admin 收完整全場分布與五隊統計；Guest 僅收正解及自己的 teamResult（totalCount、correctCount、correctRate、isCorrect）。
+Guest 重連快照不含其他隊結果、options 分布或 results 歷史；只附自己的答案鎖與 answer，以及本隊關卡結算。
+等待、作答剩餘時間、統計、結算與衝刺皆由伺服器快照／題目恢復事件重建，不依賴 DOM。
+
+驗收需涵蓋所有等待 phase 重連、雙控制台競態、暫停／重置、0%、49%、50%、50.1%、51%、100%、空隊、全場分布守恆與 Guest 隔離。
+本版完整負載、公開 HTTPS、真實手機與場地投影須重新驗證；有日期的歷史壓測報告保持原始數據。
