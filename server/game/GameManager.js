@@ -13,7 +13,9 @@ const ShuttleRace = require('../../shared/shuttle-race');
 const { randomUUID } = require('node:crypto');
 
 class GameManager {
-  constructor(io) {
+  constructor(io, resultStore = null) {
+    this.resultStore = resultStore;
+    this.resultSnapshotRunId = null;
     this.io = io;
     this.runId = randomUUID();
     this.stateVersion = 0;
@@ -56,6 +58,11 @@ class GameManager {
 
   setState(newState) {
     this.state = newState;
+    if (newState === 'MATCH_FINISHED' && this.resultStore && this.resultSnapshotRunId !== this.runId) {
+      this.resultSnapshotRunId = this.runId;
+      try { this.resultStore.add(require('../results/buildMatchResult')(this)); }
+      catch (error) { this.resultStore.fail('RESULT_SNAPSHOT_FAILED', error); }
+    }
     // 當進入 RACING 或 QUIZ 或 COUNTDOWN 時鎖定加入與選隊
     const lock = (newState === 'COUNTDOWN' || newState === 'RACING' || newState === 'QUIZ');
     this.teamManager.setJoinLock(lock);

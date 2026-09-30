@@ -221,6 +221,7 @@ app.use('/assets', express.static(config.paths.hostAssets, staticOptions));
 app.use('/host', requireStaffAccess, express.static(config.paths.host, staticOptions));
 app.use('/guest', express.static(config.paths.guest, staticOptions));
 app.use('/control', requireStaffAccess, express.static(config.paths.control, staticOptions));
+app.use('/results', requireStaffAccess, express.static(path.join(__dirname, '../results'), { setHeaders(res) { res.setHeader('Cache-Control', 'no-store'); } }));
 app.use('/admin', requireStaffAccess, express.static(config.paths.admin, staticOptions));
 app.use('/shared', express.static(config.paths.shared, staticOptions));
 
@@ -260,7 +261,9 @@ io.use((socket, next) => {
 });
 
 // 初始化遊戲主控器與路由
-const gameManager = new GameManager(io);
+const resultStore = new (require('./results/MatchResultStore'))();
+const gameManager = new GameManager(io, resultStore);
+app.get('/api/match-results', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); }, requireStaffAccess, (req, res) => res.json(resultStore.read()));
 const socketRouter = new SocketRouter(io, gameManager);
 socketRouter.init();
 

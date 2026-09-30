@@ -99,6 +99,12 @@ check(runProductionConfig({
   STAFF_SESSION_SECRET: 'x'.repeat(64)
 }).status !== 0, 'production rejects a public Node bind address');
 
+check(read('.gitignore').includes('data/runtime/*'), 'private runtime results and corrupt backups are ignored');
+check(read('deploy/lucky-horse.service').includes('ReadWritePaths=/opt/lucky-horse/data'), 'results default directory is writable by systemd');
+check(read('.env.example').includes('MATCH_RESULTS_FILE=') && read('deploy/lucky-horse.env.example').includes('MATCH_RESULTS_FILE='), 'results file override is documented in both environments');
+check(JSON.parse(read('package.json')).scripts['test:predeploy'].includes('test:results-browser'), 'results browser tests are required before deployment');
+check(read('server/index.js').includes("app.use('/results', requireStaffAccess") && read('server/index.js').includes("requireStaffAccess, (req, res) => res.json(resultStore.read())"), 'results page and API require staff authentication');
+
 if (failed > 0) {
   console.error(`\nDeployment readiness failed: ${failed} check(s).`);
   process.exit(1);

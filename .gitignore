@@ -34,3 +34,7 @@ test_*.png
 # OS files
 .DS_Store
 Thumbs.db
+
+# Private event results, temporary writes and corruption backups
+data/runtime/*
+!data/runtime/.gitkeep

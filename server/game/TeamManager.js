@@ -131,7 +131,7 @@ class TeamManager {
   disconnectPlayer(socketId, retainForReconnect = false) {
     const player = this.players.get(socketId);
     if (!player) return false;
-    if (retainForReconnect && this.socketToSession.has(socketId)) {
+    if (retainForReconnect) {
       player.connected = false;
       return true;
     }

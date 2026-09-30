@@ -12,14 +12,15 @@
     "test": "node scripts/run-confidence-tests.js",
     "test:confidence": "node scripts/run-confidence-tests.js --full",
     "test:control-browser": "node scripts/test-control-browser.js",
-    "test:predeploy": "npm test && npm run test:control-browser && npm run deploy:check",
+    "test:predeploy": "npm test && npm run test:results-browser && npm run test:control-browser && npm run deploy:check",
     "test:simulation": "node test-simulation.js",
     "test:operations": "node scripts/run-operations-isolated.js",
     "test:accounting": "node --test tests/test-player-accounting.js",
     "deploy:check": "node scripts/check-deployment-readiness.js",
     "security:check": "npm audit --audit-level=moderate",
     "preflight": "node scripts/wedding-preflight.js",
-    "stress": "node scripts/stress-wedding-game.js"
+    "stress": "node scripts/stress-wedding-game.js",
+    "test:results-browser": "node scripts/test-results-browser.js"
   },
   "keywords": [
     "wedding",

@@ -1,3 +1,8 @@
+const resultsFs = require('node:fs');
+const resultsPath = require('node:path');
+const resultsTemp = resultsFs.mkdtempSync(resultsPath.join(require('node:os').tmpdir(), 'horse-isolated-'));
+process.env.MATCH_RESULTS_FILE = resultsPath.join(resultsTemp, 'results.json');
+process.on('exit', () => resultsFs.rmSync(resultsTemp, { recursive: true, force: true }));
 const assert = require('node:assert/strict');
 const net = require('node:net');
 const { randomUUID } = require('node:crypto');

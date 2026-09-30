@@ -1,10 +1,16 @@
 const { spawn } = require('child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const resultsTemp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'horse-confidence-'));
+process.env.MATCH_RESULTS_FILE = path.join(resultsTemp, 'results.json');
+process.on('exit', () => fs.rmSync(resultsTemp, { recursive: true, force: true }));
 
 const isFullRun = process.argv.includes('--full');
 const portArgIndex = process.argv.indexOf('--port');
 const port = portArgIndex >= 0 ? Number(process.argv[portArgIndex + 1]) : 3996;
 const serverUrl = `http://127.0.0.1:${port}`;
 const fastTests = [
+  'tests/test-match-result-store.js',
   'tests/test-network-delivery.js',
   'tests/test-guest-input.js',
   'tests/test-network-measurement.js',
