@@ -16,7 +16,7 @@
 .stage-runner img { width: 270px; max-width: calc(100% - 42px); height: 100%; object-fit: contain; filter: drop-shadow(0 6px 0 #3f70571c); animation: stage-horse-bounce 1s calc(2.65s - var(--stage-elapsed)) 3 both; }
 .stage-perfect .stage-runner img { animation-name: stage-perfect-jump; }
 .stage-stars { display: flex; justify-content: center; gap: 8px; align-items: center; }
-.stage-stars span { font-size: 78px; line-height: 1; display: inline-block; animation: stage-star-pop .55s both; }
+.stage-stars span { font-size: 65px; line-height: 1; display: inline-block; animation: stage-star-pop .55s both; }
 .star-hit { color: #ffdf73; text-shadow: 0 3px 0 #9c742a; -webkit-text-stroke: 1.5px #a88032; }
 .star-miss { color: #578d80; }
 .stage-score { display: flex; justify-content: center; align-items: baseline; gap: 10px; margin: 0; line-height: 1; animation: stage-score-pop .55s calc(2.65s - var(--stage-elapsed)) both; }

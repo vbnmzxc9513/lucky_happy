@@ -3,6 +3,9 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
+const formalConfig = require('../shared/game-config');
+const formalMap = require('../data/maps/wedding-final-showdown.json');
+const StagePlan = require('../shared/stage-plan');
 let failed = 0;
 
 function read(relativePath) {
@@ -31,6 +34,9 @@ const requiredFiles = [
 for (const file of requiredFiles) {
   check(fs.existsSync(path.join(root, file)), `${file} exists`);
 }
+
+check(StagePlan.validateFormal(formalMap, formalConfig), 'formal map is sixteen unique questions in four groups of four');
+check(JSON.stringify(formalConfig.quizStages.rewardSteps) === '[0,1,2,4,6]', 'formal authoritative reward tiers are complete');
 
 const envExample = read('.env.example');
 const deployEnv = read('deploy/lucky-horse.env.example');

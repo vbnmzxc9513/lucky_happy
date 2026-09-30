@@ -160,7 +160,7 @@ function runTests() {
   const assert = require('node:assert/strict');
   for (const phase of ['awaiting_question', 'reveal', 'summary', 'answer']) {
     socket.trigger('game:state_sync', { state: 'QUIZ', stateVersion: 3, teams: [], quizStage: {
-      phase, stageNumber: 1, stageCount: 5, questionNumber: 3, endsAt: null,
+      phase, stageNumber: 1, stageCount: 4, questionNumber: 3, endsAt: null,
       reveal: { correctAnswer: 'A', correctAnswerText: '正解', alreadyAnswered: true, answer: 'B',
         teamResult: { totalCount: 10, correctCount: 5, correctRate: .5, isCorrect: false } }
     } });

@@ -1,4 +1,5 @@
 const assert = require('assert');
+const FIRST_FORMAL_QUIZ_ID = require('../data/maps/wedding-final-showdown.json').checkpoints[0].quizId;
 const { randomUUID } = require('node:crypto');
 const { io } = require('socket.io-client');
 const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = require('../shared/events');
@@ -307,7 +308,7 @@ async function main() {
     assert.strictEqual(pausedAdvance.reason, 'GAME_PAUSED');
     await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_RESUME_GAME, 'RESUME_GAME');
     const quizOptions = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS,
-      data => data?.quizId === 'wc_001');
+      data => data?.quizId === FIRST_FORMAL_QUIZ_ID);
     const advanceResults = await Promise.all([controlA, controlB].map(socket =>
       sendControl(socket, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', advanceData)));
     assert.strictEqual(advanceResults.filter(result => result.success).length, 1);
@@ -342,12 +343,12 @@ async function main() {
 
     const answerAck = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
     const firstAnswerId = randomUUID();
-    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: firstAnswerId });
+    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: FIRST_FORMAL_QUIZ_ID, answer: 'A', requestId: firstAnswerId });
     assert.strictEqual((await answerAck).success, true);
     const duplicateAnswerAck = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
     const duplicateAnswerId = randomUUID();
     assert.notStrictEqual(duplicateAnswerId, firstAnswerId);
-    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: duplicateAnswerId });
+    winnerGuest.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: FIRST_FORMAL_QUIZ_ID, answer: 'A', requestId: duplicateAnswerId });
     const duplicateAnswer = await duplicateAnswerAck;
     assert.strictEqual(duplicateAnswer.success, false);
     assert.strictEqual(duplicateAnswer.reason, 'ALREADY_ANSWERED');

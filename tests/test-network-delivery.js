@@ -256,7 +256,7 @@ for (const phase of ['awaiting_question', 'answer', 'reveal', 'summary', 'sprint
     game.teamManager.chooseTeam('g', 'red');
     game.quizManager.startQuiz('wc_001', { red: 2, blue: 10 });
     const result = game.quizManager.calculateResults();
-    game.quizStage = { phase, stageNumber: 1, stageCount: 5, questionNumber: 3,
+    game.quizStage = { phase, stageNumber: 1, stageCount: 4, questionNumber: 3,
       flowRevision: 7, endsAt: null, results: [result], reveal: result,
       summary: { stageNumber: 1, teamResults: { red: { steps: 0 }, blue: { steps: 4 } } } };
     for (const role of ['host', 'control', 'admin', 'guest']) {

@@ -130,7 +130,7 @@ test('Quiz awards should break ties by average answer speed', () => {
   assert.ok(!wrongAward.ranking.some(player => player.name === '沒作答賓客'));
 });
 
-test('Default pacing should use one round and estimate the formal 15-question game', () => {
+test('Default pacing should use one round and estimate the formal 16-question game', () => {
   const gm = new GameManager(new MockIo());
   const teamIds = Object.keys(gm.teamManager.teams);
 
@@ -145,9 +145,9 @@ test('Default pacing should use one round and estimate the formal 15-question ga
 
   assert.strictEqual(gm.roundManager.totalRounds, 1);
   assert.strictEqual(map.id, 'wedding-final-showdown');
-  assert.strictEqual(recommendation.quizCount, 15);
-  assert.strictEqual(recommendation.stageCount, 5);
-  assert.ok(recommendation.trackLength > 50 * 20 * 1000 / 33 + 5 * 6000);
+  assert.strictEqual(recommendation.quizCount, 16);
+  assert.strictEqual(recommendation.stageCount, 4);
+  assert.ok(recommendation.trackLength > 42 * 20 * 1000 / 33 + 4 * 9000);
   assert.strictEqual(recommendation.targetGameSeconds, null);
 });
 

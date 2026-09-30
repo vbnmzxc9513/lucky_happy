@@ -150,15 +150,15 @@
 
 公開 HTTPS 與場地網路仍要另做測量；單元測試不能證明 ISP、Wi-Fi、瀏覽器音訊或投影設備可用。
 
-## 手動進題與統計契約（15 題、5 關）
+## 手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
 Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第三題統計必須先保留，再由主持切到結算。
+`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。
@@ -173,4 +173,4 @@ Guest 重連快照不含其他隊結果、options 分布或 results 歷史；只
 驗收需涵蓋所有等待 phase 重連、雙控制台競態、暫停／重置、0%、49%、50%、50.1%、51%、100%、空隊、全場分布守恆與 Guest 隔離。
 本版完整負載、公開 HTTPS、真實手機與場地投影須重新驗證；有日期的歷史壓測報告保持原始數據。
 
-純投影切換不增加 stateVersion。正式地圖 wedding-final-showdown 在儲存與開賽時必須剛好 15 題；其他題數需另建自訂地圖。推進缺少或畸形 requestId 回 INVALID_REQUEST_ID，不改變狀態。
+純投影切換不增加 stateVersion。正式地圖 wedding-final-showdown 在儲存與開賽時必須剛好 16 題；其他題數需另建自訂地圖。推進缺少或畸形 requestId 回 INVALID_REQUEST_ID，不改變狀態。

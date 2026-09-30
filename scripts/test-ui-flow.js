@@ -207,7 +207,7 @@ function runTests() {
     teamResults: { red: { totalCount: 4, correctCount: 2, correctRate: .5, isCorrect: false } } };
   for (const questionNumber of [1, 2, 3]) {
     socket.trigger('game:state_sync', { state: 'QUIZ', quizStage: { phase: 'reveal', questionNumber,
-      stageNumber: 1, stageCount: 5, endsAt: null, reveal: result } });
+      stageNumber: 1, stageCount: 4, endsAt: null, reveal: result } });
     assert.equal(dom.window.document.querySelectorAll('.quiz-statistics').length, 1);
     assert.ok(dom.window.document.querySelector('.statistics-team').textContent.includes('未達 50%'));
   }

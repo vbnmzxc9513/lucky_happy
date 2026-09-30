@@ -44,8 +44,8 @@
       const prefix = `第 ${stage.stageNumber} / ${stage.stageCount} 關`;
       const suffix = stage.phase === 'tap' ? `${seconds} 秒後等待主持進題`
         : stage.phase === 'sprint' ? `最後衝刺 ${seconds} 秒`
-          : stage.phase === 'reveal' ? `第 ${stage.questionNumber} / 3 題 · 統計結果 · 等待主持人`
-          : stage.phase === 'awaiting_question' ? '等待主持人開始本題' : `第 ${stage.questionNumber} / 3 題`;
+          : stage.phase === 'reveal' ? `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題 · 統計結果 · 等待主持人`
+          : stage.phase === 'awaiting_question' ? '等待主持人開始本題' : `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題`;
       this.label.textContent = `${prefix} · ${suffix}`;
       this.label.classList.toggle('is-urgent', stage.phase === 'tap' && seconds <= 3);
       if (stage.phase === 'tap' && seconds > 0 && seconds <= 3 && this.lastBeep !== `${prefix}:${seconds}` && !this.paused) {
@@ -77,12 +77,12 @@
       this.summary.style.setProperty('--stage-elapsed', `${elapsed}s`);
       const visibleTeams = teams.filter(t => (this.mode === 'host' || t.id === myTeamId) && this.stage.summary.teamResults[t.id]);
       const results = this.stage.summary.teamResults;
-      const perfectCount = visibleTeams.filter(t => results[t.id]?.correctCount === 3).length;
+      const perfectCount = visibleTeams.filter(t => results[t.id]?.correctCount === this.config.quizStages.questionsPerStage).length;
       const highest = Math.max(0, ...visibleTeams.map(t => results[t.id]?.correctCount || 0));
       const lastStage = this.stage.stageNumber === this.stage.stageCount;
       this.revealTitle = this.mode === 'host' ? '這一關，掌聲給誰？' : '本關成績揭曉';
       this.celebrationTitle = perfectCount
-        ? this.mode === 'host' ? `${perfectCount} 隊全對，掌聲催下去！` : '三題全對，太神啦！'
+        ? this.mode === 'host' ? `${perfectCount} 隊全對，掌聲催下去！` : '四題全對，太神啦！'
         : highest ? this.mode === 'host' ? `本關最高 ${highest} 題，繼續追！` : '漂亮！繼續向前！'
           : this.mode === 'guest' ? (lastStage ? '最後衝刺，追回來！' : '下一關，逆轉吧！')
             : lastStage ? '最後衝刺，逆轉就現在！' : '先暖身，下一關逆轉！';
@@ -106,7 +106,7 @@
       for (const team of visibleTeams) {
         const result = this.stage.summary.teamResults[team.id];
         const column = document.createElement('article');
-        column.className = `stage-team ${result.correctCount === 3 ? 'stage-perfect' : ''}`;
+        column.className = `stage-team ${result.correctCount === this.config.quizStages.questionsPerStage ? 'stage-perfect' : ''}`;
         column.style.setProperty('--team-color', team.hex);
         column.style.setProperty('--reward-travel', `${result.steps * 10}px`);
         const name = document.createElement('h3');
@@ -126,12 +126,11 @@
         const scoreNumber = document.createElement('b');
         scoreNumber.textContent = result.correctCount;
         const scoreTotal = document.createElement('span');
-        scoreTotal.textContent = '/ 3 題';
+        scoreTotal.textContent = `/ ${this.config.quizStages.questionsPerStage} 題`;
         score.append(scoreNumber, scoreTotal);
         const reward = document.createElement('p');
         reward.className = 'stage-reward';
-        reward.textContent = result.steps ? `前進 ${result.steps} 格`
-          : this.stage.stageNumber === this.stage.stageCount ? '衝刺追回來！' : '下一關追回來！';
+        reward.textContent = `前進 ${result.steps} 格`;
         const track = document.createElement('div');
         track.className = 'stage-reward-track';
         const horse = document.createElement('img');
@@ -141,7 +140,7 @@
         runner.className = 'stage-runner';
         runner.append(horse);
         track.append(runner);
-        if (result.correctCount === 3) {
+        if (result.correctCount === this.config.quizStages.questionsPerStage) {
           const seal = document.createElement('div');
           seal.className = 'stage-perfect-seal';
           seal.textContent = '全對';
@@ -160,11 +159,9 @@
         }
         const note = document.createElement('p');
         note.className = 'stage-cheer';
-        note.textContent = result.correctCount === 3 ? '全對！額外加 1 格' : result.correctCount ? '漂亮！繼續向前' : '一起加油';
-        if (root.ShuttleRace && Number.isFinite(result.beforePosition) && Number.isFinite(result.position)) {
-          const before = root.ShuttleRace.measure(result.beforePosition, this.config);
-          const after = root.ShuttleRace.measure(result.position, this.config);
-          note.textContent = `${before.laps} → ${after.laps} 圈${result.correctCount === 3 ? ' · 全對多 1 格' : ''}`;
+        note.textContent = result.correctCount === this.config.quizStages.questionsPerStage ? '全對！前進 6 格' : result.correctCount ? '漂亮！繼續向前' : '一起加油';
+        if (Number.isFinite(result.position)) {
+          note.textContent = `權威距離 ${Number(result.position.toFixed(1))}`;
         }
         column.append(name, track, stars, score, reward, note);
         grid.append(column);

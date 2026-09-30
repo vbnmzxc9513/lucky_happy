@@ -131,8 +131,8 @@ async function main() {
     const currentMap = realtime.state.currentMap || {};
     record('host WebSocket', true, `state=${realtime.state.state}, maps=${realtime.mapList.length}`);
     record(
-      'formal 15-question map',
-      currentMap.id === 'wedding-final-showdown' && Array.isArray(currentMap.checkpoints) && currentMap.checkpoints.length === 15,
+      'formal 16-question map',
+      currentMap.id === 'wedding-final-showdown' && Array.isArray(currentMap.checkpoints) && currentMap.checkpoints.length === 16 && new Set(currentMap.checkpoints.map(cp => cp.quizId)).size === 16,
       `${currentMap.id || 'no map'}, checkpoints=${(currentMap.checkpoints || []).length}`
     );
     const config = realtime.state.config || {};
@@ -143,8 +143,8 @@ async function main() {
     );
     const stages = config.quizStages || {};
     record(
-      'five-stage pacing and final sprint',
-      stages.enabled === true && stages.questionsPerStage === 3 && stages.tapSeconds === 8
+      'four-stage pacing and final sprint',
+      stages.enabled === true && stages.questionsPerStage === 4 && JSON.stringify(stages.rewardSteps) === JSON.stringify([0, 1, 2, 4, 6]) && stages.tapSeconds === 8
         && stages.prepareSeconds === 0 && stages.manualAdvance === true
         && stages.sprintSeconds === 10,
       `tap=${stages.tapSeconds}s, questions/group=${stages.questionsPerStage}, final sprint=${stages.sprintSeconds}s`

@@ -34,6 +34,7 @@ class GameManager {
     this.playerStats = new Map(); // socketId -> personal award statistics
     this.lastRacePacing = null;
     this.flowToken = 0;
+    this.quizFlowRequests = new Set();
     this.pendingQuiz = null;
     this.quizStage = null;
     this.stageQuestions = [];
@@ -230,6 +231,7 @@ class GameManager {
     const stage = this.quizStage;
     if (!this.usesQuizStages() || this.state !== 'QUIZ' || !stage) return reject('INVALID_PHASE');
     if (data.stageNumber !== stage.stageNumber || data.flowRevision !== stage.flowRevision) return reject('STALE_FLOW');
+    if (this.quizFlowRequests.has(data.requestId)) return reject('STALE_REQUEST');
     if (stage.phase === 'awaiting_question') this.startStageQuestion();
     else if (stage.phase === 'reveal') {
       if (stage.questionNumber < stage.questionsPerStage) {
@@ -240,6 +242,7 @@ class GameManager {
       if (stage.completedQuestions < this.stageQuestions.length) this.beginTapStage();
       else this.beginStageSprint();
     } else return reject('INVALID_PHASE');
+    this.quizFlowRequests.add(data.requestId);
     return { success: true };
   }
 
@@ -617,7 +620,7 @@ class GameManager {
     if (this.usesQuizStages()) {
       const plan = StagePlan.estimate(map.checkpoints || [], this.config);
       const maxSpeed = this.config.maxSpeed * 1000 / this.config.positionUpdateRate;
-      const rewards = plan.stageCount * 4 * this.config.quizStages.rewardUnitPx;
+      const rewards = plan.stageCount * Math.max(...this.config.quizStages.rewardSteps) * this.config.quizStages.rewardUnitPx;
       return {
         trackLength: Math.ceil((plan.racingSeconds * maxSpeed + rewards) * 1.1),
         targetGameSeconds: plan.totalSeconds, targetRacingSeconds: plan.racingSeconds,
@@ -701,10 +704,9 @@ class GameManager {
   startRound() {
     if (this.state !== 'LOBBY' && this.state !== 'ROUND_LOBBY' && this.state !== 'MAP_SELECT') return false;
     const map = this.mapManager.getCurrentMap();
-    if (!map) return false;
+    if (!map || !StagePlan.validateFormal(map, this.config)) return false;
     if (this.usesQuizStages()) {
       const checkpoints = map.checkpoints || [];
-      if (map.id === 'wedding-final-showdown' && checkpoints.length !== 15) return false;
       if (!checkpoints.length || checkpoints.length % this.config.quizStages.questionsPerStage !== 0
         || new Set(checkpoints.map(cp => cp.quizId)).size !== checkpoints.length
         || checkpoints.some(cp => !this.quizLoader.getQuizById(cp.quizId))) return false;
@@ -1080,6 +1082,7 @@ class GameManager {
 
   resetGame() {
     this.delivery?.reset();
+    this.quizFlowRequests.clear();
     this.runId = randomUUID();
     this.stateVersion = 0;
     this.flowToken++;

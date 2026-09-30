@@ -63,22 +63,23 @@ const DEFAULT_CONFIG = {
   stateSyncRate: 5000,         // 全量狀態校正同步頻率 ms
   countdownSeconds: 3,         // 賽前倒數秒數
   totalRounds: 1,              // 預設一戰決勝負
+  formalGame: { mapId: 'wedding-final-showdown', questionCount: 16, stageCount: 4, questionsPerStage: 4 },
   quizStages: {
     enabled: true,
-    questionsPerStage: 3,
+    questionsPerStage: 4,
     tapSeconds: 8,
     prepareSeconds: 0,
     manualAdvance: true,
 
     sprintSeconds: 10,
     rewardUnitPx: 1500,
-    rewardSteps: [0, 1, 2, 4]
+    rewardSteps: [0, 1, 2, 4, 6]
   },
   shuttleRace: { legLength: 1500 },
   racePacing: {
     enabled: true,
     targetGameSeconds: null, // 正式模式總時間由主持停留時間決定
-    targetQuizCount: 15,
+    targetQuizCount: 16,
     expectedPlayers: 150,
     triggerFrequencyPercent: 9,
     expectedTapRatePerPlayer: 5,

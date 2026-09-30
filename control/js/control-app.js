@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (gameState.quizStage) {
       const stage = gameState.quizStage;
       const phase = { awaiting_question: '等待主持開始本題', tap: '連點中', prepare: '準備答題', answer: '作答中', reveal: '顯示統計／等待下一步', summary: '本關結算／等待下一關', sprint: '最後衝刺' };
-      byId('quiz-state').textContent = `第 ${stage.stageNumber}/${stage.stageCount} 關 · 第 ${stage.questionNumber}/3 題 · ${phase[stage.phase]} (${stage.phase}) · ${stage.completedQuestions} 題完成`;
+      byId('quiz-state').textContent = `第 ${stage.stageNumber}/${stage.stageCount} 關 · 第 ${stage.questionNumber}/${stage?.questionsPerStage || gameState?.config?.quizStages?.questionsPerStage} 題 · ${phase[stage.phase]} (${stage.phase}) · ${stage.completedQuestions} 題完成`;
     }
     if (gameState.config?.quizStages?.enabled) {
       byId('quiz-select').disabled = true;
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stage = gameState?.quizStage;
     const button = byId('btn-advance-quiz');
     const labels = { awaiting_question: '開始第 1 題',
-      reveal: stage?.questionNumber < 3 ? '下一題' : '顯示本關結算',
+      reveal: stage?.questionNumber < (stage?.questionsPerStage || gameState?.config?.quizStages?.questionsPerStage) ? '下一題' : '顯示本關結算',
       summary: stage?.stageNumber < stage?.stageCount ? '開始下一關' : '開始最後衝刺' };
     button.textContent = advancePending ? '操作送出中…' : labels[stage?.phase] || '等待可推進階段';
     button.disabled = !socket.connected || protocolMismatch || awaitingSync || !!advancePending || gameState?.paused

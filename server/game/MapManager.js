@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const StagePlan = require('../../shared/stage-plan');
+const DEFAULT_CONFIG = require('../../shared/game-config');
 
 class MapManager {
   constructor() {
@@ -76,10 +78,7 @@ class MapManager {
 
   saveMap(mapData) {
     if (!mapData || !mapData.id) return false;
-    if (mapData.id === 'wedding-final-showdown' && (!Array.isArray(mapData.checkpoints)
-      || mapData.checkpoints.length !== 15
-      || new Set(mapData.checkpoints.map(cp => cp?.quizId)).size !== 15
-      || mapData.checkpoints.some(cp => !cp?.quizId))) return false;
+    if (!StagePlan.validateFormal(mapData, DEFAULT_CONFIG)) return false;
     const normalizedMap = {
       ...mapData,
       checkpoints: (mapData.checkpoints || [])

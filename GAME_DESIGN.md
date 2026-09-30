@@ -1,6 +1,6 @@
 # Lucky Horse 產品與設計原則
 
-更新日期：2026-09-29
+更新日期：2026-09-30
 
 本文件只保存產品目標、體驗原則與不變量。現行技術架構、資料流與檔案責任以 [`docs/PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md) 為準；具體數值以 `shared/game-config.js` 與正式地圖 JSON 為準。
 
@@ -8,7 +8,7 @@
 
 Lucky Horse 是婚禮現場的多螢幕即時派對遊戲。它不是追求複雜競技深度，而是讓大量賓客在零安裝、低學習成本下共同參與一段可由主持人掌握節奏的表演。
 
-現行正式玩法為五隊、單局、五關 15 題：手機負責輸入，投影負責敘事與共同注意力，控制台負責現場節奏，後台負責賽前配置與彩排。
+現行正式玩法為五隊、單局、四關 16 題：手機負責輸入，投影負責敘事與共同注意力，控制台負責現場節奏，後台負責賽前配置與彩排。
 
 ## 2. 體驗原則
 
@@ -24,7 +24,7 @@ Lucky Horse 是婚禮現場的多螢幕即時派對遊戲。它不是追求複�
 
 賽事狀態與投影畫面分離。主持人可以在不改變賽事的情況下切換大廳、規則、選隊、賽道與頒獎畫面；也可以暫停、恢復或在確認後重置。
 
-五關題序固定，每題與每關之間由主持人手動推進。只有倒數、連點、作答與最後衝刺自動計時，總時間取決於主持停留時間。
+四關題序固定，每題與每關之間由主持人手動推進。只有倒數、連點、作答與最後衝刺自動計時，總時間取決於主持停留時間。
 
 ### 2.4 立即回饋、伺服器最終裁決
 
@@ -42,11 +42,11 @@ Lucky Horse 是婚禮現場的多螢幕即時派對遊戲。它不是追求複�
 
 - 五隊，每隊最多 50 人。
 - 預設單局決勝。
-- 五關、每關三題，共 15 題；題目不得重複且必須存在。
-- 每關先連點，再答三題，最後一次性發放階段獎勵。
+- 四關、每關四題，共 16 題；題目不得重複且必須存在。
+- 每關先連點，再答四題，最後一次性發放階段獎勵。
 - 團隊答對率 = 答對人數 / 本題開始時隊伍總人數，嚴格 > 50% 才算答對；剛好 50% 不算答對。
-- 三題答對 0／1／2／3 題對應 0／1／2／4 格。
-- 15 題與五次結算完成後才可進入最後衝刺及完賽。
+- 四題答對 0／1／2／3／4 題對應 0／1／2／4／6 格。
+- 16 題與四次結算完成後才可進入最後衝刺及完賽。
 - 最終頒發隊伍冠軍、答題王、手速王與越挫越勇獎。
 - 未作答不增加個人的答錯題數。
 
@@ -102,15 +102,15 @@ Network Protocol v2 的前後端必須共同部署並重新整理所有客戶端
 
 有日期的測試報告只代表該次 release、測試產生器與網路路徑，不應被改寫成永久效能保證。
 
-## 手動進題與統計契約（15 題、5 關）
+## 手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
-Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
+Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第三題統計必須先保留，再由主持切到結算。
+`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。

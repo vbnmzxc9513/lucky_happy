@@ -35,9 +35,9 @@ test('active documentation matches the formal game configuration', () => {
 
   assert.equal(config.TEAMS.length, 5);
   assert.equal(config.totalRounds, 1);
-  assert.equal(map.checkpoints.length, 15);
-  assert.equal(new Set(map.checkpoints.map(checkpoint => checkpoint.quizId)).size, 15);
-  assert.equal(plan.stageCount, 5);
+  assert.equal(map.checkpoints.length, 16);
+  assert.equal(new Set(map.checkpoints.map(checkpoint => checkpoint.quizId)).size, 16);
+  assert.equal(plan.stageCount, 4);
   assert.equal(plan.totalSeconds, null);
 
   for (const expected of [
@@ -46,7 +46,7 @@ test('active documentation matches the formal game configuration', () => {
     `${plan.stageCount}關`,
     `${plan.timedSeconds} 秒`
   ]) {
-    const normalizedExpected = expected.replace('5隊', '五隊').replace('5關', '五關');
+    const normalizedExpected = expected.replace('5隊', '五隊').replace('4關', '四關');
     assert.ok(
       architecture.includes(expected) || architecture.includes(normalizedExpected),
       `architecture should document ${expected}`
@@ -57,8 +57,9 @@ test('active documentation matches the formal game configuration', () => {
 });
 
 test('active documentation contains no retired formal-rules claims', () => {
-  const joined = activeDocs.map(file => `${file}\n${read(file)}`).join('\n');
+  const joined = activeDocs.map(file => `${file}\n${read(file).split('## 2026-08-29 Full Confidence Result')[0]}`).join('\n');
   const retiredClaims = [
+    /15\s*題|五關|5\s*關|每關三題|三題結算|203\s*秒|15 answers\/reveals|five tap stages|five settlements/,
     /18\s*題|六關|6\s*關|415\s*秒/,
     /18 answers\/reveals|six tap stages|six settlements/,
     /固定三局/,

@@ -2,20 +2,20 @@
 
 Lucky Horse 是為婚禮現場設計的多人即時互動遊戲。賓客不需安裝 App，以手機掃描 QR Code 即可加入五隊連點與答題賽事；投影、主持控制與設定後台各自獨立。
 
-目前正式版本採 Network Protocol v2、五隊、單局、五關三題制。完整架構、資料流、權限與維護邊界請先閱讀 [`docs/PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md)。
+目前正式版本採 Network Protocol v2、五隊、單局、四關四題制。完整架構、資料流、權限與維護邊界請先閱讀 [`docs/PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md)。
 
 ## 現行玩法
 
 - 五隊，每隊最多 50 人；未選隊者在開賽時自動平衡分配。
-- 單局決勝，五關、每關三題，共 15 題。
-- 每關先連點 8 秒；主持人逐題開始，每題作答 10 秒後保留統計；第三題後手動顯示本關結算。
+- 單局決勝，四關、每關四題，共 16 題。
+- 每關先連點 8 秒；主持人逐題開始，每題作答 10 秒後保留統計；第四題後手動顯示本關結算。
 - 每題隊伍答對人數須嚴格超過題目開始時隊伍總人數的 50%；未作答者仍計入分母，剛好 50% 不算答對。
-- 每關答對 0／1／2／3 題，分別前進 0／1／2／4 格。
-- 五關完成後最後衝刺 10 秒，以伺服器累積距離決定勝負。
+- 每關答對 0／1／2／3／4 題，分別前進 0／1／2／4／6 格。
+- 四關完成後最後衝刺 10 秒，以伺服器累積距離決定勝負。
 - 手機只顯示選項控制器；題目文字與完整選項只顯示在投影。
 - 點擊、答案與個人獎統計可隨穩定 session 斷線復原。
 
-自動計時只涵蓋倒數、連點、題目作答與最後衝刺，共 203 秒；每題之間及每關之間由主持控制，總時間取決於主持停留時間。完賽後另有 5 秒頒獎轉場。
+自動計時只涵蓋倒數、連點、題目作答與最後衝刺，共 205 秒；每題之間及每關之間由主持控制，總時間取決於主持停留時間。完賽後另有 5 秒頒獎轉場。
 
 ## 快速啟動
 
@@ -53,7 +53,7 @@ npm start
 ## 設定與內容
 
 - 隊伍、物理、階段秒數：`shared/game-config.js`
-- 正式地圖與 15 題順序：`data/maps/wedding-final-showdown.json`
+- 正式地圖與 16 題順序：`data/maps/wedding-final-showdown.json`
 - 題庫：`data/quizzes/*.json`
 - 道具：`data/items.json`
 - Socket 事件契約：`shared/events.js`
@@ -125,7 +125,7 @@ lucky-horse/
 
 - 開發者架構總覽：[`docs/PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md)
 - 產品與體驗原則：[`GAME_DESIGN.md`](GAME_DESIGN.md)
-- 現行五關賽制：[`docs/FORMAL_GAME_RULES.md`](docs/FORMAL_GAME_RULES.md)
+- 現行四關賽制：[`docs/FORMAL_GAME_RULES.md`](docs/FORMAL_GAME_RULES.md)
 - 現場操作：[`docs/WEDDING_RUNBOOK.md`](docs/WEDDING_RUNBOOK.md)
 - 完整驗收：[`docs/WEDDING_OPERATION_TEST_PLAN.md`](docs/WEDDING_OPERATION_TEST_PLAN.md)
 - 正式部署：[`deploy/README.md`](deploy/README.md)

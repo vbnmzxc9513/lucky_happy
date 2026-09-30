@@ -194,7 +194,7 @@ class QuizDisplay {
     dynamicResults.innerHTML = '';
     
     const getEffectText = (eff, val) => {
-      if (eff === 'stage_pending') return '三題結束後一起結算';
+      if (eff === 'stage_pending') return '四題結束後一起結算';
       if (eff === 'large_boost') return `🔥 衝刺加速 +${val}px`;
       if (eff === 'small_boost') return `⚡ 小幅加速 +${val}px`;
       return `💫 停滯暈眩 ${val/1000} 秒`;

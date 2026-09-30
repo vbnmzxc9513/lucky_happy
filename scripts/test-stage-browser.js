@@ -23,7 +23,7 @@ async function checkBounds(page, selector) {
 
 async function main() {
   fs.mkdirSync('reports/stages', { recursive: true });
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL } : {}) });
   try {
     const context = await browser.newContext();
     const login = await context.request.post(`${url}/staff-login`, {
@@ -58,11 +58,11 @@ async function main() {
       const display = new window.StageDisplay('host');
       display.summary.id = 'fixture-summary';
       const teamResults = Object.fromEntries(config.TEAMS.map((team, index) => {
-        const count = Math.min(index, 3);
-        return [team.id, { answers: [0, 1, 2].map(i => i < count), correctCount: count, steps: [0, 1, 2, 4][count] }];
+        const count = Math.min(index, 4);
+        return [team.id, { answers: [0, 1, 2, 3].map(i => i < count), correctCount: count, steps: [0, 1, 2, 4, 6][count], position: 10 + [0, 1, 2, 4, 6][count] * 1500 }];
       }));
       display.sync({ config, serverNow: Date.now(), quizStage: {
-        stageNumber: 5, stageCount: 5, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 8000,
+        stageNumber: 4, stageCount: 4, questionNumber: 4, phase: 'summary', endsAt: Date.now() + 8000,
         summary: { teamResults }
       } });
       // The fixture's rendering is isolated from incoming lobby snapshots.
@@ -76,6 +76,7 @@ async function main() {
     const endX = await hostFixture.locator('#fixture-summary img').last().evaluate(el => el.getBoundingClientRect().x);
     assert.ok(endX > startX + 18, 'reward horse visibly moves');
     await checkBounds(hostFixture, '#fixture-summary');
+    assert.deepEqual(await hostFixture.locator('#fixture-summary .stage-cheer').allTextContents(), [10, 1510, 3010, 6010, 9010].map(n => `權威距離 ${n}`));
     const footerVisible = await hostFixture.locator('#fixture-summary .stage-next').evaluate(el => {
       const r = el.getBoundingClientRect();
       return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
@@ -89,15 +90,15 @@ async function main() {
     assert.equal(await hostFixture.locator('#app-container').evaluate(el => getComputedStyle(el, '::after').backgroundColor), 'rgb(161, 215, 207)');
     await hostFixture.screenshot({ path: 'reports/stages/host-rewards-1134.png' });
     await hostFixture.setViewportSize({ width: 1920, height: 1080 });
-    for (const correctCount of [3, 0]) {
+    for (const correctCount of [4, 0]) {
       await hostFixture.evaluate(({ config, correctCount }) => {
         document.getElementById('fixture-summary').remove();
         const display = new window.StageDisplay('host');
         display.summary.id = 'fixture-summary';
         display.sync({ config, serverNow: Date.now(), quizStage: {
-          stageNumber: 5, stageCount: 5, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 1000,
+          stageNumber: 4, stageCount: 4, questionNumber: 4, phase: 'summary', endsAt: Date.now() + 1000,
           summary: { teamResults: Object.fromEntries(config.TEAMS.map(t => [t.id, {
-            answers: [0, 1, 2].map(i => i < correctCount), correctCount, steps: correctCount ? 4 : 0
+            answers: [0, 1, 2, 3].map(i => i < correctCount), correctCount, steps: correctCount ? 6 : 0
           }])) }
         } });
         document.body.classList.add('stage-summary-active');
@@ -119,8 +120,8 @@ async function main() {
       await page.evaluate(config => {
         window.display = new window.StageDisplay('guest');
         window.fixture = { serverNow: Date.now(), config, quizStage: {
-          stageNumber: 1, stageCount: 5, questionNumber: 3, phase: 'summary', endsAt: Date.now() + 8000,
-          summary: { teamResults: { red: { answers: [true, true, true], correctCount: 3, steps: 4 } } }
+          stageNumber: 1, stageCount: 4, questionNumber: 4, phase: 'summary', endsAt: Date.now() + 8000,
+          summary: { teamResults: { red: { answers: [true, true, true, true], correctCount: 4, steps: 6, position: 9010 } } }
         } };
         window.display.sync(window.fixture, 'red');
       }, config);
@@ -129,7 +130,7 @@ async function main() {
       await page.screenshot({ path: `reports/stages/mobile-${size.width}.png` });
       await page.evaluate(() => {
         window.display.sync({ ...window.fixture, quizStage: null }, 'red');
-        window.fixture.quizStage.summary.teamResults.red = { answers: [false, false, false], correctCount: 0, steps: 0 };
+        window.fixture.quizStage.summary.teamResults.red = { answers: [false, false, false, false], correctCount: 0, steps: 0 };
         window.fixture.serverNow = Date.now();
         window.fixture.quizStage.endsAt = Date.now() + 1000;
         window.display.sync(window.fixture, 'red');
@@ -137,6 +138,8 @@ async function main() {
       await page.waitForTimeout(100);
       await checkBounds(page, '.stage-guest');
       assert.equal(await page.locator('.stage-perfect-seal').count(), 0);
+      assert.equal(await page.locator('.stage-guest h2').textContent(), '本關成績揭曉');
+      await page.waitForFunction(() => document.querySelector('.stage-guest h2').textContent === '下一關，逆轉吧！', { timeout: 5000 });
       assert.equal(await page.locator('.stage-guest h2').textContent(), '下一關，逆轉吧！');
       await page.evaluate(() => window.display.sync({ serverNow: Date.now(), config: window.fixture.config, quizStage: null }, 'red'));
       assert.equal(await page.locator('.stage-summary').isHidden(), true);

@@ -1,7 +1,7 @@
 {
   "id": "wedding-final-showdown",
   "name": "幸福一戰決勝負",
-  "description": "婚禮正式版：五關、15 題，每關連點 8 秒；主持人手動進題與結算。",
+  "description": "婚禮正式版：四關、16 題，每關四題、連點 8 秒；主持人手動進題與結算。",
   "thumbnail": "🏇",
   "difficulty": 2,
   "track": {
@@ -15,133 +15,142 @@
         "type": "team_progress",
         "percent": 5
       },
-      "quizId": "wc_001",
+      "quizId": "wedding_2026_01",
       "timeLimit": 10
     },
     {
       "id": "final_cp_2",
       "trigger": {
         "type": "team_progress",
-        "percent": 11
+        "percent": 10
       },
-      "quizId": "wc_002",
+      "quizId": "wedding_2026_02",
       "timeLimit": 10
     },
     {
       "id": "final_cp_3",
       "trigger": {
         "type": "team_progress",
-        "percent": 16
+        "percent": 15
       },
-      "quizId": "wc_003",
+      "quizId": "wedding_2026_03",
       "timeLimit": 10
     },
     {
       "id": "final_cp_4",
       "trigger": {
         "type": "team_progress",
-        "percent": 21
+        "percent": 20
       },
-      "quizId": "wc_004",
+      "quizId": "wedding_2026_04",
       "timeLimit": 10
     },
     {
       "id": "final_cp_5",
       "trigger": {
         "type": "team_progress",
-        "percent": 26
+        "percent": 25
       },
-      "quizId": "ft_001",
+      "quizId": "wedding_2026_05",
       "timeLimit": 10
     },
     {
       "id": "final_cp_6",
       "trigger": {
         "type": "team_progress",
-        "percent": 32
+        "percent": 30
       },
-      "quizId": "ft_002",
+      "quizId": "wedding_2026_06",
       "timeLimit": 10
     },
     {
       "id": "final_cp_7",
       "trigger": {
         "type": "team_progress",
-        "percent": 37
+        "percent": 35
       },
-      "quizId": "ft_003",
+      "quizId": "wedding_2026_07",
       "timeLimit": 10
     },
     {
       "id": "final_cp_8",
       "trigger": {
         "type": "team_progress",
-        "percent": 42
+        "percent": 40
       },
-      "quizId": "ft_004",
+      "quizId": "wedding_2026_08",
       "timeLimit": 10
     },
     {
       "id": "final_cp_9",
       "trigger": {
         "type": "team_progress",
-        "percent": 47
+        "percent": 45
       },
-      "quizId": "ft_005",
+      "quizId": "wedding_2026_09",
       "timeLimit": 10
     },
     {
       "id": "final_cp_10",
       "trigger": {
         "type": "team_progress",
-        "percent": 53
+        "percent": 50
       },
-      "quizId": "ft_006",
+      "quizId": "wedding_2026_10",
       "timeLimit": 10
     },
     {
       "id": "final_cp_11",
       "trigger": {
         "type": "team_progress",
-        "percent": 58
+        "percent": 55
       },
-      "quizId": "party_001",
+      "quizId": "wedding_2026_11",
       "timeLimit": 10
     },
     {
       "id": "final_cp_12",
       "trigger": {
         "type": "team_progress",
-        "percent": 63
+        "percent": 60
       },
-      "quizId": "party_002",
+      "quizId": "wedding_2026_12",
       "timeLimit": 10
     },
     {
       "id": "final_cp_13",
       "trigger": {
         "type": "team_progress",
-        "percent": 68
+        "percent": 65
       },
-      "quizId": "party_003",
+      "quizId": "wedding_2026_13",
       "timeLimit": 10
     },
     {
       "id": "final_cp_14",
       "trigger": {
         "type": "team_progress",
-        "percent": 74
+        "percent": 70
       },
-      "quizId": "party_004",
+      "quizId": "wedding_2026_14",
       "timeLimit": 10
     },
     {
       "id": "final_cp_15",
       "trigger": {
         "type": "team_progress",
-        "percent": 79
+        "percent": 75
       },
-      "quizId": "party_005",
+      "quizId": "wedding_2026_15",
+      "timeLimit": 10
+    },
+    {
+      "id": "final_cp_16",
+      "trigger": {
+        "type": "team_progress",
+        "percent": 80
+      },
+      "quizId": "wedding_2026_16",
       "timeLimit": 10
     }
   ],
@@ -155,21 +164,22 @@
     ]
   },
   "quizPool": [
-    "wc_001",
-    "wc_002",
-    "wc_003",
-    "wc_004",
-    "ft_001",
-    "ft_002",
-    "ft_003",
-    "ft_004",
-    "ft_005",
-    "ft_006",
-    "party_001",
-    "party_002",
-    "party_003",
-    "party_004",
-    "party_005"
+    "wedding_2026_01",
+    "wedding_2026_02",
+    "wedding_2026_03",
+    "wedding_2026_04",
+    "wedding_2026_05",
+    "wedding_2026_06",
+    "wedding_2026_07",
+    "wedding_2026_08",
+    "wedding_2026_09",
+    "wedding_2026_10",
+    "wedding_2026_11",
+    "wedding_2026_12",
+    "wedding_2026_13",
+    "wedding_2026_14",
+    "wedding_2026_15",
+    "wedding_2026_16"
   ],
   "config": {
     "baseBoost": 0.5,

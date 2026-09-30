@@ -112,10 +112,12 @@ const flowState = { runId: 'flow-run', state: 'QUIZ', paused: false, teams, conf
   currentMap: { id: 'wedding-final-showdown', trackLength: 1000 } };
 for (const [phase, questionNumber, stageNumber, label] of [
   ['awaiting_question', 1, 1, '開始第 1 題'], ['reveal', 1, 1, '下一題'],
-  ['reveal', 3, 1, '顯示本關結算'], ['summary', 3, 1, '開始下一關'],
-  ['summary', 3, 5, '開始最後衝刺']
+  ['reveal', 2, 1, '下一題'], ['reveal', 3, 1, '下一題'],
+  ['reveal', 4, 1, '顯示本關結算'], ['summary', 4, 1, '開始下一關'],
+  ['summary', 4, 2, '開始下一關'], ['summary', 4, 3, '開始下一關'],
+  ['summary', 4, 4, '開始最後衝刺']
 ]) {
-  const state = { ...flowState, quizStage: { phase, questionNumber, stageNumber, stageCount: 5, flowRevision: 7 } };
+  const state = { ...flowState, quizStage: { phase, questionNumber, stageNumber, stageCount: 4, flowRevision: 7 } };
   handlers[events.SERVER_TO_CLIENT.GAME_STATE_SYNC](state);
   const button = window.document.getElementById('btn-advance-quiz');
   assert.equal(button.textContent, label);
@@ -158,7 +160,7 @@ for (const phase of ['tap', 'answer', 'prepare', 'sprint']) {
 
 // A missing ACK must still be able to request a fresh snapshot through the gate.
 handlers[events.SERVER_TO_CLIENT.GAME_STATE_SYNC]({ ...flowState,
-  quizStage: { phase: 'reveal', questionNumber: 1, stageNumber: 1, stageCount: 5, flowRevision: 9 } });
+  quizStage: { phase: 'reveal', questionNumber: 1, stageNumber: 1, stageCount: 4, flowRevision: 9 } });
 const originalTimeout = window.setTimeout;
 let expireAdvance;
 window.setTimeout = (fn, ms) => ms === 5000 ? (expireAdvance = fn, 0) : originalTimeout(fn, ms);

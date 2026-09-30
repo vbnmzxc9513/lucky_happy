@@ -36,7 +36,7 @@ Use `STAFF_ACCESS_CODE` when the deployed staff verification code is different f
 
 ## 現行模式
 
-正式 15 題、5 關，每題與每關之間由主持控制。自動主持模式會送出合法 CONTROL_ADVANCE_QUIZ_FLOW；manualHost 不代替真人按鈕。自動計時部分 203 秒，總時間另加主持停留與暫停。
+正式 16 題、4 關，每題與每關之間由主持控制。自動主持模式會送出合法 CONTROL_ADVANCE_QUIZ_FLOW；manualHost 不代替真人按鈕。自動計時部分 205 秒，總時間另加主持停留與暫停。
 
 ## 2026-08-29 Full Confidence Result（歷史數據，不代表現行版本）
 

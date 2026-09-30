@@ -151,7 +151,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy\verify-public.p
 .\deploy\verify-public.ps1 -Domain game.example.com -StaffAccessCode 1009 -RunStress
 ```
 
-此命令測 150 人及 15 人重連。需確認完整 15 題、五次結算、四獎、無系統錯誤；測完回大廳清除測試玩家，再用真手機完整走一局。部署成功不等同已通過實際婚禮網路、音響與投影驗收。
+此命令測 150 人及 15 人重連。需確認完整 16 題、四次結算、四獎、無系統錯誤；測完回大廳清除測試玩家，再用真手機完整走一局。部署成功不等同已通過實際婚禮網路、音響與投影驗收。
 
 ## 10. 失敗時看這裡
 

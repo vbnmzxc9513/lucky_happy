@@ -1,4 +1,5 @@
 const assert = require('assert');
+const FIRST_FORMAL_QUIZ_ID = require('../data/maps/wedding-final-showdown.json').checkpoints[0].quizId;
 const { randomUUID } = require('node:crypto');
 const { io } = require('socket.io-client');
 const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = require('../shared/events');
@@ -222,8 +223,8 @@ async function main() {
   console.log('PASS unknown session cannot bypass in-race join lock');
 
   const firstGuest = guests[0];
-  const firstQuizOptions = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data.quizId === 'wc_001');
-  const hostQuiz = waitForEvent(host, SERVER_TO_CLIENT.GAME_QUIZ_START, data => data.quizId === 'wc_001');
+  const firstQuizOptions = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data.quizId === FIRST_FORMAL_QUIZ_ID);
+  const hostQuiz = waitForEvent(host, SERVER_TO_CLIENT.GAME_QUIZ_START, data => data.quizId === FIRST_FORMAL_QUIZ_ID);
   const waiting = await waitForEvent(control, SERVER_TO_CLIENT.GAME_STATE_SYNC,
     state => state.quizStage?.phase === 'awaiting_question');
   control.emit(CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, { requestId: randomUUID(), runId: waiting.runId,
@@ -232,7 +233,7 @@ async function main() {
 
   const answerAck = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
   const firstAnswerId = randomUUID();
-  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: firstAnswerId });
+  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: FIRST_FORMAL_QUIZ_ID, answer: 'A', requestId: firstAnswerId });
   assert.strictEqual((await answerAck).success, true);
 
   const oldSocketId = firstGuest.socket.id;
@@ -246,7 +247,7 @@ async function main() {
   const recoveredOptions = waitForEvent(
     firstGuest.socket,
     SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS,
-    data => data && data.quizId === 'wc_001' && data.recovered === true,
+    data => data && data.quizId === FIRST_FORMAL_QUIZ_ID && data.recovered === true,
     10000
   );
   firstGuest.socket.once('connect', () => {
@@ -262,13 +263,13 @@ async function main() {
   const [, restoredOptions] = await Promise.all([recoveredJoin, recoveredOptions]);
   assert.equal(restoredOptions.alreadyAnswered, true);
   assert.equal(restoredOptions.receipt.requestId, firstAnswerId);
-  assert.equal(restoredOptions.receipt.quizId, 'wc_001');
+  assert.equal(restoredOptions.receipt.quizId, FIRST_FORMAL_QUIZ_ID);
   assert.equal(restoredOptions.receipt.answer, 'A');
 
   const duplicateAck = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);
   const duplicateAnswerId = randomUUID();
   assert.notStrictEqual(duplicateAnswerId, firstAnswerId);
-  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: 'wc_001', answer: 'A', requestId: duplicateAnswerId });
+  firstGuest.socket.emit(CLIENT_TO_SERVER.GUEST_QUIZ_ANSWER, { quizId: FIRST_FORMAL_QUIZ_ID, answer: 'A', requestId: duplicateAnswerId });
   const duplicate = await duplicateAck;
   assert.strictEqual(duplicate.success, false);
   assert.strictEqual(duplicate.reason, 'ALREADY_ANSWERED');
@@ -280,7 +281,7 @@ async function main() {
   const recoveredHostQuizPromise = waitForEvent(
     host,
     SERVER_TO_CLIENT.GAME_QUIZ_START,
-    data => data && data.quizId === 'wc_001' && data.recovered === true,
+    data => data && data.quizId === FIRST_FORMAL_QUIZ_ID && data.recovered === true,
     5000
   );
   await waitForConnect(host);

@@ -1,7 +1,7 @@
 # Lucky Horse 現行 QA 與發布門檻
 
-更新日期：2026-09-29
-正式規格：Network Protocol v2、五隊、單局、五關 15 題
+更新日期：2026-09-30
+正式規格：Network Protocol v2、五隊、單局、四關 16 題
 
 這是現行 QA 規格。檔名含日期的 `LOAD*`、`PRODUCTION_*`、`POSTDEPLOY_*` 與 `NETWORK_*` 文件是歷史證據，不會自動改變本文件的發布門檻。
 
@@ -10,7 +10,7 @@
 - 本機快速信心測試、30 人斷線復原、主持操作與 preflight 已具完整自動化。
 - 本機 150／190／220 人與公開隔離 190／200 人曾取得不同網路路徑的測量結果。
 - 最近的公開 community-Wi-Fi 路徑仍曾因冷頁面延遲或網路停頓未達門檻。
-- 歷史測量不代表新版已通過；15 題手動賽制的完整負載、婚禮場地與真實手機需重新驗證，不得只引用舊模擬器結果。
+- 歷史測量不代表新版已通過；16 題手動賽制的完整負載、婚禮場地與真實手機需重新驗證，不得只引用舊模擬器結果。
 
 ## 2. 每次提交
 
@@ -21,7 +21,7 @@ npm test
 必須通過：
 
 - 五隊、50 人上限、自動分隊與滿隊換隊保留原隊。
-- 五關 15 題、五次結算、最後衝刺與四獎。
+- 四關 16 題、四次結算、最後衝刺與四獎。
 - 團隊答對率 0%、49%、50%、50.1%、51%、100%、無人作答、答案鎖與個人統計。
 - Protocol v2、角色分流、冪等、舊狀態拒絕與 receipt accounting。
 - 暫停、恢復、重置、競態與舊 timer 防護。
@@ -69,19 +69,19 @@ npm run security:check
 - 重複暫停／恢復安全拒絕。
 - 作答、揭曉、結算或暫停中不能插入不合法題目／道具。
 - 頒獎在 `MATCH_FINISHED` 前不可進入或揭曉。
-- Admin 地圖與題目驗證不會默默刪題、重複題或產生非三的倍數題表。
+- Admin 地圖與題目驗證不會默默刪題、重複題或產生非四的倍數題表。
 
 ## 5. 時間與計分門檻
 
 | 指標 | 預期 |
 | --- | ---: |
-| 題目／結算／獎項 | 15／5／4 |
+| 題目／結算／獎項 | 16／4／4 |
 | 每段連點 | 8 秒 |
 | 每題正式作答 | 10 秒 |
 | 每題揭曉 | 保留至主持手動推進 |
 | 每階段結算 | 保留至主持開始下一關 |
 | 最後衝刺 | 10 秒 |
-| 自動計時部分 | 203 秒；總時間另加主持停留 |
+| 自動計時部分 | 205 秒；總時間另加主持停留 |
 | 完賽至頒獎 | 5 秒 |
 | 暫停期間 | 不計入排程 |
 
@@ -96,7 +96,7 @@ npm run security:check
 - 預定活動人數，另加至少 10% 容量餘裕。
 - 每人每秒 5–10 次點擊。
 - 至少 10% 玩家在題目期間斷線重連。
-- 15 題全員作答或接近正式參與率。
+- 16 題全員作答或接近正式參與率。
 - 使用 `--requireAccounting` 時只在非 production 的隔離實例啟用診斷端點。
 
 建議最低門檻：
@@ -121,7 +121,7 @@ npm run security:check
 至少包含：
 
 - iPhone Safari、Android Chrome、較舊手機各一支；正式建議至少 10 支實機。
-- 首次冷載入、掃 QR、加入、選隊、連點、15 題與四獎。
+- 首次冷載入、掃 QR、加入、選隊、連點、16 題與四獎。
 - 鎖屏、切背景、切網路與重整。
 - 投影、HDMI 拔插、音響中斷與重新啟用。
 - WAN 失效後三分鐘內切換 LAN 備援。
@@ -134,7 +134,7 @@ npm run security:check
 
 - QR 無法由現場手機首次載入。
 - 玩家、隊伍或逐人帳本不一致。
-- 15 題、五次結算或四獎不完整。
+- 16 題、四次結算或四獎不完整。
 - 重置後仍有舊題目／舊計時器執行。
 - 投影、控制台或音響沒有可用替代方案。
 - LAN 備援版本與正式站不同或未演練。
@@ -144,15 +144,15 @@ npm run security:check
 
 每次正式驗收記錄：release commit／archive hash、日期與時區、環境、網路、裝置、指令、完整 JSON report、截圖、伺服器輸出、清理結果與最終判定。失敗報告保留原始結果，不得放寬門檻後改標 Pass。
 
-## 手動進題與統計契約（15 題、5 關）
+## 手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
-Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
+Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第三題統計必須先保留，再由主持切到結算。
+`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。

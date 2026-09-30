@@ -6,10 +6,10 @@ const dom = new JSDOM('<body><div id="app-container"></div><div id="mobile-app">
 const window = dom.window;
 window.eval(fs.readFileSync(require.resolve('../shared/stage-display.js'), 'utf8'));
 const stage = {
-  phase: 'summary', stageNumber: 1, stageCount: 5, questionNumber: 3, endsAt: Date.now() + 8000,
+  phase: 'summary', stageNumber: 1, stageCount: 4, questionNumber: 4, endsAt: Date.now() + 8000,
   summary: { teamResults: Object.fromEntries(config.TEAMS.map((team, index) => {
-    const count = Math.min(index, 3);
-    return [team.id, { correctCount: count, steps: [0, 1, 2, 4][count], answers: [0, 1, 2].map(i => i < count) }];
+    const count = Math.min(index, 4);
+    return [team.id, { correctCount: count, steps: [0, 1, 2, 4, 6][count], position: 10 + [0, 1, 2, 4, 6][count] * 1500, answers: [0, 1, 2, 3].map(i => i < count) }];
   })) }
 };
 const state = { config, serverNow: Date.now(), quizStage: stage };
@@ -17,7 +17,10 @@ try {
   const host = new window.StageDisplay('host');
   host.sync(state);
   assert.equal(host.summary.querySelectorAll('.stage-team').length, 5);
-  assert.equal(host.summary.querySelectorAll('.stage-stars span').length, 15);
+  assert.equal(host.summary.querySelectorAll('.stage-stars span').length, 20);
+  assert.deepEqual([...host.summary.querySelectorAll('.stage-reward')].map(el => el.textContent), [0, 1, 2, 4, 6].map(n => `前進 ${n} 格`));
+  assert.deepEqual([...host.summary.querySelectorAll('.stage-cheer')].map(el => el.textContent), [10, 1510, 3010, 6010, 9010].map(n => `權威距離 ${n}`));
+  assert.equal(host.summary.querySelectorAll('.stage-perfect').length, 1);
   const firstStar = host.summary.querySelector('.stage-stars span');
   host.sync(state);
   assert.equal(host.summary.querySelector('.stage-stars span'), firstStar, 'sync must not restart animation');

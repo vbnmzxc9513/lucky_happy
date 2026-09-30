@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "id": "wedding-formal",
+    "name": "婚禮正式16題",
+    "version": "1.0"
+  },
+  "quizzes": [
+    {
+      "id": "wedding_2026_01",
+      "question": "新郎新娘合奏的是什麼歌",
+      "options": [
+        "I found a Love",
+        "Perfect",
+        "Baby",
+        "Marry you"
+      ],
+      "correctAnswer": "B",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_02",
+      "question": "新娘家的\"黑皮\"是什麼品種的狗狗",
+      "options": [
+        "傑克素洛",
+        "傑克魔豆",
+        "傑克羅素",
+        "傑克洛登"
+      ],
+      "correctAnswer": "C",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_03",
+      "question": "下列哪個不是黑皮的小名",
+      "options": [
+        "小牛",
+        "那人",
+        "小貓",
+        "鴨鴨"
+      ],
+      "correctAnswer": "D",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_04",
+      "question": "新郎新娘怎麼認識的",
+      "options": [
+        "大學同班同學",
+        "大學同寢室友",
+        "大學迎新同小隊",
+        "大學同學介紹"
+      ],
+      "correctAnswer": "C",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_05",
+      "question": "新郎求婚的地點是哪裡",
+      "options": [
+        "Kiroro 滑雪度假村",
+        "東京迪士尼",
+        "小人國",
+        "大稻埕碼頭"
+      ],
+      "correctAnswer": "A",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_06",
+      "question": "門口有幾隻黑皮(立牌)",
+      "options": [
+        "1隻",
+        "2隻",
+        "3隻",
+        "4隻"
+      ],
+      "correctAnswer": "C",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_07",
+      "question": "結婚登記的日期",
+      "options": [
+        "2025/05/26",
+        "2025/10/09",
+        "2026/05/26",
+        "2026 辦完婚禮"
+      ],
+      "correctAnswer": "A",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_08",
+      "question": "新娘曾經去哪個國家當交換學生",
+      "options": [
+        "芬蘭",
+        "挪威",
+        "丹麥",
+        "瑞典"
+      ],
+      "correctAnswer": "D",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_09",
+      "question": "新娘平常最喜歡什麼運動",
+      "options": [
+        "羽球",
+        "排球",
+        "跑步",
+        "沒在運動"
+      ],
+      "correctAnswer": "B",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_10",
+      "question": "新郎證婚時穿的西裝是什麼顏色",
+      "options": [
+        "灰色",
+        "白色",
+        "奶茶色",
+        "淺藍色"
+      ],
+      "correctAnswer": "C",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_11",
+      "question": "新人的車車叫什麼名字",
+      "options": [
+        "小蒟蒻",
+        "小乳酪",
+        "小起司",
+        "小奶酪"
+      ],
+      "correctAnswer": "B",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_12",
+      "question": "新郎是 NBA 的哪一隊球迷",
+      "options": [
+        "馬刺",
+        "尼克",
+        "湖人",
+        "勇士"
+      ],
+      "correctAnswer": "D",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_13",
+      "question": "以下食物哪個是新娘喜歡的",
+      "options": [
+        "芹菜",
+        "香菜",
+        "青蔥",
+        "紅蘿蔔"
+      ],
+      "correctAnswer": "A",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_14",
+      "question": "在一起後第一次約會的地點",
+      "options": [
+        "東眼山看流星",
+        "故宮博物院",
+        "中原夜市",
+        "六福村"
+      ],
+      "correctAnswer": "B",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_15",
+      "question": "兩個人的職業相同，是什麼",
+      "options": [
+        "老師",
+        "醫護人員",
+        "滑雪教練",
+        "工程師"
+      ],
+      "correctAnswer": "D",
+      "difficulty": "easy",
+      "timeLimit": 10
+    },
+    {
+      "id": "wedding_2026_16",
+      "question": "新郎跟新娘沒有一起去過以下哪個國家",
+      "options": [
+        "韓國",
+        "日本",
+        "香港",
+        "新加坡"
+      ],
+      "correctAnswer": "A",
+      "difficulty": "easy",
+      "timeLimit": 10
+    }
+  ]
+}

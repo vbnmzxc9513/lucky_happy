@@ -23,13 +23,13 @@ Accounting rules:
 - Team display counts skipping as wrong: correctCount plus teamWrongCount equals
   the question's team size. unansweredCount is a subset of teamWrongCount;
   wrongCount still represents submitted incorrect answers for reconciliation.
-- Accepted answers plus skipped questions equals 15 for these full-match participants.
+- Accepted answers plus skipped questions equals 16 for these full-match participants.
 - Rejected, duplicate, invalid, expired and paused answers must not alter statistics.
 - Reconnecting retains identity and the answer lock, without duplicating statistics.
 - Answer latency excludes paused time.
 - Team correctness uses correctCount / team size captured at question start, strictly > 0.5.
   Unanswered players stay in the denominator; exactly 50% and empty teams are incorrect.
-- Stage rewards for 0/1/2/3 correct answers are 0/1500/3000/6000 distance, paid once.
+- Stage rewards for 0/1/2/3/4 correct answers are 0/1500/3000/6000/9000 distance, paid once.
 - Individual correct/wrong ties use average latency across all accepted answers,
   then join time. Skippers cannot win the wrong-answer award.
 
@@ -42,7 +42,7 @@ Accounting rules:
 | Silent | 150 | No accepted taps or answers; no fictitious correct/wrong winner |
 
 Tests explicitly advance each waiting phase using the authoritative Control command.
-All scenarios execute five tap stages, 15 answers/reveals, five settlements,
+All scenarios execute four tap stages, 16 answers/reveals, four settlements,
 final sprint, four awards and reset. Mixed scenarios reconnect players after
 an accepted answer and attempt another answer from both old and new sockets.
 

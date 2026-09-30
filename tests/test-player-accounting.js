@@ -19,7 +19,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
       for (let n = 0; n < ms; n += 50) t.mock.timers.tick(Math.min(50, ms - n));
     };
     const next = () => {
-      check(game.advanceQuizFlow({ requestId: 'test-advance', runId: game.runId, stageNumber: game.quizStage.stageNumber,
+      check(game.advanceQuizFlow({ requestId: require('node:crypto').randomUUID(), runId: game.runId, stageNumber: game.quizStage.stageNumber,
         flowRevision: game.quizStage.flowRevision }).success, true, 'manual advance');
       advance(0); t.mock.timers.tick(0);
     };
@@ -70,7 +70,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
       check(game.startRound(), true, 'start');
       check(game.startRound(), false, 'duplicate start');
       advance(3000);
-      for (let stage = 0; stage < 5; stage++) {
+      for (let stage = 0; stage < 4; stage++) {
         check(game.quizStage.phase, 'tap', 'tap phase');
         const tapStart = Date.now();
         for (let batch = 0; batch < 21; batch++) {
@@ -86,7 +86,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
         advance(8000 - (Date.now() - tapStart));
         next();
         const stageCorrect = Object.fromEntries(teams.map(id => [id, 0]));
-        for (let q = 0; q < 3; q++) {
+        for (let q = 0; q < 4; q++) {
           check(game.quizStage.phase, 'answer', 'question phase');
           const id = game.quizManager.currentQuiz.id;
           const votes = Object.fromEntries(teams.map(tid => [tid, { A: 0, B: 0 }]));
@@ -159,7 +159,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
           next();
         }
         for (const tid of teams) {
-          const reward = [0, 1500, 3000, 6000][stageCorrect[tid]];
+          const reward = [0, 1500, 3000, 6000, 9000][stageCorrect[tid]];
           distance[tid] += reward;
           const actual = game.quizStage.summary.teamResults[tid];
           check(actual.rewardPx, reward, 'stage reward');
@@ -176,7 +176,7 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
       check(awards.length, 4, 'four awards');
       for (const p of players) {
         verifyPlayer(p);
-        check(p.expected.unansweredCount + p.times.length, 15, 'all questions accounted');
+        check(p.expected.unansweredCount + p.times.length, 16, 'all questions accounted');
       }
       for (const [id, key, speed, positive] of [
         ['most-correct', 'correct', true, true], ['highest-clicks', 'taps', false, false],

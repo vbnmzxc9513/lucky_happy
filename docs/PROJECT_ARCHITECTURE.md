@@ -1,7 +1,7 @@
 # Lucky Horse 專案架構總覽
 
-更新日期：2026-09-29
-適用版本：目前工作樹的 Network Protocol v2、五隊、單局、五關 15 題版本
+更新日期：2026-09-30
+適用版本：目前工作樹的 Network Protocol v2、五隊、單局、四關 16 題版本
 
 這份文件是新開發者理解系統的主要入口。它描述目前程式實際行為，而不是早期企劃。若文件與程式衝突，依下列優先順序判定：
 
@@ -99,20 +99,20 @@ LOBBY / MAP_SELECT / ROUND_LOBBY
 
 ## 6. 現行正式賽制
 
-預設為五隊、每隊最多 50 人、單局決勝。正式地圖包含五關，每關三題，共 15 題。
+預設為五隊、每隊最多 50 人、單局決勝。正式地圖包含四關，每關四題，共 16 題。
 
 ```text
 開賽倒數 3 秒
-  └─ 五關：
+  └─ 四關：
        連點 8 秒
        等待主持開始第一題
-       三次〔主持開始 → 作答 10 秒 → 統計保留至主持推進〕
-       主持顯示三題結算 → 保留至主持開始下一關／最後衝刺
+       四次〔主持開始 → 作答 10 秒 → 統計保留至主持推進〕
+       主持顯示四題結算 → 保留至主持開始下一關／最後衝刺
   └─ 最後衝刺 10 秒
   └─ 完賽後 5 秒進入頒獎
 ```
 
-自動計時部分合計 203 秒；每題之間及每關之間由主持控制，總時間取決於主持停留時間與暫停時間。完賽後 5 秒轉入頒獎。
+自動計時部分合計 205 秒；每題之間及每關之間由主持控制，總時間取決於主持停留時間與暫停時間。完賽後 5 秒轉入頒獎。
 
 ### 6.1 連點計分
 
@@ -130,7 +130,7 @@ boost = baseBoost / sqrt(teamSize)
 
 手機只顯示選項代號與按鈕，題目文字與完整選項顯示在投影。每隊以本題開始時隊伍總人數為分母，答對率嚴格 > 0.5 才算答對；剛好 50%、空隊伍或全隊無人回答均不算答對。個人未作答不增加 wrongCount。
 
-每關三題結束後一次發獎：
+每關四題結束後一次發獎：
 
 | 答對題數 | 前進格數 | 預設距離 |
 | ---: | ---: | ---: |
@@ -138,12 +138,13 @@ boost = baseBoost / sqrt(teamSize)
 | 1 | 1 | 1500 |
 | 2 | 2 | 3000 |
 | 3 | 4 | 6000 |
+| 4 | 6 | 9000 |
 
 獎勵不在單題揭曉時發放，避免重連、重整或重複同步造成重複計分。
 
 ### 6.3 折返賽道
 
-正式畫面使用折返跑道。`ShuttleRace.measure` 將累積距離換算成圈數、方向與畫面位置；畫面左右位置不是排名，排名以伺服器累積距離為準。折返端點不會結束五關模式，比賽在 15 題與五次結算完成後的最後衝刺結束。
+正式畫面使用折返跑道。`ShuttleRace.measure` 將累積距離換算成圈數、方向與畫面位置；畫面左右位置不是排名，排名以伺服器累積距離為準。折返端點不會結束四關模式，比賽在 16 題與四次結算完成後的最後衝刺結束。
 
 ## 7. 玩家生命週期與斷線復原
 
@@ -201,7 +202,7 @@ Guest 狀態快照不包含完整玩家名單、道具、管理設定、題庫�
 | --- | --- | --- |
 | 預設遊戲設定與隊伍 | `shared/game-config.js` | 前後端共用；修改後整套部署 |
 | Socket 事件名稱 | `shared/events.js` | 新事件必須先在此登記 |
-| 正式地圖與題序 | `data/maps/wedding-final-showdown.json` | 15 個不重複 checkpoint |
+| 正式地圖與題序 | `data/maps/wedding-final-showdown.json` | 16 個不重複 checkpoint |
 | 題庫 | `data/quizzes/*.json` | `QuizLoader` 啟動時合併載入 |
 | 道具 | `data/items.json` | 伺服器套用效果 |
 | 時長估算 | `shared/stage-plan.js` | Admin 與伺服器共用 |
@@ -284,15 +285,15 @@ STAFF_SESSION_SECRET=至少 32 字元的隨機值
 - 不再複製完整事件表或設定值到多份文件；詳細值以程式碼為準，文件只描述責任、流程與不變量。
 - 舊企劃若已被實作取代，刪除或明確標示為歷史，不得和現行規格並列而不說明。
 
-## 手動進題與統計契約（15 題、5 關）
+## 手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
-Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
+Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第三題統計必須先保留，再由主持切到結算。
+`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。
@@ -307,7 +308,7 @@ Guest 重連快照不含其他隊結果、options 分布或 results 歷史；只
 驗收需涵蓋所有等待 phase 重連、雙控制台競態、暫停／重置、0%、49%、50%、50.1%、51%、100%、空隊、全場分布守恆與 Guest 隔離。
 本版完整負載、公開 HTTPS、真實手機與場地投影須重新驗證；有日期的歷史壓測報告保持原始數據。
 
-純投影切換不增加 stateVersion。正式地圖 wedding-final-showdown 在儲存與開賽時必須剛好 15 題；其他題數需另建自訂地圖。推進缺少或畸形 requestId 回 INVALID_REQUEST_ID，不改變狀態。
+純投影切換不增加 stateVersion。正式地圖 wedding-final-showdown 在儲存與開賽時必須剛好 16 題；其他題數需另建自訂地圖。推進缺少或畸形 requestId 回 INVALID_REQUEST_ID，不改變狀態。
 
 正式地圖與最後一張地圖禁止刪除，Admin 會收到明確失敗原因。沒有可用地圖時，狀態快照回傳 `currentMap: null` 與 `mapError: NO_MAP_AVAILABLE`，開賽失敗且不啟動倒數。
 

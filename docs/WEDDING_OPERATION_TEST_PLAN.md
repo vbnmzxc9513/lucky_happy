@@ -1,6 +1,6 @@
 # Lucky Horse 婚禮現場完整測試計畫
 
-版本日期：2026-09-29（Network Protocol v2、五關三題版）
+版本日期：2026-09-30（Network Protocol v2、四關四題版）
 驗收目標：190 位賓客；200 位模擬玩家作容量餘裕測試
 正式架構：DigitalOcean 主站 + 本機 LAN 備援
 人力與裝置：2 位工作人員 + 3 支真實手機 + 模擬玩家
@@ -59,7 +59,7 @@ npm run stress -- --url https://YOUR_DOMAIN --clients 190 --tapRate 5 --answerRa
 npm run stress -- --url https://YOUR_DOMAIN --clients 200 --tapRate 5 --answerRate 0.98 --reconnectClients 20 --reconnectAtQuiz 5 --maxSeconds 720 --enforceDuration true --report reports/stress-200.json
 ```
 
-190 人是目前 Network v2 驗收目標；200 人用來確認額外容量餘裕。30、75、150 人用來檢查不同參與規模的功能與傳輸行為；正式五關排程不因人數改變。
+190 人是目前 Network v2 驗收目標；200 人用來確認額外容量餘裕。30、75、150 人用來檢查不同參與規模的功能與傳輸行為；正式四關排程不因人數改變。
 
 ### 187 個模擬玩家加 3 支手機
 
@@ -102,15 +102,15 @@ npm run stress -- --url https://YOUR_DOMAIN --clients 187 --manualHost --expecte
 
 | ID | 情境 | 驗收標準 | 實際結果 | 結果 |
 |---|---|---|---|---|
-| TM-01 | 30 人正常點擊 | 15 題、5 次結算完整；每段連點 8 秒 |  |  |
-| TM-02 | 75 人正常點擊 | 15 題、5 次結算完整；每段連點 8 秒 |  |  |
-| TM-03 | 150 人正常點擊 | 主持逐題推進；15/15 題、5 次結算、四獎完整 |  |  |
+| TM-01 | 30 人正常點擊 | 16 題、4 次結算完整；每段連點 8 秒 |  |  |
+| TM-02 | 75 人正常點擊 | 16 題、4 次結算完整；每段連點 8 秒 |  |  |
+| TM-03 | 150 人正常點擊 | 主持逐題推進；15/16 題、4 次結算、四獎完整 |  |  |
 | TM-04 | 190 人正式目標 | 時間、重連、逐玩家對帳與網路門檻全部通過 |  |  |
 | TM-05 | 200 人容量測試 | 無錯誤、無遺失玩家，五隊皆不超過 50 人 |  |  |
-| TM-06 | 極快點擊 | 不得跳過任何關卡，15 題完成後才衝刺 10 秒 |  |  |
-| TM-07 | 幾乎不點擊 | 一樣完成五關，15 題後衝刺 10 秒 |  |  |
-| TM-08 | 三題結算 | 五隊答對 0/1/2/3 題分別前進 0/1/2/4 格，重整不重複發獎勵 |  |  |
-| TM-09 | 第二／三題與結算時重連 | 恢復目前題目或結算；已作答不可再答，動畫不遮字 |  |  |
+| TM-06 | 極快點擊 | 不得跳過任何關卡，16 題完成後才衝刺 10 秒 |  |  |
+| TM-07 | 幾乎不點擊 | 一樣完成四關，16 題後衝刺 10 秒 |  |  |
+| TM-08 | 四題結算 | 五隊答對 0/1/2/3/4 題分別前進 0/1/2/4/6 格，重整不重複發獎勵 |  |  |
+| TM-09 | 第二／四題與結算時重連 | 恢復目前題目或結算；已作答不可再答，動畫不遮字 |  |  |
 
 ## 6. 裝置與投影案例
 
@@ -150,10 +150,10 @@ LAN 備援演練必須使用和 DigitalOcean 相同的 Git commit、題庫、地
 | 正式加入 | 190 / 190 |
 | 系統錯誤 | 0 |
 | 強制重連 | 19 / 19 恢復 |
-| 題目 | 15 次開始、15 次答案揭曉、5 次三題結算 |
+| 題目 | 16 次開始、16 次答案揭曉、4 次四題結算 |
 | 最終獎項 | 4 個 |
-| 正常總時長 | 總時間取決於主持停留時間；自動計時 203 秒，另加 5 秒頒獎轉場 |
-| 最後衝刺 | 完成 15 題與五次結算後衝刺 10 秒 |
+| 正常總時長 | 總時間取決於主持停留時間；自動計時 205 秒，另加 5 秒頒獎轉場 |
+| 最後衝刺 | 完成 16 題與四次結算後衝刺 10 秒 |
 | HTTP `/guest/` P95 | < 250ms |
 | 投影位置更新間隔 P95 | < 100ms，最大間隔 < 1 秒 |
 | 逐玩家 receipt mismatch | 0 |
@@ -181,7 +181,7 @@ npm run preflight
 - [ ] 主持、技術人員知道 Node 重啟後必須重賽。
 - [ ] DigitalOcean 與本機電腦電源、網路保持穩定。
 
-以下任一情況必須判定 NO-GO：P0 未關閉、QR 無法供手機連線、玩家或隊伍資料錯亂、未完成 15 題、三題獎勵重複發放、重置失效、投影無法恢復、音響無替代方案，或 LAN 備援未準備完成。
+以下任一情況必須判定 NO-GO：P0 未關閉、QR 無法供手機連線、玩家或隊伍資料錯亂、未完成 16 題、四題獎勵重複發放、重置失效、投影無法恢復、音響無替代方案，或 LAN 備援未準備完成。
 
 ## 10. 缺陷紀錄範本
 
@@ -199,15 +199,15 @@ npm run preflight
 | 暫時處置 |  |
 | 修正版本與複測結果 |  |
 
-## 手動進題與統計契約（15 題、5 關）
+## 手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
-Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
+Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第三題統計必須先保留，再由主持切到結算。
+`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。

@@ -9,7 +9,7 @@ let allMaps = [];
 let allQuizzes = [];
 let currentConfig = window.GameConfig || {};
 let selectedQuizPlanMapId = 'wedding-final-showdown';
-const MIN_FORMAL_QUIZ_COUNT = 15;
+const MIN_FORMAL_QUIZ_COUNT = GameConfig.formalGame.questionCount;
 const DEFAULT_EXPECTED_PLAYERS = 150;
 const DEFAULT_FORMAL_TRACK_LENGTH = 76000;
 const DEFAULT_TRIGGER_FREQUENCY_PERCENT = 9;
@@ -238,10 +238,10 @@ function getControlNumber(id, min, max, fallback) {
 }
 
 function getTargetQuizCount() {
-  if (getSelectedQuizPlanMap()?.id === 'wedding-final-showdown') return 15;
+  if (getSelectedQuizPlanMap()?.id === 'wedding-final-showdown') return GameConfig.formalGame.questionCount;
   const pacing = getRacePacingConfig();
   const fallback = Math.max(MIN_FORMAL_QUIZ_COUNT, Number(pacing.targetQuizCount || MIN_FORMAL_QUIZ_COUNT));
-  return Math.ceil(getControlNumber('quizTargetQuestionCount', MIN_FORMAL_QUIZ_COUNT, 60, fallback) / 3) * 3;
+  return Math.ceil(getControlNumber('quizTargetQuestionCount', MIN_FORMAL_QUIZ_COUNT, 60, fallback) / currentConfig.quizStages.questionsPerStage) * currentConfig.quizStages.questionsPerStage;
 }
 
 function getQuizTrackLength() {
@@ -299,7 +299,7 @@ function getQuizThresholds() {
 
 function updateRewardRuleLabels() {
   if (currentConfig.quizStages?.enabled) {
-    document.getElementById('rewardLargeBoost').textContent = '前進 4 格（含全對加碼 1 格）';
+    document.getElementById('rewardLargeBoost').textContent = '前進 6 格';
     document.getElementById('rewardSmallBoost').textContent = '前進 2 格 / 前進 1 格';
     document.getElementById('rewardStun').textContent = '不加速、不倒退';
     return;
@@ -756,7 +756,7 @@ function addQuizPlanRow(cp = null, fallbackIndex = null, shouldUpdate = true) {
 function setQuizPlanRowCount(desiredCount) {
   const container = document.getElementById('quizPlanRows');
   if (!container) return;
-  const count = Math.max(MIN_FORMAL_QUIZ_COUNT, Math.min(60, Math.ceil((Number(desiredCount) || MIN_FORMAL_QUIZ_COUNT) / 3) * 3));
+  const count = Math.max(MIN_FORMAL_QUIZ_COUNT, Math.min(60, Math.ceil((Number(desiredCount) || MIN_FORMAL_QUIZ_COUNT) / currentConfig.quizStages.questionsPerStage) * currentConfig.quizStages.questionsPerStage));
   let rows = Array.from(container.querySelectorAll('.quiz-plan-row'));
   while (rows.length > count) {
     rows[rows.length - 1].remove();
@@ -789,7 +789,7 @@ function renumberQuizPlanRows() {
     if (label) label.textContent = String(index + 1);
     if (currentConfig.quizStages?.enabled) {
       const heading = row.querySelector('.plan-row-main label');
-      if (heading) heading.textContent = `第 ${Math.floor(index / 3) + 1} 關 · 第 ${index % 3 + 1} 題`;
+      if (heading) heading.textContent = `第 ${Math.floor(index / currentConfig.quizStages.questionsPerStage) + 1} 關 · 第 ${index % currentConfig.quizStages.questionsPerStage + 1} 題`;
     }
   });
 }
@@ -863,7 +863,7 @@ function applyRecommendedQuizPacing() {
   applyQuizFrequencyPlan();
   document.querySelectorAll('.plan-time-input').forEach(input => { input.value = 10; });
   updateQuizPacing();
-  showToast('已套用正式版：15 題、5 關、每次連點 8 秒，逐題及結算由主持人推進。');
+  showToast('已套用正式版：16 題、4 關、每次連點 8 秒，逐題及結算由主持人推進。');
 }
 
 function getQuizPlanRows() {
@@ -893,13 +893,13 @@ function saveQuizPlan() {
   if (!currentConfig.quizStages?.enabled) ensureMinimumQuizRows(getTargetQuizCount(), false);
   const checkpoints = getQuizPlanRows();
   const quizPool = checkpoints.map(cp => cp.quizId).filter(Boolean);
-  if (map.id === 'wedding-final-showdown' && checkpoints.length !== 15) {
-    showToast('正式地圖固定 15 題、5 關；其他題數請另建自訂地圖。', true);
+  if (map.id === 'wedding-final-showdown' && !window.StagePlan.validateFormal({ ...map, checkpoints }, currentConfig)) {
+    showToast('正式地圖固定 16 題、4 關；其他題數請另建自訂地圖。', true);
     return;
   }
-  if (currentConfig.quizStages?.enabled && (checkpoints.length % 3 !== 0
+  if (currentConfig.quizStages?.enabled && (checkpoints.length % currentConfig.quizStages.questionsPerStage !== 0
     || quizPool.length !== checkpoints.length || new Set(quizPool).size !== checkpoints.length)) {
-    showToast('每關需要 3 題，請選擇不重複的題目並補齊整組後再儲存。', true);
+    showToast('每關需要 4 題，請選擇不重複的題目並補齊整組後再儲存。', true);
     return;
   }
   const trackLength = getQuizTrackLength();
@@ -926,14 +926,14 @@ function updateQuizPacing() {
   if (currentConfig.quizStages?.enabled && window.StagePlan) {
     const plan = window.StagePlan.estimate(rows, currentConfig);
     document.getElementById('quizMetricCount').textContent = `${plan.questionCount} 題`;
-    document.getElementById('quizMetricQuestionSeconds').textContent = `${plan.stageCount} 關 × 3 題`;
+    document.getElementById('quizMetricQuestionSeconds').textContent = `${plan.stageCount} 關 × ${currentConfig.quizStages.questionsPerStage} 題`;
     document.getElementById('quizMetricAutoDuration').textContent = formatSeconds(plan.timedSeconds);
     document.getElementById('quizMetricFixedDuration').textContent = formatSeconds(plan.racingSeconds);
-    document.getElementById('quizFrequencyHint').textContent = `每段連點 ${currentConfig.quizStages.tapSeconds} 秒，接著由主持人逐題開始，三題後手動結算。`;
-    document.getElementById('quizPacingSummary').textContent = rows.length % 3
-      ? '尚有未滿三題的關卡，請補齊或移除後再儲存。'
+    document.getElementById('quizFrequencyHint').textContent = `每段連點 ${currentConfig.quizStages.tapSeconds} 秒，接著由主持人逐題開始，四題後手動結算。`;
+    document.getElementById('quizPacingSummary').textContent = rows.length % currentConfig.quizStages.questionsPerStage
+      ? '尚有未滿四題的關卡，請補齊或移除後再儲存。'
       : `預估 ${formatSeconds(plan.timedSeconds)}，僅含自動計時部分；總時間另加每題、每關的主持停留與暫停。`;
-    document.getElementById('questionCountForecast').innerHTML = (getSelectedQuizPlanMap()?.id === 'wedding-final-showdown' ? [15] : [12, 15, 18, 21, 24]).map(count => {
+    document.getElementById('questionCountForecast').innerHTML = (getSelectedQuizPlanMap()?.id === 'wedding-final-showdown' ? [GameConfig.formalGame.questionCount] : [8, 12, 16, 20, 24]).map(count => {
       const average = plan.questionCount ? plan.answerSeconds / plan.questionCount : 10;
       const estimate = window.StagePlan.estimate(Array.from({ length: count }, () => ({ timeLimit: average })), currentConfig);
       return `<div class="${count === rows.length ? 'active' : ''}"><span>${count} 題</span><strong>${formatSeconds(estimate.timedSeconds)}</strong></div>`;

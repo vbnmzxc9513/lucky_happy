@@ -7,6 +7,7 @@ const { CLIENT_TO_SERVER, SERVER_TO_CLIENT } = require('../shared/events');
 const DEFAULT_CONFIG = require('../shared/game-config');
 const reconcilePlayerAccounting = require('./lib/reconcile-player-accounting');
 
+const FORMAL_PLAN = require('../shared/stage-plan').estimate(require('../data/maps/wedding-final-showdown.json').checkpoints, DEFAULT_CONFIG);
 const TEAM_IDS = DEFAULT_CONFIG.TEAMS.map(team => team.id);
 const AVATARS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
@@ -51,7 +52,7 @@ const CONFIG = {
   enforceDuration: isEnabled(cli.enforceDuration || process.env.ENFORCE_DURATION),
   requireAccounting: isEnabled(cli.requireAccounting || process.env.REQUIRE_ACCOUNTING),
   accountingMode: cli.accountingMode || 'receipts',
-  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || 203),
+  minDurationSeconds: Number(cli.minDurationSeconds || process.env.MIN_DURATION_SECONDS || FORMAL_PLAN.timedSeconds),
   maxDurationSeconds: Number(cli.maxDurationSeconds || process.env.MAX_DURATION_SECONDS || 445),
   reportPath: cli.report || process.env.STRESS_REPORT_PATH || '',
   progressMs: Number(cli.progressMs || process.env.PROGRESS_MS || 10000),
@@ -838,7 +839,7 @@ function printSummary() {
   console.log(`Tap acknowledgements: ${metrics.tapAcks}/${metrics.tapsSent}; accepted: ${metrics.tapAccepted}`);
   console.log(`Tap response p95/p99: ${percentile(metrics.tapAckLatencies, 95).toFixed(1)}ms / ${percentile(metrics.tapAckLatencies, 99).toFixed(1)}ms`);
   console.log(`Quiz starts/results: ${metrics.quizStarts}/${metrics.quizResults}`);
-  console.log(`Three-question settlements: ${metrics.stageSummaries.length}/5`);
+  console.log(`Four-question settlements: ${metrics.stageSummaries.length}/${FORMAL_PLAN.stageCount}`);
   console.log(`Tap windows (seconds): ${metrics.tapWindows.map(stage => stage.seconds.toFixed(2)).join(', ')}`);
   console.log(`Final sprint announcements: ${metrics.finalSprintEvents}`);
   console.log(`Quiz answers accepted: ${metrics.quizAnswerAccepted}/${metrics.quizAnswersSent}`);
@@ -1065,7 +1066,7 @@ async function main() {
     } else report.accounting = { checked: 0, skipped: `HTTP ${response.status}` };
   } catch (error) { report.accounting = { checked: 0, error: error.message }; }
   const totalAnswers = metrics.quizRuns.reduce((sum, run) => sum + run.totalAnswers, 0);
-  const minimumExpectedAnswers = CONFIG.clients * Math.max(0, Math.min(1, CONFIG.answerRate)) * 15 * 0.9;
+  const minimumExpectedAnswers = CONFIG.clients * Math.max(0, Math.min(1, CONFIG.answerRate)) * FORMAL_PLAN.questionCount * 0.9;
   const runSeconds = report.observedRoundSeconds;
 
   const failed =
@@ -1081,12 +1082,12 @@ async function main() {
     metrics.intentionalDisconnects !== Math.min(CONFIG.reconnectClients, CONFIG.clients) ||
     metrics.recoveredConnections !== Math.min(CONFIG.reconnectClients, CONFIG.clients) ||
     metrics.systemErrors > 0 ||
-    metrics.quizStarts !== 15 ||
+    metrics.quizStarts !== FORMAL_PLAN.questionCount ||
     metrics.tapAcks !== metrics.tapsSent ||
     percentile(metrics.tapAckLatencies, 95) > 250 ||
-    metrics.quizResults !== 15 ||
-    metrics.stageSummaries.length !== 5 ||
-    metrics.tapWindows.length !== 5 ||
+    metrics.quizResults !== FORMAL_PLAN.questionCount ||
+    metrics.stageSummaries.length !== FORMAL_PLAN.stageCount ||
+    metrics.tapWindows.length !== FORMAL_PLAN.stageCount ||
     metrics.tapWindows.some(stage => Math.abs(stage.seconds - DEFAULT_CONFIG.quizStages.tapSeconds) > 0.5) ||
     totalAnswers < minimumExpectedAnswers ||
     metrics.roundFinished !== 1 ||

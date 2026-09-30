@@ -23,7 +23,7 @@ async function main() {
       await page.evaluate(() => {
         const E = window.GameEvents.SERVER_TO_CLIENT;
         window.receive(E.GAME_STATE_SYNC, { state:'RACING', config:window.GameConfig, serverNow:Date.now(),
-          teams:[], quizStage:{ phase:'tap', stageNumber:1, stageCount:5, questionNumber:1, endsAt:Date.now()+8000 } });
+          teams:[], quizStage:{ phase:'tap', stageNumber:1, stageCount:4, questionNumber:1, endsAt:Date.now()+8000 } });
         window.receive(E.GAME_POSITION_UPDATE, {teams:{ red:{position:29999,speed:15}, blue:{position:20000,speed:10} }});
         window.receive(E.GAME_PLAYER_STATUS, {tapCount:9999,teamRank:1,teamShuttle:window.ShuttleRace.measure(29999,window.GameConfig)});
       });

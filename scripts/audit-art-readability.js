@@ -11,7 +11,7 @@ for(let i=0;i<150;i++) {
   gm.teamManager.addPlayer(`qa${i}`,i===0?'今天特別來祝福阿平小聶的好朋友':`婚禮賓客${String(i+1).padStart(3,'0')}`,'🥳');
   gm.teamManager.chooseTeam(`qa${i}`,config.TEAMS[i%5].id);
   const s=gm.getOrCreatePlayerStats(`qa${i}`);
-  Object.assign(s,{tapCount:1200-i,correctCount:15-i%16,wrongCount:i%16,answeredCount:15,answerTimedCount:15,answerTimeTotalMs:15000+i*100});
+  Object.assign(s,{tapCount:1200-i,correctCount:16-i%17,wrongCount:i%17,answeredCount:16,answerTimedCount:16,answerTimeTotalMs:15000+i*100});
 }
 config.TEAMS.forEach((t,i)=>{gm.teamManager.teams[t.id].position=14000+i*1700;});
 const base=gm.getGameState();
@@ -22,8 +22,8 @@ const quizzes=['wedding-couples','fun-trivia','wedding-party'].flatMap(name=>{
   const candidate=path.resolve(`data/quizzes/${name}.json`);
   return fs.existsSync(candidate)?JSON.parse(fs.readFileSync(candidate)).quizzes:[];
 });
-const results=Object.fromEntries(config.TEAMS.map((t,i)=>[t.id,{answers:[true,i>0,i>2],correctCount:i>2?3:i>0?2:1,steps:i>2?4:i>0?2:1,
-  beforePosition:14000,position:14000+(i>2?6000:i>0?3000:1500),isCorrect:i>1,teamAnswer:i>1?'A':'B',voteCounts:{A:18,B:12},effect:'stage_pending',val:0}]));
+const results=Object.fromEntries(config.TEAMS.map((t,i)=>[t.id,{answers:[0,1,2,3].map(q=>q<i),correctCount:i,steps:config.quizStages.rewardSteps[i],
+  beforePosition:14000,position:14000+config.quizStages.rewardSteps[i]*1500,isCorrect:i>1,teamAnswer:i>1?'A':'B',voteCounts:{A:18,B:12},effect:'stage_pending',val:0}]));
 gm.quizManager.startQuiz('wc_001', Object.fromEntries(config.TEAMS.map(t => [t.id, 30])));
 const reveal = gm.quizManager.calculateResults();
 const metrics=[], errors=[];
@@ -100,10 +100,10 @@ async function host(context,size){
     await send(page,'game:state_sync',{...base,state:'LOBBY',presentation:{stage},serverNow:Date.now()});
     await snap(page,`host-${stage}-${suffix}`,500);
   }
-  const racing={...base,state:'RACING',quizStage:{phase:'tap',stageNumber:4,stageCount:5,questionNumber:1,endsAt:Date.now()+8000}};
+  const racing={...base,state:'RACING',quizStage:{phase:'tap',stageNumber:4,stageCount:4,questionNumber:1,endsAt:Date.now()+8000}};
   await send(page,'game:state_sync',{...racing,serverNow:Date.now()});await snap(page,`host-race-${suffix}`);
   await send(page,'game:state_sync',{...racing,paused:true,serverNow:Date.now()});await snap(page,`host-pause-${suffix}`);
-  const quiz={...base,state:'QUIZ',quizStage:{phase:'answer',stageNumber:4,stageCount:5,questionNumber:2,endsAt:Date.now()+10000}};
+  const quiz={...base,state:'QUIZ',quizStage:{phase:'answer',stageNumber:4,stageCount:4,questionNumber:2,endsAt:Date.now()+10000}};
   await send(page,'game:state_sync',{...quiz,serverNow:Date.now()});
   await send(page,'game:quiz_start',{question:'阿平和小聶第一次一起旅行，是去了哪一個地方？',options:['日本京都與奈良','台灣花蓮與台東','泰國曼谷與清邁','韓國首爾與釜山'],timeLimit:10});
   await snap(page,`host-question-${suffix}`,1200);
@@ -130,7 +130,7 @@ async function guest(context,size){
   await page.reload();await page.waitForFunction(()=>window.qaHandlers?.['game:state_sync']);
   await send(page,'game:state_sync',{...base,teams:base.teams.map((t,i)=>({...t,memberCount:i===1?50:30,isFull:i===1}))});
   await snap(page,`guest-team-${size.width}`);
-  await send(page,'game:state_sync',{...base,state:'RACING',serverNow:Date.now(),quizStage:{phase:'tap',stageNumber:1,stageCount:5,questionNumber:1,endsAt:Date.now()+8000}});
+  await send(page,'game:state_sync',{...base,state:'RACING',serverNow:Date.now(),quizStage:{phase:'tap',stageNumber:1,stageCount:4,questionNumber:1,endsAt:Date.now()+8000}});
   await send(page,'game:player_status',{tapCount:1234,teamRank:2,teamShuttle:{laps:12,progress:89},nextCriticalIn:6});
   await snap(page,`guest-race-${size.width}`);
   await send(page,'game:state_sync',{...base,state:'RACING',paused:true});await snap(page,`guest-pause-${size.width}`);
@@ -139,7 +139,7 @@ async function guest(context,size){
   await page.locator('.opt-btn').first().click();
   await send(page,'game:quiz_answer_ack',{success:true,isCorrect:true});await snap(page,`guest-correct-${size.width}`,500);
   await send(page,'game:quiz_result',reveal);await snap(page,`guest-team-answer-${size.width}`);
-  await send(page,'game:state_sync',{...base,state:'QUIZ',serverNow:Date.now(),quizStage:{phase:'summary',stageNumber:1,stageCount:5,questionNumber:3,endsAt:Date.now()+8000,summary:{teamResults:results}}});
+  await send(page,'game:state_sync',{...base,state:'QUIZ',serverNow:Date.now(),quizStage:{phase:'summary',stageNumber:1,stageCount:4,questionNumber:4,endsAt:Date.now()+8000,summary:{teamResults:results}}});
   await snap(page,`guest-summary-${size.width}`,5400);
   await send(page,'game:state_sync',{...base,state:'MATCH_FINISHED'});await snap(page,`guest-wait-${size.width}`);
   await page.close();

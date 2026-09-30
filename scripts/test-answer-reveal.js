@@ -6,7 +6,7 @@ const GameManager = require('../server/game/GameManager');
 
 (async () => {
   const game = new GameManager({ emit() {} });
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL } : {}) });
   try {
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -43,8 +43,8 @@ const GameManager = require('../server/game/GameManager');
         }
         const result = game.quizManager.calculateResults();
         await page.evaluate(({ result, config }) => receive('game:state_sync', {
-          state: 'QUIZ', config, serverNow: Date.now(), quizStage: { phase: 'reveal', stageNumber: 5,
-            stageCount: 5, questionNumber: 3, endsAt: null, reveal: result }
+          state: 'QUIZ', config, serverNow: Date.now(), quizStage: { phase: 'reveal', stageNumber: 4,
+            stageCount: 4, questionNumber: 4, endsAt: null, reveal: result }
         }), { result, config: game.config });
         const issues = await page.evaluate(() => {
           const panel = document.querySelector('.quiz-statistics');
@@ -66,9 +66,9 @@ const GameManager = require('../server/game/GameManager');
       }
       await page.screenshot({ path: `reports/answer-reveal/statistics-${width}.png` });
       await page.waitForTimeout(200);
-      assert.equal(await page.locator('.quiz-statistics').count(), 1, 'third question result persists');
+      assert.equal(await page.locator('.quiz-statistics').count(), 1, 'fourth question result persists');
     }
     assert.deepEqual(errors, []);
-    console.log('PASS all 15 formal result screens: 1280x720 and 1920x1080, no scroll, clipping or covered text');
+    console.log('PASS all 16 formal result screens: 1280x720 and 1920x1080, no scroll, clipping or covered text');
   } finally { game.resetGame(); await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

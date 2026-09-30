@@ -33,7 +33,17 @@ const { CLIENT_TO_SERVER: C, SERVER_TO_CLIENT: S } = require('../shared/events')
       assert.equal(await page.evaluate(() => isSecureContext), false);
       assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
       const state = { runId: 'lan-browser', state: 'QUIZ', paused: false, config, teams: [],
-        quizStage: { phase: 'reveal', questionNumber: 1, stageNumber: 1, stageCount: 5, flowRevision: 3, completedQuestions: 1 } };
+        quizStage: { phase: 'reveal', questionNumber: 1, stageNumber: 1, stageCount: 4, flowRevision: 3, completedQuestions: 1 } };
+      for (let question = 1; question <= 4; question++) {
+        const snapshot = { ...state, quizStage: { ...state.quizStage, questionNumber: question } };
+        await page.evaluate(({ event, state }) => handlers[event](state), { event: S.GAME_STATE_SYNC, state: snapshot });
+        assert.equal(await page.locator('#btn-advance-quiz').innerText(), question < 4 ? '下一題' : '顯示本關結算');
+      }
+      for (let stage = 1; stage <= 4; stage++) {
+        const snapshot = { ...state, quizStage: { ...state.quizStage, phase: 'summary', questionNumber: 4, stageNumber: stage } };
+        await page.evaluate(({ event, state }) => handlers[event](state), { event: S.GAME_STATE_SYNC, state: snapshot });
+        assert.equal(await page.locator('#btn-advance-quiz').innerText(), stage < 4 ? '開始下一關' : '開始最後衝刺');
+      }
       await page.evaluate(({ event, state }) => handlers[event](state), { event: S.GAME_STATE_SYNC, state });
       const checkLayout = async () => {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
