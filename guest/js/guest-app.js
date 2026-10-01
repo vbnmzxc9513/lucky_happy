@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setText(tapEl, tapCount.toLocaleString('zh-TW'));
     if ('teamRank' in status) setText(rankEl, rank);
     if ('teamShuttle' in status || 'teamProgressPercent' in status) setText(progressEl, status.teamShuttle
-      ? `${status.teamShuttle.laps} 圈 · ${Math.floor(status.teamShuttle.progress)}%` : `${progress.toFixed(0)}%`);
+      ? window.DistanceDisplay.position(status.teamShuttle.distance, window.GameConfig) : `${progress.toFixed(0)}%`);
     setText(criticalEl, String(nextCritical));
     if (criticalFill) {
       const width = `${(tapCount % 20) / 20 * 100}%`;
@@ -372,6 +372,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (!['LOBBY', 'MAP_SELECT', 'ROUND_LOBBY'].includes(state.state)) document.getElementById('rename-form').hidden = true;
     syncGameConfig(state.config);
+    const ownTeam = state.teams?.find(t => t.id === myPlayerInfo.teamId);
+    if (ownTeam) document.getElementById('my-team-progress').textContent = window.DistanceDisplay.position(ownTeam.position, window.GameConfig);
     quizUI.paused = !!state.paused;
     stageDisplay?.sync(myPlayerInfo.isJoined && state.self.joined ? state : { ...state, quizStage: null }, myPlayerInfo.teamId);
     if (state.quizStage?.phase === 'summary') quizUI.disableAll();
@@ -567,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tapHandler.setStunned(myTeamData.isStunned);
       if (window.ShuttleRace?.enabled(window.GameConfig)) {
         const distance = window.ShuttleRace.measure(myTeamData.position, window.GameConfig);
-        document.getElementById('my-team-progress').textContent = `${distance.laps} 圈 · ${Math.floor(distance.progress)}%`;
+        document.getElementById('my-team-progress').textContent = window.DistanceDisplay.position(myTeamData.position, window.GameConfig);
         const rank = data.self?.teamRank ?? window.ShuttleRace.rank(data.teams)[myPlayerInfo.teamId];
         document.getElementById('my-team-rank').textContent = `第 ${rank}`;
       }

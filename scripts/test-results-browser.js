@@ -38,13 +38,14 @@ const Game = require('../server/game/GameManager');
     const malicious = '<img src=x onerror=alert(1)>';
     for (let i = 0; i < 32; i++) { const id = `p${i}`; g.teamManager.addPlayer(id, i === 0 ? malicious : `完整勝隊成員${i}${'很長的暱稱'.repeat(3)}`, '🥳', `session${i}`); g.teamManager.chooseTeam(id, 'red'); }
     g.teamManager.addPlayer('blue', '其他隊伍'); g.teamManager.chooseTeam('blue', 'blue');
-    g.teamManager.teams.red.position = 100; g.roundManager.recordRoundWinner('red'); g.setState('MATCH_FINISHED');
+    g.teamManager.teams.red.position = 27840.9; g.roundManager.recordRoundWinner('red'); g.setState('MATCH_FINISHED');
     const base = store.read().matches[0];
     for (let i = 1; i < 10; i++) store.add({ ...base, id: `history-${i}`, finishedAt: new Date(Date.now() + i * 1000).toISOString(), ...(i === 8 ? { winner: { type: 'tie', teamIds: ['red', 'blue'] } } : {}) });
     await start(); await page.reload(); await page.locator('#detail').waitFor({ state: 'visible' });
     for (const [width, height] of [[390,844],[320,568]]) {
       await page.setViewportSize({ width, height });
       assert.equal(await page.locator('#matches option').count(), 10);
+      assert.match(await page.locator('#teams').innerText(), /總距離 1,856 m/);
       for (const option of await page.locator('#matches option').evaluateAll(els => els.map(e => e.value))) {
         await page.locator('#matches').selectOption(option);
         assert.equal(await page.locator('#winners li').count(), option === 'history-8' ? 33 : 32);
@@ -64,7 +65,7 @@ const Game = require('../server/game/GameManager');
     const chosenId = await page.locator('#matches').inputValue();
     const jsonDownload = page.waitForEvent('download'); await page.locator('#json').click();
     const exported = JSON.parse(fs.readFileSync(await (await jsonDownload).path(), 'utf8'));
-    assert.equal(exported.match.id, chosenId); assert.equal(exported.matches, undefined);
+    assert.equal(exported.match.id, chosenId); assert.equal(exported.match.teams.find(t=>t.id==='red').position, base.teams.find(t=>t.id==='red').position); assert.equal(exported.matches, undefined);
     const csvDownload = page.waitForEvent('download'); await page.locator('#csv').click();
     const csv = fs.readFileSync(await (await csvDownload).path(), 'utf8'); assert.equal(csv.split('\r\n').length, 34);
     const cookie = (await page.context().cookies()).map(c => `${c.name}=${c.value}`).join('; ');

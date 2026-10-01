@@ -21,6 +21,7 @@ const socket = {
 
 window.GameEvents = events;
 window.GameConfig = config;
+window.eval(fs.readFileSync(require.resolve('../shared/distance-display'), 'utf8'));
 window.io = () => socket;
 window.confirm = () => true;
 window.eval(fs.readFileSync(path.join(__dirname, '../shared/client-id.js'), 'utf8'));
@@ -120,7 +121,7 @@ for (const [phase, questionNumber, stageNumber, label] of [
   ['summary', 4, 2, '開始下一關'], ['summary', 4, 3, '開始下一關'],
   ['summary', 4, 4, '開始最後衝刺']
 ]) {
-  const state = { ...flowState, quizStage: { phase, questionNumber, stageNumber, stageCount: 4, flowRevision: 7 } };
+  const state = { ...flowState, quizStage: { phase, questionNumber, stageNumber, stageCount: 4, flowRevision: 7, summary: { readyAt: 0 } } };
   handlers[events.SERVER_TO_CLIENT.GAME_STATE_SYNC](state);
   const button = window.document.getElementById('btn-advance-quiz');
   assert.equal(button.textContent, label);

@@ -137,7 +137,7 @@ for (const phase of ['tap', 'prepare', 'answer', 'reveal', 'summary', 'sprint'])
     while (game.quizStage.phase !== phase) {
       if (game.quizStage.phase === 'tap') { advance(7900); t.mock.timers.tick(100); if (phase !== 'prepare') t.mock.timers.tick(0); }
       else if (game.quizStage.phase === 'answer') advance(10000);
-      else { next(game); t.mock.timers.tick(0); }
+      else { if (game.quizStage.phase === 'summary') advance(game.quizStage.summary.readyAt - Date.now()); next(game); t.mock.timers.tick(0); }
     }
     const deadline = game.quizStage.endsAt;
     const oldCommand = command(game);
@@ -285,4 +285,33 @@ test('Queued timer generations from before pause cannot fire after resume', t =>
   assert.equal(game.quizStage.phase, 'answer');
   advance(8000);
   assert.equal(game.quizStage.phase, 'reveal');
+});
+
+for (const count of [0,1,2,3,4]) test('Summary authority gate, pause and idempotency for '+count+' correct',t=>{
+  const {game,advance}=setup(t);
+  game.state='QUIZ'; game.stageQuestions=Array(16).fill({});
+  game.quizStage={phase:'reveal',stageNumber:1,stageCount:4,questionNumber:4,questionsPerStage:4,completedQuestions:4,flowRevision:8,
+    results:[0,1,2,3].map(q=>({teamResults:Object.fromEntries(game.config.TEAMS.map(team=>[team.id,{isCorrect:q<count}]))}))};
+  const raw=game.teamManager.teams.red.position;
+  assert.equal(game.showStageSummary(game.flowToken),true);
+  const summary=game.quizStage.summary;
+  assert.equal(summary.movementStartedAt-summary.summaryStartedAt,800);
+  assert.equal(summary.movementEndsAt-summary.movementStartedAt,[0,1400,1800,2400,3000][count]);
+  assert.equal(summary.readyAt-summary.movementEndsAt,1000);
+  assert.equal(game.teamManager.teams.red.position-raw,[0,1500,3000,6000,9000][count]);
+  const request=command(game),position=game.teamManager.teams.red.position;
+  assert.equal(game.advanceQuizFlow(request).reason,'SUMMARY_ANIMATION_ACTIVE');
+  assert.equal(game.showStageSummary(game.flowToken),false);
+  advance(500); const times={...summary};game.pauseGame();advance(10000);
+  assert.equal(game.advanceQuizFlow(request).reason,'GAME_PAUSED');game.resumeGame();
+  for(const key of ['summaryStartedAt','movementStartedAt','movementEndsAt','readyAt']) assert.equal(summary[key],times[key]+10000);
+  const snapshot=game.getGameState(); assert.equal(snapshot.quizStage.summary,summary);
+  assert.equal(game.teamManager.teams.red.position,position);
+  advance(summary.readyAt-Date.now()-1);
+  assert.equal(game.advanceQuizFlow(request).reason,'SUMMARY_ANIMATION_ACTIVE');advance(1);
+  assert.equal(game.advanceQuizFlow(request).success,true);
+  assert.equal(game.advanceQuizFlow({...request,requestId:'second-control'}).success,false);
+  assert.equal(game.quizStage.summary,null);
+  game.resetGame();assert.equal(game.quizStage,null);
+  assert.equal(game.showStageSummary(game.flowToken-1),false);
 });

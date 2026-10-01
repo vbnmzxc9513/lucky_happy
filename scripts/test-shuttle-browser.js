@@ -71,7 +71,7 @@ async function main() {
     await frame.evaluate(() => window.previewSeek(47));
     await frame.waitForTimeout(6200);
     await page.screenshot({ path: `${output}/reward.png` });
-    assert.ok((await frame.locator('.stage-cheer').last().textContent()).includes('圈'));
+    assert.ok((await frame.locator('.stage-distance').last().textContent()).includes(' m'));
     await frame.evaluate(() => window.previewSeek(11));
     await frame.waitForTimeout(300);
     await page.screenshot({ path: `${output}/question.png` });

@@ -196,3 +196,11 @@ Host 截圖在 `reports/answer-reveal/` 與 `reports/stages/`；Control 在 `rep
 ### 手機轉場與更名回歸
 
 `npm run test:guest-browser` 已納入 test:predeploy：390×844、320×568 驗證浮水印、改名與重新整理保留隊伍、進場選項立即隱藏、500ms 後才開放、進場點擊沒有答案紀錄、單擊作答及斷線重連。test-guest-input 驗證重複快照、舊動畫、暫停及揭曉；test-guest-rename 驗證重複／無效名字、開賽鎖定、舊連線與權威名稱恢復。真實手機觸控與投影仍須場地彩排。
+
+## 公尺顯示與結算前進動畫
+
+tests/test-distance-display.js 檢查 0／1500／3000／6000／9000 原始單位、非整數 floor 單調性、千分位及不改原值。test-quiz-stages 驗證各獎勵原始距離、四個權威時間、readyAt 前後、全零、暫停恢復、舊局與版本、一次發獎。test-network-delivery 驗證五隊 staff／單隊 Guest 與不新增動畫 timer／位置廣播。
+
+test-stage-browser 驗證 0／100／200／400／600 m、實際水平位移比例、同時起跑、動畫幀間隔、長隊名、穩定 DOM、重新載入、暫停與 reduced motion。Host 1280×720、1920×1080、1366×768、1134×855；Guest 390×844、320×568。test-network-browser 另以真實 Socket 走完四題並在 400 m 結算中重整、暫停／恢復。Control 測試動畫期間停用、到期解鎖；Results 測試舊 raw position 顯示公尺且匯出原值不變。
+
+執行 npm test、四個 browser scripts、test:predeploy、npm audit --audit-level=moderate、git diff --check。查看 reports/stages/ 的 start、running、rewards、long 與 guest 截圖；輸出皆 ignored。場地投影後排與實機效能仍需人工驗收。

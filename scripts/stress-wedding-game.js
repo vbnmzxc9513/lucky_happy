@@ -404,13 +404,17 @@ async function connectHost() {
     }
     if (state.racePacing) metrics.latestRacePacing = state.racePacing;
     const stage = state.quizStage;
+    clearTimeout(controlSocket.advanceTimer);
     if (!CONFIG.manualHost && !state.paused && state.state === 'QUIZ'
       && ['reveal', 'summary'].includes(stage?.phase)) {
       const key = `${state.runId}:${stage.stageNumber}:${stage.flowRevision}`;
       if (controlSocket.lastAdvance !== key) {
-        controlSocket.lastAdvance = key;
-        controlSocket.emit(CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, { requestId: randomUUID(),
-          runId: state.runId, stageNumber: stage.stageNumber, flowRevision: stage.flowRevision });
+        const wait = stage.phase === 'summary' ? Math.max(0, stage.summary.readyAt - state.serverNow) : 0;
+        controlSocket.advanceTimer = setTimeout(() => {
+          controlSocket.lastAdvance = key;
+          controlSocket.emit(CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, { requestId: randomUUID(),
+            runId: state.runId, stageNumber: stage.stageNumber, flowRevision: stage.flowRevision });
+        }, wait);
       }
     }
     if (stage?.phase === 'summary' && !metrics.stageSummaries.some(s => s.stageNumber === stage.stageNumber)) {

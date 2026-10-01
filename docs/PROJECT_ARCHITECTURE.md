@@ -132,13 +132,13 @@ boost = baseBoost / sqrt(teamSize)
 
 每關四題結束後一次發獎：
 
-| 答對題數 | 前進格數 | 預設距離 |
+| 答對題數 | 顯示前進距離 | 內部距離（不變） |
 | ---: | ---: | ---: |
-| 0 | 0 | 0 |
-| 1 | 1 | 1500 |
-| 2 | 2 | 3000 |
-| 3 | 4 | 6000 |
-| 4 | 6 | 9000 |
+| 0 | 0 m | 0 |
+| 1 | 100 m | 1500 |
+| 2 | 200 m | 3000 |
+| 3 | 400 m | 6000 |
+| 4 | 600 m | 9000 |
 
 獎勵不在單題揭曉時發放，避免重連、重整或重複同步造成重複計分。
 
@@ -344,3 +344,15 @@ bot 原先以 socketId 記一次答案、只有 RACING 才清除；同關第 2�
 ### Guest 進場與更名責任
 
 `QuizUI.beginQuestion` 以 runId／關／題辨識 500ms 進場，重複快照不重啟；離題取消排程，啟用選項仍須通過 `GuestNetwork.canAnswer()`。手機倒數讀取權威 endsAt/serverNow。更名重用 guest:join 的 rename 意圖，GuestHandler 限制開賽前且未鎖加入，沿用 TeamManager 暱稱驗證與唯一性檢查；由目前 socket 的既有身分更新名稱、同步統計及 roster，成功 ACK 後手機才保存名稱。
+
+## 公尺顯示與結算前進動畫
+
+顯示統一使用整數、千分位與 m，例如「前進 400 m」「總距離 1,856 m」。唯一換算來源是 shared/distance-display.js；設定 distanceDisplay.metersPerRewardStep = 100，internalUnitsPerMeter 由 quizStages.rewardUnitPx / metersPerRewardStep 推導，位置採 floor。物理、排名、勝負及歷史 JSON 仍使用原始 position；Results 只在顯示時換算，JSON／CSV 匯出契約不變。
+
+第四題揭曉後按「顯示本關結算」：Q1～Q4 先保留 0.8 秒，五隊同時水平前進；100／200／400／600 m 分別移動 1.4／1.8／2.4／3 秒，0 m 不移動。最長實際移動完成後至少保留 1 秒，Control 才開放下一關或最後衝刺，仍由主持手動按下。全隊 0 m 時共保留 1.8 秒。
+
+summary 包含 summaryStartedAt、movementStartedAt、movementEndsAt、readyAt。Host／Guest 依 serverNow 本地播放 transform，重整或重連接續當下進度；Pause 凍結，Resume 平移全部時間。伺服器在 readyAt 前拒絕 SUMMARY_ANIMATION_ACTIVE，保留 requestId、runId、stageNumber、flowRevision 防護。沒有逐幀網路事件或自動推進 timer，重播不會再次發獎。
+
+Host 顯示五條跑道，Guest 只顯示自己隊伍。只用既有跑步素材、2px 步伐、淡速度線及陰影；生日隊結算使用既有無紙花跑步素材，隊名及隊伍色維持原樣。無紙花、印章、慶祝文字或手機聲音。prefers-reduced-motion 直接顯示終點，但仍遵守伺服器 readyAt。
+
+驗收：npm test、四組 browser 測試及 test:predeploy；新增距離換算、時間守門、暫停恢復、資料隔離與穩定 DOM 測試。結算截圖位於 ignored 的 reports/stages/，涵蓋 Host 1280×720、1920×1080、1366×768、1134×855 與 Guest 390×844、320×568。投影後排可讀性與實機流暢度仍須現場彩排。

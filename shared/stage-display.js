@@ -3,6 +3,8 @@
     constructor(mode) {
       this.mode = mode;
       this.lastKey = null;
+      this.retiredRuns = new Set();
+      this.reducedMotion = root.matchMedia?.('(prefers-reduced-motion: reduce)');
       this.summary = document.createElement('section');
       this.summary.className = `stage-summary stage-${mode}`;
       this.summary.hidden = true;
@@ -18,13 +20,20 @@
     }
 
     sync(state, teamId) {
-      this.config = state.config || this.config;
+      if (this.retiredRuns.has(state.runId)) return;
+      if (this.runId === state.runId && this.version > state.stateVersion) return;
+      if (this.runId === state.runId && this.stage?.stageNumber === state.quizStage?.stageNumber
+        && this.stage?.flowRevision > state.quizStage?.flowRevision) return;
+      if (this.runId && this.runId !== state.runId) this.retiredRuns.add(this.runId);
+      this.runId = state.runId;
+      this.version = state.stateVersion;
+      this.config = state.config || this.config || root.GameConfig;
       this.stage = state.quizStage;
       this.paused = !!state.paused;
       this.receivedAt = performance.now();
       this.serverNow = (state.paused ? state.pausedAt : state.serverNow) || Date.now();
       const stage = this.stage;
-      const key = stage ? `${state.runId || ''}:${teamId || ''}:${stage.stageNumber}:${stage.phase}:${stage.questionNumber}` : null;
+      const key = stage ? `${state.runId || ''}:${teamId || ''}:${stage.stageNumber}:${stage.phase}:${stage.questionNumber}:${stage.flowRevision}` : null;
       this.summary.hidden = !stage || stage.phase !== 'summary';
       if (this.mode === 'host') document.body.classList.toggle('stage-summary-active', !this.summary.hidden);
       this.summary.classList.toggle('is-paused', this.paused);
@@ -33,6 +42,9 @@
         this.renderSummary(this.config.TEAMS, teamId);
       }
       this.lastKey = key;
+      cancelAnimationFrame(this.frame);
+      this.frame = null;
+      this.animateSummary();
       this.tick();
     }
 
@@ -58,151 +70,82 @@
         this.lastBeep = `${prefix}:${seconds}`;
         if (this.mode === 'host') root.GameSound?.play('countdown');
       }
-      const next = this.summary.querySelector('.stage-next');
-      if (next && stage.phase === 'summary') {
-        next.querySelector('.stage-next-seconds').textContent = '';
-        const elapsed = Math.max(0, (now - this.summaryStartedAt) / 1000);
-        this.summary.dataset.beat = elapsed < 2.65 ? 'reveal' : elapsed < 4.8 ? 'celebrate' : 'reward';
-        this.summary.querySelector('h2').textContent = elapsed < 2.65 ? this.revealTitle : this.celebrationTitle;
-        if (!this.paused && this.summarySoundEnabled) {
-          for (const cue of this.summaryCues) {
-            if (elapsed >= cue.at && !cue.played) {
-              cue.played = true;
-              if (elapsed - cue.at < 0.65) root.GameSound?.play(cue.name);
-            }
-          }
-        }
+      if (stage.phase === 'summary') {
+        const status = this.paused ? '已暫停' : now < stage.summary.readyAt ? '結算動畫播放中' : '等待主持人繼續';
+        if (this.next.textContent !== status) this.next.textContent = status;
+      }
+    }
+
+    animateSummary() {
+      if (this.stage?.phase !== 'summary' || this.summary.hidden) return;
+      const now = this.serverNow + (this.paused ? 0 : performance.now() - this.receivedAt);
+      const summary = this.stage.summary;
+      for (const row of this.runners || []) {
+        const progress = this.reducedMotion?.matches ? 1 : root.SummaryMotion.progress(summary, row.steps, now, this.config);
+        const fraction = root.SummaryMotion.ease(progress) * row.steps / Math.max(...this.config.quizStages.rewardSteps);
+        // The moving wrapper is exactly the effective lane width; percentage transforms need no layout reads.
+        row.runner.style.transform = 'translate3d(' + (fraction * 100) + '%,0,0)';
+        row.runner.classList.toggle('is-moving', !this.paused && progress > 0 && progress < 1 && row.steps > 0);
+      }
+      if (!this.paused && now < summary.movementEndsAt && !this.reducedMotion?.matches) {
+        this.frame = requestAnimationFrame(() => { this.frame = null; this.animateSummary(); });
       }
     }
 
     renderSummary(teams, myTeamId) {
       this.summary.replaceChildren();
-      this.summaryDuration = 8;
-      this.summaryStartedAt = this.serverNow;
-      const elapsed = 0;
-      this.summary.style.setProperty('--stage-elapsed', `${elapsed}s`);
-      const visibleTeams = teams.filter(t => (this.mode === 'host' || t.id === myTeamId) && this.stage.summary.teamResults[t.id]);
-      const results = this.stage.summary.teamResults;
-      const perfectCount = visibleTeams.filter(t => results[t.id]?.correctCount === this.config.quizStages.questionsPerStage).length;
-      const highest = Math.max(0, ...visibleTeams.map(t => results[t.id]?.correctCount || 0));
-      const lastStage = this.stage.stageNumber === this.stage.stageCount;
-      this.revealTitle = this.mode === 'host' ? '這一關，掌聲給誰？' : '本關成績揭曉';
-      this.celebrationTitle = perfectCount
-        ? this.mode === 'host' ? `${perfectCount} 隊全對，掌聲催下去！` : '四題全對，太神啦！'
-        : highest ? this.mode === 'host' ? `本關最高 ${highest} 題，繼續追！` : '漂亮！繼續向前！'
-          : this.mode === 'guest' ? (lastStage ? '最後衝刺，追回來！' : '下一關，逆轉吧！')
-            : lastStage ? '最後衝刺，逆轉就現在！' : '先暖身，下一關逆轉！';
-      this.summarySoundEnabled = this.mode === 'host' && this.lastKey !== null;
-      this.summaryCues = [
-        { at: 0.35, name: 'stage-star-1' }, { at: 1.1, name: 'stage-star-2' },
-        { at: 1.85, name: 'stage-star-3' }, { at: 2.65, name: perfectCount ? 'award' : 'ready' },
-        { at: 4.8, name: highest ? 'boost' : 'ready' }
-      ].map(cue => ({ ...cue, played: cue.at < elapsed }));
-      this.summary.classList.toggle('has-perfect', perfectCount > 0);
+      this.runners = [];
       const heading = document.createElement('header');
       heading.className = 'stage-heading';
-      const kicker = document.createElement('p');
-      kicker.className = 'stage-kicker';
-      kicker.textContent = `THE TSAI NIEH WEDDING CLUB  /  ROUND ${String(this.stage.stageNumber).padStart(2, '0')}`;
       const title = document.createElement('h2');
-      title.textContent = this.revealTitle;
-      heading.append(kicker, title);
+      title.textContent = '本關結算';
+      heading.append(title);
       const grid = document.createElement('div');
       grid.className = 'stage-team-grid';
-      for (const team of visibleTeams) {
+      for (const team of teams.filter(t => this.mode === 'host' || t.id === myTeamId)) {
         const result = this.stage.summary.teamResults[team.id];
-        const column = document.createElement('article');
-        column.className = `stage-team ${result.correctCount === this.config.quizStages.questionsPerStage ? 'stage-perfect' : ''}`;
-        column.style.setProperty('--team-color', team.hex);
-        column.style.setProperty('--reward-travel', `${result.steps * 10}px`);
+        if (!result) continue;
+        const row = document.createElement('article');
+        row.className = 'stage-team';
+        row.style.setProperty('--team-color', team.hex);
         const name = document.createElement('h3');
         name.textContent = team.name;
         const stars = document.createElement('div');
         stars.className = 'stage-stars';
         result.answers.forEach((correct, index) => {
-          const star = document.createElement('span');
-          star.className = correct ? 'star-hit' : 'star-miss';
-          star.textContent = `Q${index + 1} ${correct ? '✓' : '✕'}`;
-          star.setAttribute('aria-label', `第 ${index + 1} 題${correct ? '答對' : '未答對'}`);
-          star.style.animationDelay = `calc(${0.35 + index * 0.75}s - var(--stage-elapsed))`;
-          stars.append(star);
+          const item = document.createElement('span');
+          item.className = correct ? 'star-hit' : 'star-miss';
+          item.textContent = 'Q' + (index + 1) + ' ' + (correct ? '✓' : '✕');
+          stars.append(item);
         });
-        const score = document.createElement('strong');
-        score.className = 'stage-score';
-        const scoreNumber = document.createElement('b');
-        scoreNumber.textContent = result.correctCount;
-        const scoreTotal = document.createElement('span');
-        scoreTotal.textContent = `/ ${this.config.quizStages.questionsPerStage} 題`;
-        score.append(scoreNumber, scoreTotal);
-        const reward = document.createElement('p');
-        reward.className = 'stage-reward';
-        reward.textContent = `前進 ${result.steps} 格`;
         const track = document.createElement('div');
         track.className = 'stage-reward-track';
-        const horse = document.createElement('img');
-        horse.src = team.runImgPath || team.imgPath;
-        horse.alt = team.name;
+        const lane = document.createElement('div');
+        lane.className = 'stage-lane';
+        const ticks = document.createElement('div');
+        ticks.className = 'stage-reward-steps';
+        for (let i = 0; i < 6; i++) ticks.append(document.createElement('i'));
         const runner = document.createElement('div');
         runner.className = 'stage-runner';
+        const horse = document.createElement('img');
+        horse.src = team.summaryImgPath || team.runImgPath || team.imgPath;
+        horse.alt = '';
         runner.append(horse);
-        track.append(runner);
-        const steps = document.createElement('div');
-        steps.className = 'stage-reward-steps';
-        steps.setAttribute('aria-label', `前進 ${result.steps} 格`);
-        for (let index = 0; index < 6; index++) {
-          const cell = document.createElement('i');
-          cell.className = index < result.steps ? 'is-earned' : '';
-          steps.append(cell);
-        }
-        track.append(steps);
-        if (result.correctCount === this.config.quizStages.questionsPerStage) {
-          const seal = document.createElement('div');
-          seal.className = 'stage-perfect-seal';
-          seal.textContent = '全對';
-          const sparkles = document.createElement('div');
-          sparkles.className = 'stage-confetti';
-          sparkles.setAttribute('aria-hidden', 'true');
-          for (let index = 0; index < 12; index++) {
-            const piece = document.createElement('i');
-            piece.style.setProperty('--piece-x', `${8 + (index * 29) % 85}%`);
-            piece.style.setProperty('--piece-drift', `${(index % 2 ? 1 : -1) * (14 + index * 3)}px`);
-            piece.style.setProperty('--piece-rotation', `${index * 67}deg`);
-            piece.style.setProperty('--piece-delay', `${2.65 + (index % 4) * 0.1}s`);
-            sparkles.append(piece);
-          }
-          track.append(sparkles, seal);
-        }
-        const note = document.createElement('p');
-        note.className = 'stage-cheer';
-        note.textContent = result.correctCount === this.config.quizStages.questionsPerStage ? '全對！前進 6 格' : result.correctCount ? '漂亮！繼續向前' : '一起加油';
-        if (Number.isFinite(result.position)) {
-          note.textContent = `權威距離 ${Number(result.position.toFixed(1))}`;
-        }
-        column.append(name, track, stars, score, reward, note);
-        grid.append(column);
+        lane.append(ticks, runner);
+        track.append(lane);
+        const reward = document.createElement('p');
+        reward.className = 'stage-reward';
+        reward.textContent = '前進 ' + root.DistanceDisplay.reward(result.steps, this.config);
+        const total = document.createElement('p');
+        total.className = 'stage-distance';
+        total.textContent = '總距離 ' + root.DistanceDisplay.position(result.position, this.config);
+        row.append(name, stars, track, reward, total);
+        grid.append(row);
+        this.runners.push({ runner, steps: result.steps });
       }
-      const next = document.createElement('footer');
-      next.className = 'stage-next';
-      const progress = document.createElement('div');
-      progress.className = 'stage-progress';
-      progress.setAttribute('aria-label', `第 ${this.stage.stageNumber} 關，共 ${this.stage.stageCount} 關`);
-      for (let index = 1; index <= this.stage.stageCount; index++) {
-        const step = document.createElement('span');
-        step.textContent = String(index).padStart(2, '0');
-        step.className = index <= this.stage.stageNumber ? 'is-complete' : '';
-        if (index === this.stage.stageNumber) step.classList.add('is-current');
-        progress.append(step);
-      }
-      const nextLabel = document.createElement('span');
-      nextLabel.className = 'stage-next-label';
-      nextLabel.textContent = lastStage ? '最後 10 秒衝刺，準備逆轉！' : '下一關，繼續加油！';
-      const countdown = document.createElement('span');
-      countdown.className = 'stage-next-countdown';
-      const count = document.createElement('b');
-      count.className = 'stage-next-seconds';
-      countdown.append(count, document.createTextNode('等待主持人繼續'));
-      next.append(progress, nextLabel, countdown);
-      this.summary.append(heading, grid, next);
+      this.next = document.createElement('footer');
+      this.next.className = 'stage-next';
+      this.summary.append(heading, grid, this.next);
     }
   }
   root.StageDisplay = StageDisplay;

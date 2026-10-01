@@ -9,7 +9,7 @@ const { CLIENT_TO_SERVER: C, SERVER_TO_CLIENT: S } = require('../shared/events')
 const { spawn } = require('node:child_process');
 const { io } = require('socket.io-client');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const base = 'http://127.0.0.1:3995';
+let base;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 let server;
 let browser, control;
@@ -17,10 +17,10 @@ let browser, control;
   await new Promise((resolve, reject) => {
     const probe = net.createServer();
     probe.once('error', reject);
-    probe.listen(3995, '127.0.0.1', () => probe.close(resolve));
+    probe.listen(0, '127.0.0.1', () => { base = `http://127.0.0.1:${probe.address().port}`; probe.close(resolve); });
   });
   server = spawn(process.execPath, ['server/index.js'], { env: { ...process.env,
-  PORT: '3995', BIND_HOST: '127.0.0.1', QUIET_SOCKET_LOGS: '1', ENABLE_TEST_DIAGNOSTICS: '1' }, stdio: 'ignore' });
+  PORT: new URL(base).port, BIND_HOST: '127.0.0.1', QUIET_SOCKET_LOGS: '1', ENABLE_TEST_DIAGNOSTICS: '1' }, stdio: 'ignore' });
   let ready = false;
   for (let i = 0; i < 50; i++) {
     try { if ((await fetch(`${base}/healthz`)).ok) { ready = true; break; } } catch {}
@@ -68,6 +68,8 @@ let browser, control;
   const cookie = login.headers.get('set-cookie').split(';')[0];
   control = io(base, { transports: ['websocket'], auth: { role: 'control', protocolVersion: 2 }, extraHeaders: { Cookie: cookie } });
   await new Promise((resolve, reject) => { control.once('connect', resolve); control.once('connect_error', reject); });
+  let latestState;
+  control.on(S.GAME_STATE_SYNC, state => {latestState=state;});
   control.emit(C.CONTROL_START_ROUND);
   await page.waitForFunction(() => !document.getElementById('btn-tap').disabled && document.querySelector('#screen-racing.active'));
   for (let i = 0; i < 5; i++) { await page.locator('#btn-tap').click(); await sleep(110); }
@@ -100,6 +102,36 @@ let browser, control;
   assert.equal(await page.locator('.opt-btn:enabled').count(), 0);
   assert.deepEqual(errors, []);
   await page.screenshot({ path: 'reports/network-v2-mobile320-answer.png' });
+  const until = async predicate => { const end=Date.now()+15000; while(!predicate()){assert(Date.now()<end,'authority phase timeout');await sleep(50);} };
+  const advance = () => control.emit(C.CONTROL_ADVANCE_QUIZ_FLOW,{requestId:require('node:crypto').randomUUID(),runId:latestState.runId,stageNumber:latestState.quizStage.stageNumber,flowRevision:latestState.quizStage.flowRevision});
+  const formal=require('../tests/fixtures/formal-questions.json');
+  for(let q=1;q<=4;q++){
+    await until(()=>latestState?.quizStage?.phase==='reveal' && latestState.quizStage.questionNumber===q);
+    advance();
+    if(q<4){
+      await page.waitForFunction(()=>!document.querySelector('.opt-btn').disabled && !document.querySelector('.quiz-entering'));
+      await page.locator('[data-opt="'+formal[q].correctAnswer+'"]').click();
+    }
+  }
+  await page.locator('.stage-guest:not([hidden])').waitFor();
+  await page.waitForTimeout(1200);
+  await page.reload();
+  await page.locator('.stage-guest:not([hidden])').waitFor();
+  const transform=()=>page.locator('.stage-guest .stage-runner').evaluate(el=>Number(getComputedStyle(el).transform.split(',')[4]));
+  assert(await transform()>0,'real reload resumes movement');
+  assert.equal(await page.locator('.stage-guest .stage-team').count(),1);
+  assert.equal(await page.locator('.stage-guest .stage-reward').textContent(),'前進 400 m');
+  control.emit(C.CONTROL_PAUSE_GAME);
+  await until(()=>latestState.paused);
+  await page.waitForTimeout(100);const frozen=await transform();await page.waitForTimeout(250);
+  assert.equal(await transform(),frozen,'real pause freezes');
+  control.emit(C.CONTROL_RESUME_GAME);await until(()=>!latestState.paused);
+  await page.waitForTimeout(3500);
+  await page.screenshot({path:'reports/stages/guest-live-reloaded-320.png'});
+  const locked=await (await fetch(base+'/api/test-accounting',{headers:{Cookie:cookie}})).json();
+  assert.equal(locked.players.find(p=>p.nickname==='RenamedQA').answeredCount,4);
+  assert.deepEqual(errors,[]);
+  console.log('PASS real summary: 400m, reload continuation, private team, pause/resume, no duplicate answers');
   console.log('PASS real browser: 390/320px, authoritative taps, offline lock, identity recovery, single confirmed answer, no page errors');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
   control?.disconnect();

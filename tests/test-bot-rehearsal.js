@@ -58,6 +58,7 @@ test('Bots complete all 16 questions once, four settlements, sprint and matching
       next();
     }
     assert.equal(game.quizStage.phase, 'summary'); settlements++;
+    advance(game.quizStage.summary.readyAt - Date.now());
     next();
   }
   assert.equal(settlements, 4);

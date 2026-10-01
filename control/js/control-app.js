@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <img src="${conf.imgPath || ''}" alt="">
         <span class="team-name">${team.name}<small>${team.memberCount || 0} 人${team.isStunned ? ' · 暈眩' : ''}</small></span>
         <span class="team-bar"><i style="width:${(shuttle ? shuttle.progress : progress).toFixed(1)}%;background:${conf.hex || '#315E58'}"></i></span>
-        <span class="team-progress">${shuttle ? `${shuttle.laps} 圈` : `${progress.toFixed(0)}%`}</span>
+        <span class="team-progress">${shuttle ? window.DistanceDisplay.position(team.position, gameState.config) : `${progress.toFixed(0)}%`}</span>
       </div>`;
     }).join('');
 
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     byId('award-seal-state').textContent = revealed ? '已揭曉' : '尚未揭曉';
     byId('award-control-title').textContent = award ? award.title : awards[index];
     byId('award-control-winner').textContent = award && award.winner
-      ? `${award.winner.name || '尚無紀錄'} · ${award.winner.value || 0} ${award.unit || ''}`
+      ? `${award.winner.name || '尚無紀錄'} · ${award.metricKey === 'position' ? window.DistanceDisplay.position(award.winner.value, gameState.config) : `${award.winner.value || 0} ${award.unit || ''}`}`
       : '等待比賽結算';
     byId('btn-award-reveal').textContent = revealed ? '重新顯示揭曉畫面' : '揭曉獎項';
     const awardsReady = gameState && gameState.state === 'MATCH_FINISHED';
@@ -104,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderClock() {
     clearInterval(raceClockTimer);
     const tick = () => {
+      renderAdvance();
       const stage = gameState?.quizStage;
       const auto = byId('auto-question-status');
       auto.hidden = stage?.phase !== 'tap';
@@ -175,8 +176,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const labels = {
       reveal: stage?.questionNumber < (stage?.questionsPerStage || gameState?.config?.quizStages?.questionsPerStage) ? '下一題' : '顯示本關結算',
       summary: stage?.stageNumber < stage?.stageCount ? '開始下一關' : '開始最後衝刺' };
-    button.textContent = advancePending ? '操作送出中…' : labels[stage?.phase] || (stage?.phase === 'tap' ? '第 1 題將自動開始' : '等待可推進階段');
-    button.disabled = !socket.connected || protocolMismatch || awaitingSync || !!advancePending || gameState?.paused
+    const now = gameState?.paused ? gameState.pausedAt : gameState?.serverNow + performance.now() - receivedAt;
+    const moving = stage?.phase === 'summary' && (!stage.summary || now < stage.summary.readyAt);
+    button.textContent = moving ? '結算動畫播放中' : advancePending ? '操作送出中…' : labels[stage?.phase] || (stage?.phase === 'tap' ? '第 1 題將自動開始' : '等待可推進階段');
+    button.disabled = moving || !socket.connected || protocolMismatch || awaitingSync || !!advancePending || gameState?.paused
       || gameState?.state !== 'QUIZ' || !labels[stage?.phase];
   }
 

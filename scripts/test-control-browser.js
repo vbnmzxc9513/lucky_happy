@@ -66,11 +66,19 @@ const { CLIENT_TO_SERVER: C, SERVER_TO_CLIENT: S } = require('../shared/events')
         assert.equal(await page.locator('#btn-advance-quiz').innerText(), question < 4 ? '下一題' : '顯示本關結算');
       }
       for (let stage = 1; stage <= 4; stage++) {
-        const snapshot = { ...state, quizStage: { ...state.quizStage, phase: 'summary', questionNumber: 4, stageNumber: stage } };
+        const snapshot = { ...state, quizStage: { ...state.quizStage, phase: 'summary', questionNumber: 4, stageNumber: stage, summary: { readyAt: 0 } } };
         await page.evaluate(({ event, state }) => handlers[event](state), { event: S.GAME_STATE_SYNC, state: snapshot });
         assert.equal(await page.locator('#btn-advance-quiz').innerText(), stage < 4 ? '開始下一關' : '開始最後衝刺');
       }
       await page.evaluate(({ event, state }) => handlers[event](state), { event: S.GAME_STATE_SYNC, state });
+      const waitState={...state, serverNow:Date.now(),quizStage:{...state.quizStage,phase:'summary',summary:{readyAt:Date.now()+1000}}};
+      await page.evaluate(({event,state})=>handlers[event](state),{event:S.GAME_STATE_SYNC,state:waitState});
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(),true);
+      assert.equal(await page.locator('#btn-advance-quiz').innerText(),'結算動畫播放中');
+      await page.screenshot({path:'reports/control/summary-wait-'+width+'x'+height+'.png'});
+      await page.waitForTimeout(1200);
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(),false);
+      await page.evaluate(({event,state})=>handlers[event](state),{event:S.GAME_STATE_SYNC,state:{...state,serverNow:Date.now()}});
       const checkLayout = async () => {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
         for (const id of ['btn-advance-quiz', 'btn-pause', 'connection-status']) {

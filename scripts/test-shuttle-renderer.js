@@ -8,6 +8,7 @@ ${config.TEAMS.map(t => `<div id="horse-${t.id}"></div><span id="${t.id}-progres
 const w = dom.window;
 let now = 0, pending, nextId = 0;
 w.GameConfig = config;
+w.eval(fs.readFileSync(require.resolve('../shared/distance-display'), 'utf8'));
 w.matchMedia = () => ({ matches: false });
 Object.defineProperty(w.performance, 'now', { value: () => now });
 w.requestAnimationFrame = fn => { pending = fn; return ++nextId; };
@@ -37,7 +38,7 @@ try {
   r.disconnect();
   assert.equal(pending, null);
   r.setState(state(7700));
-  assert.equal(w.document.getElementById('red-progress-text').textContent, '2 圈 · 56%');
+  assert.equal(w.document.getElementById('red-progress-text').textContent, '513 m');
   assert.equal(r.samples.length, 1, 'reconnect snaps without replay');
   r.ranks = { red: 2, blue: 1 };
   r.detectOvertake({ red: { position: 300 }, blue: { position: 200 } }, 0);

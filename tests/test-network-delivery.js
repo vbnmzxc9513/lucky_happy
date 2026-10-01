@@ -351,3 +351,21 @@ test('Presentation/roster versions cannot discard valid in-flight answers; pause
   assert.equal(delivery.operation({ id: 'p' }, 'answer', { ...payload, requestId: 'late' }, execute).reason, 'ANSWER_WINDOW_CLOSED');
   assert.equal(game.playerStats.get('p').answeredCount, 1);
 });
+
+test('Summary clocks are shared, results private and animation has no server frame timer', t=>{
+  const {game,delivery,events}=setup();t.after(()=>{game.resetGame();delivery.close();});
+  game.teamManager.addPlayer('g','Guest','A','summary-private-session');game.teamManager.chooseTeam('g','red');
+  game.state='QUIZ';game.quizStage={phase:'reveal',stageNumber:1,questionsPerStage:4,questionNumber:4,
+    results:[0,1,2,3].map(q=>({teamResults:Object.fromEntries(game.config.TEAMS.map(team=>[team.id,{isCorrect:true}]))}))};
+  game.showStageSummary(game.flowToken);const raw=game.teamManager.teams.red.position;
+  for(const role of ['host','control','guest']){
+    let snapshot;delivery.sendState({id:'g',data:{role},emit(e,s){snapshot=s;}});
+    const summary=snapshot.quizStage.summary;
+    assert.equal(Object.keys(summary.teamResults).length,role==='guest'?1:5);
+    for(const key of ['summaryStartedAt','movementStartedAt','movementEndsAt','readyAt']) assert.equal(summary[key],game.quizStage.summary[key]);
+    assert.equal(snapshot.config.distanceDisplay.metersPerRewardStep,100);
+  }
+  assert.equal(game.managedTimeouts.size,0);assert.equal(game.loopInterval,null);
+  assert.equal(game.teamManager.teams.red.position,raw);
+  assert.equal(events.filter(e=>e.event==='game:position_update').length,0);
+});

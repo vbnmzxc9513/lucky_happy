@@ -27,7 +27,7 @@ function render() {
     card.append(node('h3', `${t.name}（${members.length} 人）`)); const ul = node('ul', undefined, 'members');
     ul.append(...members.map(p => node('li', `${p.avatar} ${p.nickname}`))); card.append(ul); return card;
   }));
-  $('teams').replaceChildren(...m.teams.map(t => { const card = node('article', undefined, 'card'); card.append(node('h3', `第 ${t.rank} 名 · ${t.name}`), node('p', `距離 ${t.position} · ${t.memberCount} 人`)); return card; }));
+  $('teams').replaceChildren(...m.teams.map(t => { const card = node('article', undefined, 'card'); card.append(node('h3', `第 ${t.rank} 名 · ${t.name}`), node('p', `總距離 ${window.DistanceDisplay.position(t.position)} · ${t.memberCount} 人`)); return card; }));
   $('team').replaceChildren(new Option('全部隊伍', ''), ...m.teams.map(t => new Option(t.name, t.id)));
   renderPlayers();
 }

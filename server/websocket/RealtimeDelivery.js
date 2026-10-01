@@ -61,7 +61,8 @@ class RealtimeDelivery {
       }
       const { players, activeItems, config, finalAwards, finalWinner, racePacing, currentMap, quizProgress, ...rest } = base;
       const minimalConfig = { TEAMS: config.TEAMS, maxPlayersPerTeam: config.maxPlayersPerTeam,
-        quizStages: config.quizStages, shuttleRace: config.shuttleRace, finalSprint: config.finalSprint };
+        quizStages: config.quizStages, shuttleRace: config.shuttleRace, finalSprint: config.finalSprint,
+        distanceDisplay: config.distanceDisplay, summaryAnimation: config.summaryAnimation };
       const key = JSON.stringify(minimalConfig);
       state = { ...rest, currentMap: currentMap ? { id: currentMap.id, trackLength: currentMap.trackLength } : null,
         self: this.game.buildTapStatus(socket.id) };
@@ -70,6 +71,8 @@ class RealtimeDelivery {
         state.quizStage = { ...currentStage,
           reveal: reveal ? this.guestQuizResult(reveal, teamId) : null,
           summary: summary ? { stageNumber: summary.stageNumber,
+            summaryStartedAt: summary.summaryStartedAt, movementStartedAt: summary.movementStartedAt,
+            movementEndsAt: summary.movementEndsAt, readyAt: summary.readyAt,
             teamResults: teamId && summary.teamResults[teamId] ? { [teamId]: summary.teamResults[teamId] } : {} } : null };
         if (reveal) {
           const receipt = this.answerReceipts(socket.id).find(entry => entry.quizId === reveal.quizId);

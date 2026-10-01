@@ -78,6 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderDynamicHostUI() {
     if (!window.GameConfig || !window.GameConfig.TEAMS) return;
     const teams = window.GameConfig.TEAMS;
+    const rewardRule = document.getElementById("rules-reward-distances");
+    if (rewardRule && window.DistanceDisplay) rewardRule.textContent = "答對 0／1／2／3／4 題，前進 " + window.GameConfig.quizStages.rewardSteps.map(n => window.DistanceDisplay.rewardMeters(n, window.GameConfig).toLocaleString("en-US")).join("／") + " m";
 
     // A. 賽道頂部資訊板 (Race Header)
     const raceHeader = document.getElementById('dynamic-race-header');
@@ -92,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
               <!-- Hidden elements for JS compatibility -->
               <span id="race-${t.id}-count" style="display:none;">0</span>
-              <span id="${t.id}-progress-text" class="race-distance">0 圈 · 0%</span>
+              <span id="${t.id}-progress-text" class="race-distance">0 m</span>
               <span id="${t.id}-stun-tag" class="stun-badge" style="display:none;">⚠️</span>
           </div>
         `;
@@ -114,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const laneHTML = `
           <div class="track-lane ${t.color}-lane" style="top: ${i * 20}%;">
               <div class="lane-border-line"></div>
-              <div class="lane-label"><span id="${t.id}-race-rank" class="lane-rank">第 1 名</span><strong>${t.name}</strong><span id="${t.id}-lane-laps" class="lane-laps">0 圈</span></div>
+              <div class="lane-label"><span id="${t.id}-race-rank" class="lane-rank">第 1 名</span><strong>${t.name}</strong><span id="${t.id}-lane-laps" class="lane-laps">0 m</span></div>
               <div class="lane-flag">
                   <div class="lane-flag-pole"></div>
                   <div class="lane-flag-triangle"></div>

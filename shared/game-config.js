@@ -32,7 +32,8 @@ const DEFAULT_CONFIG = {
       hex: "#f59e0b",
       slogan: "🎂 慶祝派對 幸運滿分 🎂",
       imgPath: "/assets/heipi_birthday_nobg.webp?v=1",
-      runImgPath: "/assets/heipi_birthday_run.png"
+      runImgPath: "/assets/heipi_birthday_run.png",
+      summaryImgPath: "/assets/heipi_cowboy_run.png" // Summary uses an existing running asset without baked-in confetti.
     },
     {
       id: "pink",
@@ -76,6 +77,8 @@ const DEFAULT_CONFIG = {
     rewardSteps: [0, 1, 2, 4, 6]
   },
   shuttleRace: { legLength: 1500 },
+  distanceDisplay: { metersPerRewardStep: 100 },
+  summaryAnimation: { revealMs: 800, holdMs: 1000, durationBySteps: { 0: 0, 1: 1400, 2: 1800, 4: 2400, 6: 3000 } },
   racePacing: {
     enabled: true,
     targetGameSeconds: null, // 正式模式總時間由主持停留時間決定

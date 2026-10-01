@@ -157,9 +157,9 @@ class RaceRenderer {
       const pct = this.shuttle ? measure.progress : Math.min(100, data.position / this.trackLen * 100);
       const setText = (el, value) => { if (el && el.textContent !== value) el.textContent = value; };
       if (node.fill) node.fill.style.width = `${pct}%`;
-      setText(node.text, this.shuttle ? `${measure.laps} 圈 · ${Math.floor(pct)}%` : `${Math.floor(pct)}%`);
+      setText(node.text, window.DistanceDisplay.position(data.position, window.GameConfig));
       setText(node.rank, `第 ${ranks[id]} 名`);
-      setText(node.laps, `${measure.laps} 圈`);
+      setText(node.laps, window.DistanceDisplay.position(data.position, window.GameConfig));
       if (node.stun) node.stun.style.display = data.isStunned ? 'inline-block' : 'none';
       this.paintItems(id, measure);
     }

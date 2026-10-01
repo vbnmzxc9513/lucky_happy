@@ -10,6 +10,7 @@ const { SERVER_TO_CLIENT } = require('../../shared/events');
 const DEFAULT_CONFIG = require('../../shared/game-config');
 const StagePlan = require('../../shared/stage-plan');
 const ShuttleRace = require('../../shared/shuttle-race');
+const SummaryMotion = require('../../shared/summary-motion');
 const { randomUUID } = require('node:crypto');
 
 class GameManager {
@@ -247,6 +248,7 @@ class GameManager {
         this.startStageQuestion();
       } else this.showStageSummary(this.flowToken);
     } else if (stage.phase === 'summary') {
+      if (!Number.isFinite(stage.summary?.readyAt) || Date.now() < stage.summary.readyAt) return reject('SUMMARY_ANIMATION_ACTIVE');
       if (stage.completedQuestions < this.stageQuestions.length) this.beginTapStage();
       else this.beginStageSprint();
     } else return reject('INVALID_PHASE');
@@ -312,7 +314,8 @@ class GameManager {
       teamResults[id] = { answers, correctCount, steps, rewardPx, beforePosition, position: team.position };
     }
     stage.reveal = null;
-    stage.summary = { stageNumber: stage.stageNumber, teamResults };
+    stage.summary = { stageNumber: stage.stageNumber, teamResults,
+      ...SummaryMotion.timeline(teamResults, Date.now(), this.config) };
     this.setStagePhase('summary');
     this.broadcastStateSync();
     return true;
@@ -447,6 +450,11 @@ class GameManager {
     if (this.finalSprintStartedAt) this.finalSprintStartedAt += pausedDuration;
     if (this.hardFinishAt) this.hardFinishAt += pausedDuration;
     if (this.quizStage?.endsAt) this.quizStage.endsAt += pausedDuration;
+    if (this.quizStage?.summary) {
+      for (const key of ['summaryStartedAt', 'movementStartedAt', 'movementEndsAt', 'readyAt']) {
+        this.quizStage.summary[key] += pausedDuration;
+      }
+    }
     if (this.pendingQuiz && this.pendingQuiz.prepareEndsAt) {
       this.pendingQuiz.prepareEndsAt += pausedDuration;
     }

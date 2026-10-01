@@ -359,6 +359,7 @@ class ScoreboardUI {
   }
 
   formatMetric(value, unit = '') {
+    if (unit === 'm') return window.DistanceDisplay.position(value, window.GameConfig);
     return `${Number(value || 0).toLocaleString('zh-TW')} ${unit}`.trim();
   }
 
