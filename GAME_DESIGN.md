@@ -1,6 +1,6 @@
 # Lucky Horse 產品與設計原則
 
-更新日期：2026-09-30
+更新日期：2026-10-01
 
 本文件只保存產品目標、體驗原則與不變量。現行技術架構、資料流與檔案責任以 [`docs/PROJECT_ARCHITECTURE.md`](docs/PROJECT_ARCHITECTURE.md) 為準；具體數值以 `shared/game-config.js` 與正式地圖 JSON 為準。
 
@@ -24,7 +24,7 @@ Lucky Horse 是婚禮現場的多螢幕即時派對遊戲。它不是追求複�
 
 賽事狀態與投影畫面分離。主持人可以在不改變賽事的情況下切換大廳、規則、選隊、賽道與頒獎畫面；也可以暫停、恢復或在確認後重置。
 
-四關題序固定，每題與每關之間由主持人手動推進。只有倒數、連點、作答與最後衝刺自動計時，總時間取決於主持停留時間。
+四關題序固定，每關第 1 題自動開始，第 2～4 題與每關之間由主持人手動推進。只有倒數、連點、作答與最後衝刺自動計時，總時間取決於主持停留時間。
 
 ### 2.4 立即回饋、伺服器最終裁決
 
@@ -102,15 +102,15 @@ Network Protocol v2 的前後端必須共同部署並重新整理所有客戶端
 
 有日期的測試報告只代表該次 release、測試產生器與網路路徑，不應被改寫成永久效能保證。
 
-## 手動進題與統計契約（16 題、4 關）
+## 自動首題、手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
 Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
+`tap → answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。
@@ -124,3 +124,15 @@ Guest 重連快照不含其他隊結果、options 分布或 results 歷史；只
 
 驗收需涵蓋所有等待 phase 重連、雙控制台競態、暫停／重置、0%、49%、50%、50.1%、51%、100%、空隊、全場分布守恆與 Guest 隔離。
 本版完整負載、公開 HTTPS、真實手機與場地投影須重新驗證；有日期的歷史壓測報告保持原始數據。
+
+### 投影資訊層次
+
+依 2026-10-01 視覺驗收調整，連點倒數改成中央半透明單一數字，移除整塊底色、外框與長句，讓黑皮賽跑維持可見；完整自動首題說明留在 Control。
+
+題目與 A／B／C／D 選項是作答畫面重心。底部全場進度顯示已答／有效人數、作答率、未答人數；五隊各顯示已答／題目開始時人數與進度條，完全不顯示選項分布或正確率。
+
+揭曉先顯示正解文字及勾號，四條水平分布固定保留零票選項，五隊卡片在約 1.3 秒內完成進場。卡片以文字和圖示區分「整隊答對」與「未超過 50%」，呈現正確率、50% 門檻及答對／答錯／未答堆疊。重新整理直接顯示完成結果；減少動態效果偏好停用動畫。第四題後的結算列出 Q1～Q4、答對題數、0／1／2／4／6 格及權威距離，動畫不發獎。
+
+### 手機進題與更名
+
+手機 tap 倒數沿用伺服器時間，以半透明單一數字提示轉場。每題進場的前 500 毫秒隱藏並停用選項，避免連點延續成答案；之後維持單擊送出。這是呈現保護，不延後題目截止時間；減少動態效果模式仍保留防誤觸時間。選隊階段可更名，伺服器維持既有身分與隊伍。

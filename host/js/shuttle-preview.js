@@ -15,7 +15,7 @@
     lastTime = now;
     const config = window.GameConfig;
     if (!config) return;
-    if (!paused && phase === 'tap' && elapsed >= 8) setPhase('awaiting_question');
+    if (!paused && phase === 'tap' && elapsed >= 8) setPhase('answer');
     if (!paused && phase === 'answer' && elapsed >= 10) setPhase('reveal');
     const correctAnswer = questionNumber === 3 ? 'D' : 'A';
     const optionMap = Object.fromEntries(answers[questionNumber - 1].map((text, i) => [String.fromCharCode(65 + i), text]));
@@ -27,7 +27,7 @@
       distribution.options[correctAnswer].count += correctCount;
       distribution.options[wrong].count += 24 - correctCount;
       return [team.id, { totalCount: 30, answeredCount: 24, unansweredCount: 6,
-        correctCount, correctRate: correctCount / 30, isCorrect: correctCount / 30 > .5, effect: 'stage_pending' }];
+        correctCount, wrongCount: 24 - correctCount, correctRate: correctCount / 30, isCorrect: correctCount / 30 > .5, effect: 'stage_pending' }];
     }));
     Object.values(distribution.options).forEach(option => { option.answeredPercent = option.count / 120; });
     const summaryResults = Object.fromEntries(config.TEAMS.map((team, i) => {
@@ -48,7 +48,7 @@
     const key = `${stageNumber}:${phase}:${questionNumber}:${paused}`;
     if (key !== lastKey) {
       emit('game:state_sync', state);
-      if (phase === 'answer') emit('game:quiz_start', { question: questions[questionNumber - 1], options: optionMap, timeLimit: Math.ceil(10 - elapsed) });
+      if (phase === 'answer') emit('game:quiz_start', { question: questions[questionNumber - 1], options: optionMap, timeLimit: Math.ceil(10 - elapsed), endsAt: state.quizStage.endsAt, serverNow: state.serverNow });
       if (phase === 'reveal') emit('game:quiz_result', reveal);
       lastKey = key;
     }
@@ -57,8 +57,7 @@
   }
   window.previewAdvance = () => {
     if (paused) return;
-    if (phase === 'awaiting_question') setPhase('answer');
-    else if (phase === 'reveal' && questionNumber < 4) { questionNumber++; setPhase('answer'); }
+    if (phase === 'reveal' && questionNumber < 4) { questionNumber++; setPhase('answer'); }
     else if (phase === 'reveal') setPhase('summary');
     else if (phase === 'summary' && stageNumber < 4) { stageNumber++; questionNumber = 1; setPhase('tap'); }
     else if (phase === 'summary') setPhase('sprint');
@@ -68,7 +67,7 @@
   window.previewSeek = seconds => {
     emit('game:state_sync', { state: 'LOBBY', config: window.GameConfig, teams: [] });
     stageNumber = 1; questionNumber = seconds >= 47 ? 4 : 1;
-    setPhase(seconds >= 47 ? 'summary' : seconds >= 21 ? 'reveal' : seconds >= 11 ? 'answer' : seconds >= 8 ? 'awaiting_question' : 'tap');
+    setPhase(seconds >= 47 ? 'summary' : seconds >= 21 ? 'reveal' : seconds >= 8 ? 'answer' : 'tap');
     if (phase === 'tap') elapsed = seconds;
     lastTime = performance.now(); paused = false; tick();
   };

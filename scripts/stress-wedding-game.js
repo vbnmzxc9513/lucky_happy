@@ -405,7 +405,7 @@ async function connectHost() {
     if (state.racePacing) metrics.latestRacePacing = state.racePacing;
     const stage = state.quizStage;
     if (!CONFIG.manualHost && !state.paused && state.state === 'QUIZ'
-      && ['awaiting_question', 'reveal', 'summary'].includes(stage?.phase)) {
+      && ['reveal', 'summary'].includes(stage?.phase)) {
       const key = `${state.runId}:${stage.stageNumber}:${stage.flowRevision}`;
       if (controlSocket.lastAdvance !== key) {
         controlSocket.lastAdvance = key;

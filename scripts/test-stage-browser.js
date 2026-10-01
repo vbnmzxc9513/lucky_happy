@@ -3,7 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const config = require('../shared/game-config');
-const url = process.env.SERVER_URL || 'http://127.0.0.1:3000';
+const fixturesOnly = process.argv.includes('--fixturesOnly');
+const url = fixturesOnly ? 'http://lucky.test' : process.env.SERVER_URL || 'http://127.0.0.1:3000';
 
 async function checkBounds(page, selector) {
   const issues = await page.locator(selector).evaluate(el => {
@@ -26,10 +27,23 @@ async function main() {
   const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL } : {}) });
   try {
     const context = await browser.newContext();
+    if (fixturesOnly) {
+      await context.route('**/*', route => {
+        const resource = new URL(route.request().url());
+        if (resource.hostname !== 'lucky.test') return route.abort();
+        if (resource.pathname === '/socket.io/socket.io.js') return route.fulfill({contentType: 'text/javascript', body: 'window.io=()=>({on(){},emit(){},connect(){}})'});
+        if (resource.pathname === '/api/join-info') return route.fulfill({contentType: 'application/json', body: '{}'});
+        const name = resource.pathname.endsWith('/') ? resource.pathname + 'index.html' : resource.pathname;
+        const file = path.resolve('.' + (name.startsWith('/assets/') ? '/host' + name : name));
+        if (!file.startsWith(process.cwd() + path.sep) || !fs.existsSync(file)) return route.fulfill({status:404,body:''});
+        return route.fulfill({contentType: {'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webp':'image/webp'}[path.extname(file)] || 'application/octet-stream',body:fs.readFileSync(file)});
+      });
+    } else {
     const login = await context.request.post(`${url}/staff-login`, {
       form: { code: process.env.STAFF_ACCESS_CODE || '1009', next: '/host/' }, maxRedirects: 0
     });
     assert.equal(login.status(), 302);
+    }
     const pages = [];
     const errors = [];
     if (!process.argv.includes('--fixturesOnly')) {
@@ -68,6 +82,10 @@ async function main() {
       // The fixture's rendering is isolated from incoming lobby snapshots.
       document.body.classList.add('stage-summary-active');
     }, config);
+    assert.equal(await hostFixture.locator('#fixture-summary .stage-stars span').count(), 20);
+    assert.equal(await hostFixture.locator('#fixture-summary .stage-reward-steps i').count(), 30);
+    assert.equal(await hostFixture.locator('#fixture-summary .stage-reward-steps .is-earned').count(), 13);
+    assert.deepEqual(await hostFixture.locator('#fixture-summary .stage-reward').allTextContents(), [0,1,2,4,6].map(n => `前進 ${n} 格`));
     const startX = await hostFixture.locator('#fixture-summary img').last().evaluate(el => el.getBoundingClientRect().x);
     await hostFixture.waitForTimeout(3200);
     await hostFixture.screenshot({ path: 'reports/stages/host-celebration-1280.png' });
@@ -90,6 +108,8 @@ async function main() {
     assert.equal(await hostFixture.locator('#app-container').evaluate(el => getComputedStyle(el, '::after').backgroundColor), 'rgb(161, 215, 207)');
     await hostFixture.screenshot({ path: 'reports/stages/host-rewards-1134.png' });
     await hostFixture.setViewportSize({ width: 1920, height: 1080 });
+    await checkBounds(hostFixture, '#fixture-summary');
+    await hostFixture.screenshot({path:'reports/stages/host-rewards-1920.png'});
     for (const correctCount of [4, 0]) {
       await hostFixture.evaluate(({ config, correctCount }) => {
         document.getElementById('fixture-summary').remove();

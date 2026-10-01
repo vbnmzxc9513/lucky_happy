@@ -21,7 +21,7 @@
       this.config = state.config || this.config;
       this.stage = state.quizStage;
       this.paused = !!state.paused;
-      this.receivedAt = Date.now();
+      this.receivedAt = performance.now();
       this.serverNow = (state.paused ? state.pausedAt : state.serverNow) || Date.now();
       const stage = this.stage;
       const key = stage ? `${state.runId || ''}:${teamId || ''}:${stage.stageNumber}:${stage.phase}:${stage.questionNumber}` : null;
@@ -39,14 +39,20 @@
     tick() {
       const stage = this.stage;
       if (!stage) return;
-      const now = this.serverNow + (this.paused ? 0 : Date.now() - this.receivedAt);
+      const now = this.serverNow + (this.paused ? 0 : performance.now() - this.receivedAt);
       const seconds = Math.max(0, Math.ceil((stage.endsAt - now) / 1000));
       const prefix = `第 ${stage.stageNumber} / ${stage.stageCount} 關`;
-      const suffix = stage.phase === 'tap' ? `${seconds} 秒後等待主持進題`
+      const suffix = stage.phase === 'tap' ? `距離答題關卡還有 ${seconds} 秒`
         : stage.phase === 'sprint' ? `最後衝刺 ${seconds} 秒`
           : stage.phase === 'reveal' ? `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題 · 統計結果 · 等待主持人`
-          : stage.phase === 'awaiting_question' ? '等待主持人開始本題' : `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題`;
-      this.label.textContent = `${prefix} · ${suffix}`;
+          : `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題 · ${stage.phase === 'answer' ? '作答中' : '準備中'}`;
+      this.label.classList.toggle('is-tap', stage.phase === 'tap');
+      this.label.classList.toggle('is-paused', this.paused);
+      const text = stage.phase === 'tap' ? String(seconds) : `${prefix} · ${suffix}`;
+      if (this.label.textContent !== text) {
+        this.label.textContent = text;
+        this.label.setAttribute('aria-label', `${prefix} · ${suffix}`);
+      }
       this.label.classList.toggle('is-urgent', stage.phase === 'tap' && seconds <= 3);
       if (stage.phase === 'tap' && seconds > 0 && seconds <= 3 && this.lastBeep !== `${prefix}:${seconds}` && !this.paused) {
         this.lastBeep = `${prefix}:${seconds}`;
@@ -116,7 +122,7 @@
         result.answers.forEach((correct, index) => {
           const star = document.createElement('span');
           star.className = correct ? 'star-hit' : 'star-miss';
-          star.textContent = correct ? '★' : '☆';
+          star.textContent = `Q${index + 1} ${correct ? '✓' : '✕'}`;
           star.setAttribute('aria-label', `第 ${index + 1} 題${correct ? '答對' : '未答對'}`);
           star.style.animationDelay = `calc(${0.35 + index * 0.75}s - var(--stage-elapsed))`;
           stars.append(star);
@@ -140,6 +146,15 @@
         runner.className = 'stage-runner';
         runner.append(horse);
         track.append(runner);
+        const steps = document.createElement('div');
+        steps.className = 'stage-reward-steps';
+        steps.setAttribute('aria-label', `前進 ${result.steps} 格`);
+        for (let index = 0; index < 6; index++) {
+          const cell = document.createElement('i');
+          cell.className = index < result.steps ? 'is-earned' : '';
+          steps.append(cell);
+        }
+        track.append(steps);
         if (result.correctCount === this.config.quizStages.questionsPerStage) {
           const seal = document.createElement('div');
           seal.className = 'stage-perfect-seal';

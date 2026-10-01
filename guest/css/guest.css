@@ -741,3 +741,20 @@ body { height: 100dvh; }
 
 /* Persistent private question result. */
 #quiz-lock-msg { white-space: pre-line; }
+
+.quiz-ctrl-box { position: relative; }
+.quiz-entry-animation { display: none; position: absolute; inset: 0; z-index: 2; place-items: center; pointer-events: auto; background: #eff5ebe6; border-radius: inherit; color: #244d43; font-size: 32px; font-weight: 800; }
+.quiz-entering .quiz-entry-animation { display: grid; }
+.quiz-entering .quiz-entry-animation span { animation: guest-question-entry .5s ease-out both; }
+.quiz-entering .opt-btn { transition: none; }
+.quiz-entering .options-grid { visibility: hidden; pointer-events: none; }
+@keyframes guest-question-entry { from { opacity: .25; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .quiz-entry-animation span { animation: none !important; } }
+.rename-button, .rename-actions button { min-height: 44px; padding: 8px 14px; border: 1px solid #315e58; border-radius: 8px; background: #fff5d4; color: #244d43; font-weight: 700; }
+.rename-button { margin-bottom: 12px; }
+#rename-form[hidden] { display: none; }
+#rename-form { padding: 12px; margin-bottom: 14px; border: 1px solid #315e58; border-radius: 8px; text-align: left; }
+#rename-form label { display: block; margin-bottom: 6px; }
+#input-new-nickname { box-sizing: border-box; width: 100%; min-height: 44px; padding: 8px; font-size: 18px; }
+.rename-actions { display: flex; gap: 8px; margin-top: 8px; }
+#rename-error { font-size: 14px; margin: 8px 0 0; overflow-wrap: anywhere; }

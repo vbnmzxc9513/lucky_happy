@@ -59,7 +59,7 @@ class RealtimeDelivery {
         if (teamId) socket.join?.(`team:${teamId}`);
         socket.data.deliveryTeam = teamId;
       }
-      const { players, activeItems, config, finalAwards, finalWinner, racePacing, currentMap, ...rest } = base;
+      const { players, activeItems, config, finalAwards, finalWinner, racePacing, currentMap, quizProgress, ...rest } = base;
       const minimalConfig = { TEAMS: config.TEAMS, maxPlayersPerTeam: config.maxPlayersPerTeam,
         quizStages: config.quizStages, shuttleRace: config.shuttleRace, finalSprint: config.finalSprint };
       const key = JSON.stringify(minimalConfig);
@@ -177,7 +177,8 @@ class RealtimeDelivery {
   flushProgress() {
     clearTimeout(this.progressTimer);
     this.progressTimer = null;
-    for (const payload of this.progress.values()) this.staff(S.GAME_QUIZ_PROGRESS, payload);
+    for (const payload of this.progress.values()) this.staff(S.GAME_QUIZ_PROGRESS,
+      { ...payload, ...this.envelope(), progressSnapshot: this.game.quizManager.getProgressSnapshot() });
     this.progress.clear();
   }
 

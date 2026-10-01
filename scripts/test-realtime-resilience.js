@@ -225,10 +225,6 @@ async function main() {
   const firstGuest = guests[0];
   const firstQuizOptions = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data.quizId === FIRST_FORMAL_QUIZ_ID);
   const hostQuiz = waitForEvent(host, SERVER_TO_CLIENT.GAME_QUIZ_START, data => data.quizId === FIRST_FORMAL_QUIZ_ID);
-  const waiting = await waitForEvent(control, SERVER_TO_CLIENT.GAME_STATE_SYNC,
-    state => state.quizStage?.phase === 'awaiting_question');
-  control.emit(CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, { requestId: randomUUID(), runId: waiting.runId,
-    stageNumber: waiting.quizStage.stageNumber, flowRevision: waiting.quizStage.flowRevision });
   await Promise.all([firstQuizOptions, hostQuiz]);
 
   const answerAck = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_ANSWER_ACK);

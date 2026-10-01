@@ -156,6 +156,7 @@ class QuizManager {
     const ans = this.answers[teamId];
     if (!ans) return null;
     return {
+      quizId: this.currentQuiz?.id,
       teamId,
       answeredCount: ans.responded,
       totalCount: ans.total,
@@ -163,11 +164,22 @@ class QuizManager {
     };
   }
 
+  getProgressSnapshot() {
+    const teams = Object.keys(this.answers).map(id => this.getTeamProgress(id));
+    const answeredCount = teams.reduce((sum, team) => sum + team.answeredCount, 0);
+    const totalCount = teams.reduce((sum, team) => sum + team.totalCount, 0);
+    return { quizId: this.currentQuiz?.id, teams, answeredCount, totalCount,
+      unansweredCount: totalCount - answeredCount, responseRate: totalCount ? answeredCount / totalCount : 0 };
+  }
+
   scheduleTimeout(delayMs, referenceNow = Date.now()) {
     if (this.timer) clearTimeout(this.timer);
     const waitMs = Math.max(0, Number(delayMs) || 0);
+    const quiz = this.currentQuiz;
+    const generation = this.timerGeneration = (this.timerGeneration || 0) + 1;
     this.answerDeadlineAt = referenceNow + waitMs;
     this.timer = setTimeout(() => {
+      if (this.currentQuiz !== quiz || this.timerGeneration !== generation || this.pausedAt) return;
       this.timer = null;
       const callback = this.timeoutCallback;
       if (callback) callback(this.calculateResults());
@@ -298,6 +310,8 @@ class QuizManager {
    * 中止進行中的突發關卡並清理計時器 (用於主持人強制重置賽事)
    */
   cancelQuiz() {
+    this.answeredSet.clear();
+    this.answers = {};
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;

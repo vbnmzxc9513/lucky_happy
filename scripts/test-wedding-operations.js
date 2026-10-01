@@ -294,8 +294,9 @@ async function main() {
     )).success, true);
     console.log('PASS forced items work during racing and are rejected while paused');
 
+    const quizOptions = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data?.quizId === FIRST_FORMAL_QUIZ_ID);
     const waiting = await waitForEvent(controlA, SERVER_TO_CLIENT.GAME_STATE_SYNC,
-      data => data.quizStage?.phase === 'awaiting_question', 10000);
+      data => data.quizStage?.phase === 'answer', 10000);
     const advanceData = { runId: waiting.runId, stageNumber: waiting.quizStage.stageNumber,
       flowRevision: waiting.quizStage.flowRevision, requestId: randomUUID() };
     for (const socket of [projection, winnerGuest]) {
@@ -307,12 +308,9 @@ async function main() {
     const pausedAdvance = await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', advanceData);
     assert.strictEqual(pausedAdvance.reason, 'GAME_PAUSED');
     await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_RESUME_GAME, 'RESUME_GAME');
-    const quizOptions = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS,
-      data => data?.quizId === FIRST_FORMAL_QUIZ_ID);
-    const advanceResults = await Promise.all([controlA, controlB].map(socket =>
-      sendControl(socket, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', advanceData)));
-    assert.strictEqual(advanceResults.filter(result => result.success).length, 1);
-    assert.strictEqual(advanceResults.find(result => !result.success).reason, 'STALE_FLOW');
+    await quizOptions;
+    const rejectedDuringAnswer = await sendControl(controlA, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', advanceData);
+    assert.strictEqual(rejectedDuringAnswer.reason, 'INVALID_PHASE');
     const overlappingQuiz = await sendControl(controlB, CLIENT_TO_SERVER.CONTROL_FORCE_QUIZ,
       'FORCE_QUIZ', { quizId: 'wc_002' });
     assert.strictEqual(overlappingQuiz.success, false);
@@ -354,6 +352,11 @@ async function main() {
     assert.strictEqual(duplicateAnswer.reason, 'ALREADY_ANSWERED');
     console.log('PASS overlapping quizzes are rejected and answers remain single-submit');
 
+    const reveal = await waitForEvent(controlA, SERVER_TO_CLIENT.GAME_STATE_SYNC, data => data.quizStage?.phase === 'reveal', 12000);
+    const nextData = { requestId: randomUUID(), runId: reveal.runId, stageNumber: reveal.quizStage.stageNumber, flowRevision: reveal.quizStage.flowRevision };
+    const advanceResults = await Promise.all([controlA, controlB].map(socket => sendControl(socket, CLIENT_TO_SERVER.CONTROL_ADVANCE_QUIZ_FLOW, 'ADVANCE_QUIZ_FLOW', nextData)));
+    assert.strictEqual(advanceResults.filter(result => result.success).length, 1);
+    assert.strictEqual(advanceResults.find(result => !result.success).reason, 'STALE_FLOW');
     let ghostQuizResults = 0;
     const ghostCounter = () => { ghostQuizResults++; };
     controlA.on(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, ghostCounter);

@@ -7,7 +7,7 @@
 .stage-summary h2 { margin: 0; font-size: 70px; font-weight: 900; line-height: 1.2; color: #214943; min-height: 84px; position: relative; z-index: 1; }
 .stage-heading::after { content: ''; width: 920px; height: 25px; background: #f5d678; position: absolute; bottom: 21px; transform: rotate(-1deg); opacity: .85; }
 .stage-team-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; width: 100%; min-height: 0; }
-.stage-team { min-width: 0; text-align: center; display: grid; grid-template-rows: 68px minmax(150px, 1fr) 86px 110px 68px 42px; position: relative; padding: 12px 8px 0; border-top: 5px solid var(--team-color); }
+.stage-team { min-width: 0; text-align: center; display: grid; grid-template-rows: 90px minmax(150px, 1fr) 86px 110px 68px 42px; position: relative; padding: 12px 8px 0; border-top: 5px solid var(--team-color); }
 .stage-team + .stage-team { border-left: 1px solid #5b968b55; }
 .stage-team h3 { font-size: 34px; line-height: 1.3; margin: 0; display: flex; align-items: center; justify-content: center; overflow-wrap: anywhere; padding: 0 3px; }
 .stage-reward-track { position: relative; min-height: 0; width: 100%; }
@@ -90,3 +90,20 @@
   .stage-guest .stage-next-label { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .stage-summary * { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; } .stage-confetti { display: none; } }
+.stage-clock-host.is-tap { top: 50%; left: 50%; transform: translate(-50%, -50%); font: 800 clamp(104px, 12vw, 184px)/1 'Outfit', sans-serif; font-variant-numeric: tabular-nums; padding: 0; width: auto; max-width: none; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: #fff6d4; opacity: .4; text-shadow: 0 2px 4px #244d4340; }
+.stage-clock-host.is-tap.is-urgent { background: transparent; animation: stage-entry .6s ease-out; }
+.stage-clock.is-paused { animation-play-state: paused; }
+.stage-host .stage-stars { gap: 6px; }
+.stage-host .stage-stars span { font: 800 29px/1.2 'Outfit', 'Noto Sans TC', sans-serif; padding: 8px 4px; text-shadow: none; -webkit-text-stroke: 0; color: #214943; }
+.stage-host .stage-stars .star-hit { background: #f5d678; border-radius: 6px; }
+.stage-guest .stage-stars span { font-size: 24px; text-shadow: none; -webkit-text-stroke: 0; }
+@keyframes stage-entry { from { opacity: .18; transform: translate(-50%, -50%) scale(.88); } to { opacity: .4; transform: translate(-50%, -50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .stage-clock { animation: none !important; } }
+
+.stage-reward-steps { position: absolute; bottom: 6px; left: 14%; right: 14%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.stage-reward-steps i { height: 18px; border: 2px solid #315e58; border-radius: 3px; background: #d6e9df; }
+.stage-reward-steps .is-earned { background: #f5d678; }
+
+.stage-clock-guest.is-tap { inset: 50% auto auto 50%; transform: translate(-50%, -50%); width: auto; height: auto; padding: 0; border: 0; background: transparent; color: #fff6d4; opacity: .4; font: 800 clamp(100px, 28vw, 160px)/1 'Outfit', sans-serif; text-shadow: 0 2px 4px #244d4340; pointer-events: none; }
+.stage-clock-guest.is-tap.is-urgent { animation: stage-entry .6s ease-out; }
+@media (prefers-reduced-motion: reduce) { .stage-clock-guest.is-tap { animation: none; } }

@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let advancePending = null;
   let advanceTimer = null;
   let awaitingSync = true;
+  let receivedAt = performance.now();
 
   const byId = id => document.getElementById(id);
   const emit = (event, data = {}) => {
@@ -103,6 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderClock() {
     clearInterval(raceClockTimer);
     const tick = () => {
+      const stage = gameState?.quizStage;
+      const auto = byId('auto-question-status');
+      auto.hidden = stage?.phase !== 'tap';
+      const authorityNow = gameState?.paused ? gameState.pausedAt : gameState?.serverNow + performance.now() - receivedAt;
+      if (!auto.hidden) auto.textContent = `第 1 題將於倒數結束後自動開始 · 剩餘 ${Math.max(0, Math.ceil((stage.endsAt - authorityNow) / 1000))} 秒`;
       const startedAt = gameState && gameState.finalSprint && gameState.finalSprint.raceStartedAt;
       if (!startedAt) {
         byId('race-clock').textContent = '00:00';
@@ -110,12 +116,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const now = gameState.paused && gameState.pausedAt
         ? gameState.pausedAt
-        : Date.now();
+        : authorityNow;
       const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
       byId('race-clock').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
     };
     tick();
-    raceClockTimer = setInterval(tick, 1000);
+    raceClockTimer = setInterval(tick, 200);
   }
 
   function render() {
@@ -166,10 +172,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderAdvance() {
     const stage = gameState?.quizStage;
     const button = byId('btn-advance-quiz');
-    const labels = { awaiting_question: '開始第 1 題',
+    const labels = {
       reveal: stage?.questionNumber < (stage?.questionsPerStage || gameState?.config?.quizStages?.questionsPerStage) ? '下一題' : '顯示本關結算',
       summary: stage?.stageNumber < stage?.stageCount ? '開始下一關' : '開始最後衝刺' };
-    button.textContent = advancePending ? '操作送出中…' : labels[stage?.phase] || '等待可推進階段';
+    button.textContent = advancePending ? '操作送出中…' : labels[stage?.phase] || (stage?.phase === 'tap' ? '第 1 題將自動開始' : '等待可推進階段');
     button.disabled = !socket.connected || protocolMismatch || awaitingSync || !!advancePending || gameState?.paused
       || gameState?.state !== 'QUIZ' || !labels[stage?.phase];
   }
@@ -208,7 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
     byId('connection-status').classList.add('is-offline');
     showToast('頁面版本已過期，請重新整理頁面。', true);
   });
-  socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, state => { gameState = state; awaitingSync = false; render(); });
+  socket.on(SERVER_TO_CLIENT.GAME_STATE_SYNC, state => {
+    if (gameState?.runId === state.runId && Number.isFinite(state.stateVersion) && state.stateVersion < gameState.stateVersion) return;
+    if (Number.isFinite(gameState?.serverNow) && state.serverNow < gameState.serverNow) return;
+    gameState = state; receivedAt = performance.now(); awaitingSync = false; render();
+  });
   socket.on(SERVER_TO_CLIENT.GAME_PRESENTATION_UPDATED, data => { presentation = data; if (gameState) gameState.presentation = data; render(); });
   socket.on(SERVER_TO_CLIENT.GAME_MAP_LIST, data => { maps = Array.isArray(data) ? data : []; renderMaps(); });
   socket.on('admin:quiz_list', data => { quizzes = Array.isArray(data) ? data : []; renderQuizzes(); });
@@ -225,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.action === 'ADVANCE_QUIZ_FLOW' && data.requestId === advancePending) {
       clearTimeout(advanceTimer); advancePending = null;
     }
-    if (data.state) gameState = data.state;
+    if (data.state && (!gameState || data.state.serverNow >= gameState.serverNow || !gameState.serverNow)) { gameState = data.state; receivedAt = performance.now(); }
     showToast(data.success ? '操作已同步到大螢幕' : `操作失敗：${data.reason || '目前狀態無法執行此操作'}`, !data.success);
     render();
   });

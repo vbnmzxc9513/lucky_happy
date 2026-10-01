@@ -21,6 +21,7 @@ reports/
 tmp/
 design_review/
 .agents/
+.codex-remote-attachments/
 *-screenshot*.png
 screenshot*.png
 quiz_screenshot.png

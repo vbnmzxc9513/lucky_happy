@@ -76,12 +76,10 @@ for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
         assert.equal(game.state, 'RACING');
       }
       advance(8000);
-      assert.equal(game.quizStage.phase, 'awaiting_question');
-      advance(60000);
-      assert.equal(game.quizManager.currentQuiz, null);
-      assert.equal(game.quizStage.phase, 'awaiting_question');
+      t.mock.timers.tick(0);
+      assert.equal(game.quizStage.phase, 'answer', 'first question starts without a control command');
+      assert.equal(game.startStageQuestions(), false, 'tap transition is consumed');
       const before = Object.fromEntries(Object.entries(game.teamManager.teams).map(([id, team]) => [id, team.position]));
-      next(game); t.mock.timers.tick(0);
       for (let q = 1; q <= 4; q++) {
         assert.equal(game.quizStage.phase, 'answer');
         assert.equal(game.quizStage.questionNumber, q);
@@ -131,12 +129,13 @@ for (const style of ['all-correct', 'no-answers', 'mixed', 'fast-taps']) {
   });
 }
 
-for (const phase of ['tap', 'awaiting_question', 'answer', 'reveal', 'summary', 'sprint']) {
+for (const phase of ['tap', 'prepare', 'answer', 'reveal', 'summary', 'sprint']) {
   test(`Pause, recover, stale operations and reset in ${phase}`, t => {
     const { game, advance } = setup(t);
     game.startRound(); advance(3000);
+    if (phase === 'prepare') game.startStageQuestions();
     while (game.quizStage.phase !== phase) {
-      if (game.quizStage.phase === 'tap') advance(8000);
+      if (game.quizStage.phase === 'tap') { advance(7900); t.mock.timers.tick(100); if (phase !== 'prepare') t.mock.timers.tick(0); }
       else if (game.quizStage.phase === 'answer') advance(10000);
       else { next(game); t.mock.timers.tick(0); }
     }
@@ -181,6 +180,9 @@ test('Concurrent controls advance once and force quiz cannot bypass the state ma
   game.startRound(); advance(3000);
   assert.equal(game.forceTriggerQuiz(null), false);
   advance(8000);
+  t.mock.timers.tick(0);
+  assert.equal(game.advanceQuizFlow(command(game)).reason, 'INVALID_PHASE');
+  advance(10000);
   const data = command(game);
   assert.equal(game.advanceQuizFlow(data).success, true);
   assert.equal(game.advanceQuizFlow(data).reason, 'STALE_FLOW');
@@ -208,23 +210,79 @@ test('Malformed advance IDs cannot change the waiting state', t => {
   for (const requestId of [undefined, null, '', {}, 'bad id', 'x'.repeat(101)]) {
     const data = { ...command(game), requestId };
     assert.equal(game.advanceQuizFlow(data).reason, 'INVALID_REQUEST_ID');
-    assert.equal(game.quizStage.phase, 'awaiting_question');
+    assert.equal(game.quizStage.phase, 'answer');
   }
 });
 
 test('Consumed request ID cannot advance a later revision; reset clears the run ledger', t => {
   const { game, advance } = setup(t);
   game.startRound(); advance(11000);
+  advance(10000);
   const first = command(game);
   assert.equal(game.advanceQuizFlow(first).success, true);
   t.mock.timers.tick(0); advance(10000);
   const revision = game.quizStage.flowRevision;
   assert.equal(game.advanceQuizFlow({ ...command(game), requestId: first.requestId }).reason, 'STALE_REQUEST');
   assert.equal(game.quizStage.flowRevision, revision);
-  assert.equal(game.quizStage.questionNumber, 1);
+  assert.equal(game.quizStage.questionNumber, 2);
   assert.equal(game.quizStage.phase, 'reveal');
   next(game);
   game.resetGame();
   assert.equal(game.quizFlowRequests.size, 0);
   assert.equal(game.advanceQuizFlow(first).reason, 'STALE_RUN');
+});
+
+test('Paused host recovery preserves authority time and progress without revealing answers', t => {
+  const { game, advance } = setup(t);
+  game.startRound(); advance(11000); t.mock.timers.tick(0);
+  const quiz = game.quizManager.currentQuiz;
+  game.handleQuizAnswer('p0', quiz.id, 'A');
+  advance(2000); game.pauseGame(); advance(20000);
+  let recovery;
+  game.emitActiveQuizRecovery({emit(event, payload) { recovery = payload; }}, 'host');
+  assert.equal(recovery.paused, true);
+  assert.equal(recovery.endsAt - recovery.pausedAt, 8000);
+  assert.equal(recovery.progress.answeredCount, 1);
+  assert.equal(recovery.progress.totalCount, 5);
+  assert.doesNotMatch(JSON.stringify(recovery.progress), /correct|votes|option|answer:/i);
+  game.resumeGame(); advance(8000);
+  assert.equal(game.quizStage.phase, 'reveal');
+  assert.equal(game.handleQuizAnswer('p1', quiz.id, 'A').reason, 'ANSWER_WINDOW_CLOSED');
+});
+
+test('Old tap and prepare callbacks cannot reopen questions after a transition', t => {
+  const { game, advance, events } = setup(t);
+  game.startRound(); advance(3000);
+  const tap = game.managedTimeouts.get('stage-tap').callback;
+  advance(7900); t.mock.timers.tick(100);
+  const prepare = game.managedTimeouts.get('quiz-prepare')?.callback;
+  t.mock.timers.tick(0); tap(); prepare?.();
+  assert.equal(events.filter(e => e.event === 'game:quiz_start').length, 1);
+  advance(10000); next(game); t.mock.timers.tick(0);
+  const quiz = game.quizManager.currentQuiz;
+  tap(); prepare?.();
+  assert.equal(game.quizManager.currentQuiz, quiz);
+  assert.equal(events.filter(e => e.event === 'game:quiz_start').length, 2);
+});
+
+test('Queued timer generations from before pause cannot fire after resume', t => {
+  const { game, advance } = setup(t);
+  const scheduled = [];
+  const schedule = global.setTimeout;
+  t.mock.method(global, 'setTimeout', (callback, delay, ...args) => {
+    scheduled.push({callback, delay});
+    return schedule(callback, delay, ...args);
+  });
+  game.startRound(); advance(3000);
+  const oldTap = scheduled.findLast(e => e.delay === 8000).callback;
+  advance(2000); game.pauseGame(); advance(15000); game.resumeGame();
+  oldTap();
+  assert.equal(game.quizStage.phase, 'tap');
+  advance(6000); t.mock.timers.tick(0);
+  const oldAnswer = scheduled.findLast(e => e.delay === 10000).callback;
+  advance(2000); game.pauseGame(); advance(15000); game.resumeGame();
+  oldAnswer();
+  assert.equal(game.quizStage.phase, 'answer');
+  advance(8000);
+  assert.equal(game.quizStage.phase, 'reveal');
 });

@@ -108,10 +108,13 @@ assert.strictEqual(window.document.getElementById('btn-award-reveal').disabled, 
 window.document.getElementById('btn-award-reveal').click();
 assert.ok(emitted.some(entry => entry.event === events.CLIENT_TO_SERVER.CONTROL_AWARD_ACTION && entry.data.action === 'reveal'));
 
+handlers[events.SERVER_TO_CLIENT.GAME_STATE_SYNC]({ state: 'RACING', config, teams, serverNow: Date.now(), quizStage: { phase: 'tap', endsAt: Date.now() + 8000 } });
+assert.equal(window.document.getElementById('btn-advance-quiz').disabled, true);
+assert.match(window.document.getElementById('auto-question-status').textContent, /第 1 題將於倒數結束後自動開始/);
 const flowState = { runId: 'flow-run', state: 'QUIZ', paused: false, teams, config,
   currentMap: { id: 'wedding-final-showdown', trackLength: 1000 } };
 for (const [phase, questionNumber, stageNumber, label] of [
-  ['awaiting_question', 1, 1, '開始第 1 題'], ['reveal', 1, 1, '下一題'],
+  ['reveal', 1, 1, '下一題'],
   ['reveal', 2, 1, '下一題'], ['reveal', 3, 1, '下一題'],
   ['reveal', 4, 1, '顯示本關結算'], ['summary', 4, 1, '開始下一關'],
   ['summary', 4, 2, '開始下一關'], ['summary', 4, 3, '開始下一關'],

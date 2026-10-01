@@ -84,7 +84,8 @@ for (const [count, mode] of [[150, 'mixed'], [190, 'mixed'], [150, 'silent']]) {
           }
         }
         advance(8000 - (Date.now() - tapStart));
-        next();
+        t.mock.timers.tick(0);
+        check(game.quizStage.phase, 'answer', 'automatic first question');
         const stageCorrect = Object.fromEntries(teams.map(id => [id, 0]));
         for (let q = 0; q < 4; q++) {
           check(game.quizStage.phase, 'answer', 'question phase');

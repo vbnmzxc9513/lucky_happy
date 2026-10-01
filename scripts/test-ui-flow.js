@@ -209,7 +209,7 @@ function runTests() {
     socket.trigger('game:state_sync', { state: 'QUIZ', quizStage: { phase: 'reveal', questionNumber,
       stageNumber: 1, stageCount: 4, endsAt: null, reveal: result } });
     assert.equal(dom.window.document.querySelectorAll('.quiz-statistics').length, 1);
-    assert.ok(dom.window.document.querySelector('.statistics-team').textContent.includes('未達 50%'));
+    assert.ok(dom.window.document.querySelector('.statistics-team').textContent.includes('未超過 50%'));
   }
   for (const phase of ['summary', 'awaiting_question']) {
     socket.trigger('game:state_sync', { state: 'QUIZ', quizStage: { phase } });

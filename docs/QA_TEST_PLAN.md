@@ -1,6 +1,6 @@
 # Lucky Horse 現行 QA 與發布門檻
 
-更新日期：2026-09-30
+更新日期：2026-10-01
 正式規格：Network Protocol v2、五隊、單局、四關 16 題
 
 這是現行 QA 規格。檔名含日期的 `LOAD*`、`PRODUCTION_*`、`POSTDEPLOY_*` 與 `NETWORK_*` 文件是歷史證據，不會自動改變本文件的發布門檻。
@@ -10,7 +10,7 @@
 - 本機快速信心測試、30 人斷線復原、主持操作與 preflight 已具完整自動化。
 - 本機 150／190／220 人與公開隔離 190／200 人曾取得不同網路路徑的測量結果。
 - 最近的公開 community-Wi-Fi 路徑仍曾因冷頁面延遲或網路停頓未達門檻。
-- 歷史測量不代表新版已通過；16 題手動賽制的完整負載、婚禮場地與真實手機需重新驗證，不得只引用舊模擬器結果。
+- 歷史測量不代表新版已通過；16 題首題自動、後續手動賽制的完整負載、婚禮場地與真實手機需重新驗證，不得只引用舊模擬器結果。
 
 ## 2. 每次提交
 
@@ -144,15 +144,15 @@ npm run security:check
 
 每次正式驗收記錄：release commit／archive hash、日期與時區、環境、網路、裝置、指令、完整 JSON report、截圖、伺服器輸出、清理結果與最終判定。失敗報告保留原始結果，不得放寬門檻後改標 Pass。
 
-## 手動進題與統計契約（16 題、4 關）
+## 自動首題、手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
 Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
+`tap → answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。
@@ -183,3 +183,16 @@ schemaVersion 為 1，頂層包含 updatedAt、matches；每場包含 id、finis
 部署必須保留 runtime JSON，勿使用會刪除忽略檔的清理命令。手動以 candidate 目錄切換部署時，先停止舊程序並複製或掛載原有 runtime 成績檔（含必要備份）、確認擁有者與可寫權限，再啟動新程序，避免遺失歷史。備份時停止服務，把 runtime 目錄複製到權限受限、位於部署目錄外的位置，確認可讀後恢復服務。若確需清除：先經活動負責人確認與完成上述備份，停止服務，再手動移走成績 JSON，啟動後為空紀錄；沒有前端清除按鈕。
 
 驗證：`node tests/test-match-result-store.js` 使用 OS 暫存目錄驗證冪等、裁切排序、reset/restart、完整名單、重連、平手、資料隔離與故障保護。`npm run test:results-browser` 啟動本機隔離伺服器並使用暫存結果檔，驗證 staff HTTP 保護、完整勝隊名單、XSS、空狀態、平手、10 場切換、reset/reload、損毀警告及 390×844／320×568。已加入 `npm run test:predeploy`，不得跳過；Playwright 安裝方式見 README。測試不可寫入正式 runtime JSON。
+
+## 自動首題與視覺回歸
+
+- `tests/test-quiz-stages.js`：四關無主持指令自動首題、只啟動一次、揭曉保持、後三題手動、雙 Control、Pause／Resume、Reset、stale run／revision。
+- `tests/test-bot-rehearsal.js`（`npm run test:bot`，也納入 npm test）：25 bot 跑 16 次開始／揭曉、四次結算、最後衝刺、MATCH_FINISHED；400 次接受答案逐題唯一，暫存成績一致，檢查 pause／stop／reset 舊回呼失效。
+- `npm run test:host-browser`：正式 16 題作答及揭曉，1280×720、1920×1080、1366×768、1134×855，檢查文字範圍、遮擋、橫向捲動、進度 DOM 不重建；0%、50%、52%、100%、全隊未答與零票選項。結算五隊 Q1～Q4 及全獎勵級距另由 StageDisplay fixture 驗證。
+- `npm run test:control-browser`：390×844、320×568、844×390；tap 不可開始首題、權威倒數、揭曉才允許下一題，斷線及重新整理恢復。
+
+Host 截圖在 `reports/answer-reveal/` 與 `reports/stages/`；Control 在 `reports/control/`。瀏覽器 fixture 不連正式伺服器。predeploy 包含 Host 與 Control／results 瀏覽器檢查，不可跳過失敗項目。桌面模擬不能取代現場投影亮度、後排可讀性、真實手機及 Wi-Fi 負載驗收。
+
+### 手機轉場與更名回歸
+
+`npm run test:guest-browser` 已納入 test:predeploy：390×844、320×568 驗證浮水印、改名與重新整理保留隊伍、進場選項立即隱藏、500ms 後才開放、進場點擊沒有答案紀錄、單擊作答及斷線重連。test-guest-input 驗證重複快照、舊動畫、暫停及揭曉；test-guest-rename 驗證重複／無效名字、開賽鎖定、舊連線與權威名稱恢復。真實手機觸控與投影仍須場地彩排。

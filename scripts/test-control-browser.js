@@ -34,6 +34,32 @@ const { CLIENT_TO_SERVER: C, SERVER_TO_CLIENT: S } = require('../shared/events')
       assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
       const state = { runId: 'lan-browser', state: 'QUIZ', paused: false, config, teams: [],
         quizStage: { phase: 'reveal', questionNumber: 1, stageNumber: 1, stageCount: 4, flowRevision: 3, completedQuestions: 1 } };
+      const now = Date.now();
+      const tap = { ...state, state: 'RACING', serverNow: now, paused: true, pausedAt: now,
+        quizStage: {...state.quizStage, phase: 'tap', flowRevision: 1, endsAt: now + 3000} };
+      await page.evaluate(({event, state}) => handlers[event](state), {event:S.GAME_STATE_SYNC, state:tap});
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(), true);
+      assert.match(await page.locator('#auto-question-status').innerText(), /第 1 題將於倒數結束後自動開始.*剩餘 3 秒/);
+      await page.waitForTimeout(1100);
+      assert.match(await page.locator('#auto-question-status').innerText(), /剩餘 3 秒/);
+      assert.equal(await page.locator('#auto-question-status').evaluate(el => {
+        const r = el.getBoundingClientRect();
+        return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth
+          && el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+      }), true, 'automatic-start countdown is visible and unobstructed');
+      await page.screenshot({path:`reports/control/tap-${width}x${height}.png`});
+      await page.reload();
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(), true);
+      await page.evaluate(({event,state}) => handlers[event](state), {event:S.GAME_STATE_SYNC,state:tap});
+      assert.match(await page.locator('#auto-question-status').innerText(), /剩餘 3 秒/);
+      await page.evaluate(({event,state}) => {const now=Date.now(); handlers[event]({...state,paused:false,serverNow:now,
+        quizStage:{...state.quizStage,endsAt:now+3000}});}, {event:S.GAME_STATE_SYNC,state:tap});
+      await page.waitForTimeout(1200);
+      assert.match(await page.locator('#auto-question-status').innerText(), /剩餘 2 秒/);
+      const answer = {...state, serverNow: Date.now(), quizStage: {...state.quizStage,phase:'answer'}};
+      await page.evaluate(({event,state}) => handlers[event](state), {event:S.GAME_STATE_SYNC,state:answer});
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(), true);
+      assert.equal(await page.locator('#auto-question-status').isHidden(), true);
       for (let question = 1; question <= 4; question++) {
         const snapshot = { ...state, quizStage: { ...state.quizStage, questionNumber: question } };
         await page.evaluate(({ event, state }) => handlers[event](state), { event: S.GAME_STATE_SYNC, state: snapshot });
@@ -83,6 +109,11 @@ const { CLIENT_TO_SERVER: C, SERVER_TO_CLIENT: S } = require('../shared/events')
       await page.evaluate(({ event, state }) => handlers[event](state), { event: S.GAME_STATE_SYNC, state });
       assert.equal(await page.locator('#btn-advance-quiz').isDisabled(), false);
       await page.screenshot({ path: `reports/control/lan-${width}x${height}.png` });
+      await page.reload();
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(), true);
+      await page.evaluate(({event,state}) => handlers[event](state), {event:S.GAME_STATE_SYNC,state});
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(), false);
+      assert.equal(await page.locator('#btn-advance-quiz').innerText(), '下一題');
     }
     assert.deepEqual(errors, []);
     console.log('PASS control browser: insecure HTTP fallback, portrait/landscape actions, visible network status and reconnect');

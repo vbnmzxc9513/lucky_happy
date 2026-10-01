@@ -14,6 +14,29 @@ function setup() {
   return { io, game, delivery, events };
 }
 
+test('Authority progress contains only counts, recovers for staff and never enters guest snapshots', t => {
+  const {game, delivery} = setup();
+  t.after(() => {game.resetGame(); delivery.close();});
+  game.teamManager.addPlayer('p', '<>&"', 'A', 'progress-session');
+  game.teamManager.chooseTeam('p', 'red');
+  game.quizManager.startQuiz(game.mapManager.getCurrentMap().checkpoints[0].quizId, {red: 2});
+  game.state = 'QUIZ'; game.quizStage = {phase:'answer'};
+  game.handleQuizAnswer('p', game.quizManager.currentQuiz.id, 'A');
+  const progress = game.getGameState().quizProgress;
+  assert.equal(progress.totalCount, 2);
+  assert.equal(progress.answeredCount, 1);
+  assert.equal(progress.unansweredCount, 1);
+  assert.equal(progress.responseRate, .5);
+  assert.equal(progress.teams.length, 5);
+  assert.doesNotMatch(JSON.stringify(progress), /correct|votes|options/i);
+  for (const role of ['host','control','guest']) {
+    let state;
+    delivery.sendState({id:'p',data:{role,protocolVersion:2},emit(event,payload){state=payload;}});
+    if (role === 'guest') assert.equal(state.quizProgress, undefined);
+    else assert.deepEqual(state.quizProgress, progress);
+  }
+});
+
 test('position rates separate projection, guests and control without changing distances', t => {
   const { delivery, events } = setup(); t.after(() => delivery.close());
   for (let now = 0; now < 1000; now += 34) delivery.positions({ red: { position: now } }, now);
@@ -249,7 +272,7 @@ test('a rejected answer unlocks only after authoritative unanswered recovery', (
   assert.equal(client.canAnswer(), false);
 });
 
-for (const phase of ['awaiting_question', 'answer', 'reveal', 'summary', 'sprint']) {
+for (const phase of ['tap', 'prepare', 'awaiting_question', 'answer', 'reveal', 'summary', 'sprint']) {
   test(`Recovery isolates guest statistics in ${phase}`, t => {
     const { game, delivery, events } = setup(); t.after(() => delivery.close());
     game.teamManager.addPlayer('g', 'Guest', 'A', 'private-result-session');

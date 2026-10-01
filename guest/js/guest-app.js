@@ -65,8 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }, () => network.canTap());
 
   const quizUI = new window.QuizUI((answer) => {
+    if (quizUI.entering) return false;
     return network.answer(answer);
-  });
+  }, () => { renderedCanAnswer = undefined; scheduleNetworkUi(); });
 
   let networkUiFrame = null;
   let renderedNetworkStatus;
@@ -89,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderedCanTap = canTap;
       tapHandler.setEnabled?.(canTap);
     }
-    const canAnswer = network.canAnswer();
+    const canAnswer = network.canAnswer() && !quizUI.entering;
     if (canAnswer !== renderedCanAnswer) {
       renderedCanAnswer = canAnswer;
       document.querySelectorAll('.opt-btn').forEach(button => { button.disabled = !canAnswer; });
@@ -112,7 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   window.addEventListener('pageshow', event => { if (event.persisted) window.location.reload(); });
-  socket.on('disconnect', () => { registrationPending = false; network.disconnect(); });
+  socket.on('disconnect', () => { registrationPending = false; network.disconnect();
+    document.getElementById('btn-save-nickname').disabled = false;
+    if (!document.getElementById('rename-form').hidden) document.getElementById('rename-error').textContent = '連線中斷，重連後可再次儲存。';
+  });
   socket.on('connect_error', () => network.disconnect());
   socket.on('game:heartbeat', data => network.heartbeat(data));
 
@@ -223,6 +227,28 @@ document.addEventListener('DOMContentLoaded', () => {
     emitJoin(true);
   };
 
+  const renameForm = document.getElementById('rename-form');
+  const renameInput = document.getElementById('input-new-nickname');
+  const renameSave = document.getElementById('btn-save-nickname');
+  const renameError = document.getElementById('rename-error');
+  document.getElementById('btn-rename').onclick = () => {
+    if (!myPlayerInfo.isJoined || !['LOBBY', 'MAP_SELECT', 'ROUND_LOBBY'].includes(currentGameState)) return;
+    renameInput.value = myPlayerInfo.nickname;
+    renameError.textContent = '';
+    renameForm.hidden = false;
+    renameInput.focus(); renameInput.select();
+  };
+  document.getElementById('btn-cancel-rename').onclick = () => { renameForm.hidden = true; };
+  renameForm.onsubmit = event => {
+    event.preventDefault();
+    if (!network.ready() || renameSave.disabled) return;
+    const nickname = renameInput.value.trim();
+    if (!nickname || nickname.length > 12) { renameError.textContent = '請輸入 1～12 個字的名稱'; return; }
+    renameSave.disabled = true;
+    renameError.textContent = '正在儲存…';
+    socket.emit(CLIENT_TO_SERVER.GUEST_JOIN, {rename: true, nickname, sessionId: myPlayerInfo.sessionId});
+  };
+
   // 3. 動態產生選隊卡片與邏輯
   function renderTeamChoices() {
     const container = document.getElementById('dynamic-teams-container');
@@ -290,11 +316,26 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   socket.on(SERVER_TO_CLIENT.GUEST_JOIN_ACK, (data) => {
+    if (data?.rename) {
+      renameSave.disabled = false;
+      if (data.success) {
+        myPlayerInfo.nickname = data.nickname;
+        persistPlayer(); updateHeader();
+        renameForm.hidden = true;
+        showTeamSelectMessage('名稱已更新');
+      } else {
+        renameError.textContent = data.reason === 'DUPLICATE_NICKNAME' ? '這個名稱已有人使用，請換一個。'
+          : data.reason === 'NAME_LOCKED' ? '比賽已開始，這場不能再改名。' : '名稱未更新，請確認名稱或重新連線。';
+      }
+      return;
+    }
     registrationPending = false;
     setJoinPending(false);
     if (data && data.success) {
       network.identityRestored();
       myPlayerInfo.isJoined = true;
+      if (data.nickname) myPlayerInfo.nickname = data.nickname;
+      if (data.avatar) myPlayerInfo.avatar = data.avatar;
       if (data.teamId) myPlayerInfo.teamId = data.teamId;
       persistPlayer();
       updateHeader();
@@ -326,6 +367,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!network.applySnapshot(state)) return;
     updatePlayerStatus(state.self);
     currentGameState = state.state;
+    if (state.quizStage?.phase === 'answer') {
+      quizUI.beginQuestion(`${state.runId}:${state.quizStage.stageNumber}:${state.quizStage.questionNumber}`);
+    }
+    if (!['LOBBY', 'MAP_SELECT', 'ROUND_LOBBY'].includes(state.state)) document.getElementById('rename-form').hidden = true;
     syncGameConfig(state.config);
     quizUI.paused = !!state.paused;
     stageDisplay?.sync(myPlayerInfo.isJoined && state.self.joined ? state : { ...state, quizStage: null }, myPlayerInfo.teamId);
@@ -544,7 +589,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (myPlayerInfo.isJoined) {
       showScreen('screen-quiz');
     }
-    quizUI.showOptions(data.options, data.timeLimit);
+    const stage = network.snapshot.quizStage;
+    quizUI.beginQuestion(stage ? `${data.runId}:${stage.stageNumber}:${stage.questionNumber}` : `${data.runId}:${data.quizId}`);
+    quizUI.showOptions(data.options, data.timeLimit, () => {
+      const snapshot = network.snapshot;
+      const now = snapshot.paused ? snapshot.pausedAt || network.pausedNow : network.serverNow();
+      return Math.max(0, Math.ceil(((snapshot.endsAt || network.quiz?.endsAt) - now) / 1000));
+    });
+    renderedCanAnswer = undefined;
+    scheduleNetworkUi();
     if (data.alreadyAnswered || network.submission) {
       quizUI.isAnswered = true;
       quizUI.disableAll();

@@ -2,8 +2,10 @@
  * 手機分屏答題介面：只有選項 A/B/C/D！答案送出即鎖定！
  */
 class QuizUI {
-  constructor(onAnswerCallback) {
+  constructor(onAnswerCallback, onEntryReady = () => {}) {
     this.onAnswerCallback = onAnswerCallback;
+    this.onEntryReady = onEntryReady;
+    this.entering = false;
     this.timerInterval = null;
     this.isAnswered = false;
     this.initButtons();
@@ -12,11 +14,39 @@ class QuizUI {
   initButtons() {
     document.querySelectorAll('.opt-btn').forEach(btn => {
       btn.onclick = () => {
-        if (this.isAnswered || this.paused) return;
+        if (this.isAnswered || this.paused || this.entering || btn.disabled) return;
         const opt = btn.getAttribute('data-opt');
         this.selectOption(opt, btn);
       };
     });
+  }
+
+  beginQuestion(key) {
+    if (!key || this.entryKey === key) return;
+    this.cancelEntry();
+    this.entryKey = key;
+    this.entering = true;
+    document.querySelector('.quiz-ctrl-box')?.classList.add('quiz-entering');
+    this.disableAll();
+    const readyAt = performance.now() + 500;
+    const finishEntry = () => {
+      if (this.entryKey !== key) return;
+      const remaining = readyAt - performance.now();
+      if (remaining > 0) { this.entryTimer = setTimeout(finishEntry, Math.ceil(remaining)); return; }
+      this.entering = false;
+      this.entryTimer = null;
+      document.querySelector('.quiz-ctrl-box')?.classList.remove('quiz-entering');
+      this.onEntryReady();
+    };
+    this.entryTimer = setTimeout(finishEntry, 500);
+  }
+
+  cancelEntry() {
+    clearTimeout(this.entryTimer);
+    this.entryTimer = null;
+    this.entryKey = null;
+    this.entering = false;
+    document.querySelector('.quiz-ctrl-box')?.classList.remove('quiz-entering');
   }
 
   normalizeOptions(optionsData) {
@@ -37,6 +67,7 @@ class QuizUI {
   }
 
   showPrepare(seconds = 3) {
+    this.cancelEntry();
     this.isAnswered = false;
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.disableAll();
@@ -66,14 +97,14 @@ class QuizUI {
     }
   }
 
-  showOptions(optionsData, timeLimit) {
+  showOptions(optionsData, timeLimit, authorityClock = null) {
     this.isAnswered = false;
     const optionsMap = this.normalizeOptions(optionsData);
     const lockMsg = document.getElementById('quiz-lock-msg');
     if (lockMsg) lockMsg.style.display = 'none';
 
     document.querySelectorAll('.opt-btn').forEach(btn => {
-      btn.disabled = false;
+      btn.disabled = this.entering;
       btn.classList.remove('selected');
       const opt = btn.getAttribute('data-opt');
       const textEl = btn.querySelector('.opt-text');
@@ -82,21 +113,16 @@ class QuizUI {
       }
     });
 
-    let left = timeLimit || 10;
+    const localDeadline = performance.now() + (timeLimit || 10) * 1000;
     const timerEl = document.getElementById('mobile-quiz-timer');
-    if (timerEl) timerEl.innerText = left;
-
-    if (this.timerInterval) clearInterval(this.timerInterval);
-    this.timerInterval = setInterval(() => {
-      if (this.paused) return;
-      left--;
-      if (left < 0) left = 0;
+    const tick = () => {
+      const left = authorityClock ? authorityClock() : Math.max(0, Math.ceil((localDeadline - performance.now()) / 1000));
       if (timerEl) timerEl.innerText = left;
-      if (left <= 0) {
-        clearInterval(this.timerInterval);
-        this.disableAll();
-      }
-    }, 1000);
+      if (left <= 0) { this.stopTimer(); this.disableAll(); }
+    };
+    this.stopTimer();
+    this.timerInterval = setInterval(tick, 100);
+    tick();
   }
 
   selectOption(optStr, btnEl) {
@@ -134,6 +160,7 @@ class QuizUI {
   }
 
   showWaiting() {
+    this.cancelEntry();
     this.stopTimer(); this.disableAll();
     document.getElementById('mobile-quiz-timer').innerText = '—';
     const message = document.getElementById('quiz-lock-msg');
@@ -141,6 +168,7 @@ class QuizUI {
   }
 
   showTeamResult(teamResult, result = {}) {
+    this.cancelEntry();
     this.disableAll();
     this.stopTimer();
     const lockMsg = document.getElementById('quiz-lock-msg');
@@ -167,6 +195,7 @@ class QuizUI {
   }
 
   hide() {
+    this.cancelEntry();
     this.stopTimer();
     this.isAnswered = false;
     const lockMsg = document.getElementById('quiz-lock-msg');

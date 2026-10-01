@@ -59,8 +59,8 @@ class AdminHandler {
     socket.on(CLIENT_TO_SERVER.ADMIN_SPAWN_BOTS, (data) => {
       const count = (data && data.count) ? Number(data.count) : 50;
       const res = this.gameManager.startBotSimulation(count);
-      this.io.to('role:admin').emit('admin:simulation_stats', { activeBots: res.count, isRunning: true });
-      socket.emit('admin:response', { action: 'SPAWN_BOTS', success: res.success, count: res.count });
+      this.io.to('role:admin').emit('admin:simulation_stats', { activeBots: res.count, isRunning: res.count > 0 });
+      socket.emit('admin:response', { action: 'SPAWN_BOTS', success: res.success, reason: res.reason, count: res.count });
     });
 
     socket.on(CLIENT_TO_SERVER.ADMIN_CLEAR_BOTS, () => {

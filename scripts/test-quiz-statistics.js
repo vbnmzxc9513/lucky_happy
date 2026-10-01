@@ -16,7 +16,7 @@ try {
   assert.equal(host.window.document.querySelectorAll('.statistics-option').length, 4);
   assert.equal(host.window.document.querySelectorAll('.statistics-team').length, 5);
   assert.ok(host.window.document.querySelector('.statistics-heading').textContent.includes('未作答 5'));
-  assert.ok(host.window.document.querySelector('.statistics-team').textContent.includes('未達 50%'));
+  assert.ok(host.window.document.querySelector('.statistics-team').textContent.includes('未超過 50%'));
   display.showResult(result);
   assert.equal(host.window.document.querySelectorAll('.quiz-statistics').length, 1);
   display.showQuiz('Next', ['A', 'B'], 10);

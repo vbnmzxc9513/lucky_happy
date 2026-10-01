@@ -150,6 +150,7 @@ class GameManager {
       totalPlayers: this.teamManager.players.size,
       racePacing: this.lastRacePacing,
       quizStage: this.quizStage,
+      quizProgress: this.quizStage?.phase === 'answer' ? this.quizManager.getProgressSnapshot() : null,
       serverNow: Date.now(),
       endsAt: this.quizStage?.endsAt || null,
       finalSprint: this.getFinalSprintState(),
@@ -215,8 +216,11 @@ class GameManager {
     this.setState('RACING');
     this.startLoop();
     const token = this.flowToken;
+    const runId = this.runId;
+    const stage = this.quizStage;
     this.scheduleManagedTimeout('stage-tap', () => {
-      if (token === this.flowToken && this.state === 'RACING') this.startStageQuestions();
+      if (token === this.flowToken && runId === this.runId && stage === this.quizStage
+        && this.state === 'RACING') this.startStageQuestions();
     }, settings.tapSeconds * 1000);
   }
 
@@ -225,9 +229,7 @@ class GameManager {
     this.clearManagedTimeout('stage-tap');
     this.quizStage.questionNumber = 1;
     this.stopLoop();
-    this.setStagePhase('awaiting_question');
-    this.setState('QUIZ');
-    return true;
+    return this.startStageQuestion();
   }
 
   advanceQuizFlow(data = {}) {
@@ -239,8 +241,7 @@ class GameManager {
     if (!this.usesQuizStages() || this.state !== 'QUIZ' || !stage) return reject('INVALID_PHASE');
     if (data.stageNumber !== stage.stageNumber || data.flowRevision !== stage.flowRevision) return reject('STALE_FLOW');
     if (this.quizFlowRequests.has(data.requestId)) return reject('STALE_REQUEST');
-    if (stage.phase === 'awaiting_question') this.startStageQuestion();
-    else if (stage.phase === 'reveal') {
+    if (stage.phase === 'reveal') {
       if (stage.questionNumber < stage.questionsPerStage) {
         stage.questionNumber++;
         this.startStageQuestion();
@@ -269,6 +270,7 @@ class GameManager {
 
   startStageQuestion() {
     const stage = this.quizStage;
+    if (this.isPaused || !stage || !['tap', 'reveal'].includes(stage.phase)) return false;
     const cp = this.stageQuestions[stage.completedQuestions];
     if (!cp) return false;
     this.checkpointEngine.takeNextUntriggeredCheckpoint();
@@ -382,7 +384,9 @@ class GameManager {
   armManagedTimeout(entry) {
     if (!entry || this.isPaused) return;
     entry.dueAt = Date.now() + entry.remainingMs;
+    const generation = entry.generation = (entry.generation || 0) + 1;
     entry.timer = setTimeout(() => {
+      if (this.managedTimeouts.get(entry.key) !== entry || entry.generation !== generation || this.isPaused) return;
       this.managedTimeouts.delete(entry.key);
       entry.timer = null;
       entry.callback();
@@ -912,9 +916,10 @@ class GameManager {
     };
     if (prepareSeconds > 0) this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_PREPARE, { seconds: prepareSeconds });
 
+    const pending = this.pendingQuiz;
     this.scheduleManagedTimeout('quiz-prepare', () => {
       // 若狀態已經改變（例如管理員強制重置），則中斷
-      if (this.flowToken !== flowToken || this.state !== 'QUIZ') return;
+      if (this.flowToken !== flowToken || this.state !== 'QUIZ' || this.isPaused || this.pendingQuiz !== pending) return;
 
       const teams = this.teamManager.teams;
       const teamSizes = {};
@@ -936,6 +941,7 @@ class GameManager {
 
       this.pendingQuiz = null;
       this.quizManager.markAnswerWindowOpened();
+      this.scheduleBotAnswers();
       if (stageContinuation) {
         this.setStagePhase('answer', qData.timeLimit);
         this.broadcastStateSync();
@@ -948,7 +954,9 @@ class GameManager {
         options: qData.optionList || qData.options,
         timeLimit: qData.timeLimit,
         ...this.delivery?.envelope(),
-        endsAt: this.quizManager.answerDeadlineAt
+        endsAt: this.quizManager.answerDeadlineAt,
+        serverNow: Date.now(),
+        progress: this.quizManager.getProgressSnapshot()
       };
       if (this.delivery) this.delivery.staff(SERVER_TO_CLIENT.GAME_QUIZ_START, start);
       else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_START, start);
@@ -971,6 +979,7 @@ class GameManager {
   handleQuizAnswer(socketId, quizId, answerStr) {
     if (this.isPaused) return { success: false, reason: 'GAME_PAUSED' };
     if (this.state !== 'QUIZ') return { success: false, reason: 'NOT_IN_QUIZ' };
+    if (this.quizStage && this.quizStage.phase !== 'answer') return { success: false, reason: 'ANSWER_WINDOW_CLOSED' };
     const player = this.teamManager.getPlayer(socketId);
     if (!player || !player.teamId) return { success: false, reason: 'NOT_JOINED' };
     const teamId = player.teamId;
@@ -994,11 +1003,13 @@ class GameManager {
     if (this.usesQuizStages()) {
       if (!results || this.quizStage?.phase !== 'answer'
         || results.quizId !== this.stageQuestions[this.quizStage.completedQuestions]?.quizId) return;
+      this.clearBotAnswers();
       this.pendingQuiz = null;
       this.completeStageQuestion(results, flowToken);
       return;
     }
 
+    this.clearBotAnswers();
     this.pendingQuiz = null;
     if (!results) {
       this.setState('RACING');
@@ -1088,6 +1099,7 @@ class GameManager {
   }
 
   resetGame() {
+    this.stopBotSimulation(false);
     this.delivery?.reset();
     this.quizFlowRequests.clear();
     this.runId = randomUUID();
@@ -1166,9 +1178,9 @@ class GameManager {
   }
 
   startBotSimulation(count = 50) {
+    if (this.teamManager.isJoinLocked) return { success: false, reason: 'JOIN_LOCKED', count: this.simBots?.length || 0 };
     this.stopBotSimulation();
     this.simBots = [];
-    this.botAnswered = new Set();
 
     const avatars = ['🥳', '😎', '😻', '👑', '🚀', '🍻', '💖', '🔥'];
     const teamIds = Object.keys(this.teamManager.teams);
@@ -1191,32 +1203,47 @@ class GameManager {
     this.broadcastStateSync();
 
     this.botInterval = setInterval(() => {
+      if (this.isPaused) return;
       if (this.state === 'RACING') {
-        this.botAnswered.clear();
         for (const bot of this.simBots) {
           if (Math.random() > 0.2) {
             this.handleTap(bot.socketId, Date.now());
           }
         }
-      } else if (this.state === 'QUIZ') {
-        const currentQuizId = this.quizManager.currentQuiz ? this.quizManager.currentQuiz.id : null;
-        if (currentQuizId && this.botAnswered.size < this.simBots.length) {
-          for (const bot of this.simBots) {
-            if (!this.botAnswered.has(bot.socketId) && Math.random() > 0.7) {
-              this.botAnswered.add(bot.socketId);
-              const opts = ['A', 'B', 'C', 'D'];
-              const randomOpt = opts[Math.floor(Math.random() * opts.length)];
-              this.handleQuizAnswer(bot.socketId, currentQuizId, randomOpt);
-            }
-          }
-        }
       }
     }, 150);
+    this.scheduleBotAnswers();
 
     return { success: true, count: this.simBots.length };
   }
 
-  stopBotSimulation() {
+  clearBotAnswers() {
+    for (const key of this.managedTimeouts.keys()) {
+      if (key.startsWith('bot-answer:')) this.clearManagedTimeout(key);
+    }
+  }
+
+  scheduleBotAnswers() {
+    this.clearBotAnswers();
+    const quiz = this.quizManager.currentQuiz;
+    if (!quiz || !this.simBots?.length) return;
+    const token = this.flowToken, runId = this.runId;
+    const windowMs = this.quizManager.pausedRemainingMs ?? (this.quizManager.answerDeadlineAt - Date.now());
+    for (const bot of this.simBots) {
+      // QuizManager owns the per-question answer lock for humans and bots alike.
+      if (this.quizManager.answeredSet.has(`${bot.socketId}:${quiz.id}`)) continue;
+      this.scheduleManagedTimeout(`bot-answer:${quiz.id}:${bot.socketId}`, () => {
+        if (token !== this.flowToken || runId !== this.runId || this.isPaused
+          || this.quizManager.currentQuiz !== quiz || !this.simBots.includes(bot)
+          || (this.usesQuizStages() && this.quizStage?.phase !== 'answer')) return;
+        const options = Object.keys(quiz.optionMap);
+        this.handleQuizAnswer(bot.socketId, quiz.id, options[Math.floor(Math.random() * options.length)]);
+      }, Math.max(1, windowMs * (.08 + Math.random() * .72)));
+    }
+  }
+
+  stopBotSimulation(broadcast = true) {
+    this.clearBotAnswers();
     if (this.botInterval) {
       clearInterval(this.botInterval);
       this.botInterval = null;
@@ -1225,10 +1252,11 @@ class GameManager {
       for (const bot of this.simBots) {
         this.teamManager.removePlayer(bot.socketId);
         this.playerStats.delete(bot.socketId);
+        this.lastTapTimes.delete(bot.socketId);
       }
       this.simBots = [];
     }
-    this.broadcastStateSync();
+    if (broadcast) this.broadcastStateSync();
     return { success: true };
   }
 
@@ -1363,6 +1391,12 @@ class GameManager {
           question: activeQuiz.question,
           options: activeQuiz.optionList,
           timeLimit: activeQuiz.timeLimit,
+          ...this.delivery?.envelope(),
+          endsAt: this.quizManager.answerDeadlineAt,
+          serverNow: Date.now(),
+          paused: this.isPaused,
+          pausedAt: this.pausedAt,
+          progress: this.quizManager.getProgressSnapshot(),
           recovered: true
         });
       } else {

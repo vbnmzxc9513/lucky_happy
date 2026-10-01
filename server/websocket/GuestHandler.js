@@ -8,16 +8,19 @@ class GuestHandler {
   }
 
   handleJoin(socket, data) {
+    if (data?.rename === true) return this.handleRename(socket, data);
     const val = Validators.validateJoin(data);
     if (!val.valid) {
       socket.emit(SERVER_TO_CLIENT.SYSTEM_ERROR, { message: val.error });
       return;
     }
 
-    const res = this.gameManager.teamManager.addPlayer(
+    const manager = this.gameManager.teamManager;
+    const existing = manager.getPlayer(socket.id) || manager.getPlayer(manager.sessionToSocket.get(val.sessionId));
+    const res = manager.addPlayer(
       socket.id,
-      val.nickname,
-      val.avatar,
+      existing?.nickname || val.nickname,
+      existing?.avatar || val.avatar,
       val.sessionId
     );
     if (!res.success) {
@@ -54,6 +57,8 @@ class GuestHandler {
     socket.emit(SERVER_TO_CLIENT.GUEST_JOIN_ACK, {
       success: true,
       reconnected: !!res.reconnected,
+      nickname: player.nickname,
+      avatar: player.avatar,
       teamId: player ? player.teamId : null
     });
     if (this.gameManager.delivery) this.gameManager.delivery.sendState(socket);
@@ -65,6 +70,29 @@ class GuestHandler {
       player: this.gameManager.getPublicPlayer(res.player),
       teams: this.gameManager.teamManager.getAllTeamsInfo(),
       totalPlayers: this.gameManager.teamManager.players.size
+    });
+  }
+
+  handleRename(socket, data) {
+    const manager = this.gameManager.teamManager;
+    const player = manager.getPlayer(socket.id);
+    const reply = payload => socket.emit(SERVER_TO_CLIENT.GUEST_JOIN_ACK, { rename: true, ...payload });
+    if (!player) return reply({ success: false, reason: 'NOT_JOINED' });
+    if (manager.isJoinLocked || !['LOBBY', 'MAP_SELECT', 'ROUND_LOBBY'].includes(this.gameManager.state)) {
+      return reply({ success: false, reason: 'NAME_LOCKED' });
+    }
+    const val = Validators.validateJoin(data);
+    if (!val.valid) return reply({ success: false, reason: 'INVALID_NICKNAME' });
+    const result = manager.addPlayer(socket.id, val.nickname, player.avatar, manager.socketToSession.get(socket.id));
+    if (!result.success) return reply({ success: false, reason: result.reason });
+    this.gameManager.upsertPlayerStats(result.player);
+    reply({ success: true, nickname: result.player.nickname, teamId: result.player.teamId });
+    if (this.gameManager.delivery) {
+      this.gameManager.delivery.sendState(socket);
+      this.gameManager.delivery.scheduleRoster();
+    } else this.io.emit(SERVER_TO_CLIENT.GAME_PLAYER_JOINED, {
+      player: this.gameManager.getPublicPlayer(result.player),
+      teams: manager.getAllTeamsInfo(), totalPlayers: manager.players.size
     });
   }
 

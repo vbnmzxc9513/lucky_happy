@@ -397,10 +397,12 @@ document.addEventListener('DOMContentLoaded', () => {
     showPausedOverlay(!!state.paused);
     syncGameConfig(state.config);
     quizDisplay.paused = !!state.paused;
+    quizDisplay.syncClock(state);
+    if (state.quizProgress) quizDisplay.updateProgressSnapshot(state.quizProgress);
     stageDisplay?.sync(state);
     if (['summary', 'awaiting_question'].includes(state.quizStage?.phase)) quizDisplay.hide();
     if (state.quizStage?.phase === 'reveal' && state.quizStage.reveal) {
-      quizDisplay.showResult(state.quizStage.reveal);
+      quizDisplay.showResult(state.quizStage.reveal, quizDisplay.quizId !== state.quizStage.reveal.quizId);
     }
     if (state.finalSprint && state.finalSprint.active) {
       const overlay = document.getElementById('final-sprint-overlay');
@@ -550,19 +552,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ticker) ticker.innerText = '終極衝刺！最後 10 秒，所有隊伍全力加速！';
   });
 
-  const joinedPlayersSet = new Set();
+  const joinedPlayersSet = new Map();
   function addRosterBubble(player) {
     const grid = document.getElementById('guest-roster-grid');
     const pId = player ? (player.socketId || player.id) : null;
     if (!grid || !player || !pId) return;
-    if (joinedPlayersSet.has(pId)) return;
-    joinedPlayersSet.add(pId);
+    const existing = joinedPlayersSet.get(pId);
+    if (existing?.isConnected) {
+      existing.firstChild.textContent = player.avatar || '✨';
+      existing.lastChild.textContent = ` ${player.nickname || '神秘賓客'}`;
+      return;
+    }
 
     // 優先替換最前面的空位插槽 (.roster-slot)
     const firstSlot = grid.querySelector('.roster-slot');
     const bubble = document.createElement('div');
     bubble.className = 'roster-bubble';
-    bubble.innerHTML = `<span>${player.avatar || '✨'}</span> ${player.nickname || '神秘賓客'}`;
+    joinedPlayersSet.set(pId, bubble);
+    const avatar = document.createElement('span');
+    avatar.textContent = player.avatar || '✨';
+    bubble.append(avatar, document.createTextNode(` ${player.nickname || '神秘賓客'}`));
 
     if (firstSlot) {
       grid.replaceChild(bubble, firstSlot);
@@ -662,15 +671,27 @@ document.addEventListener('DOMContentLoaded', () => {
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_START, (data) => {
     if (currentServerState !== 'QUIZ') return;
     document.getElementById('game-state-label').innerText = '🚨 突襲答題關卡進行中！';
-    quizDisplay.showQuiz(data.question, data.options, data.timeLimit);
+    if (data.runId && data.runId !== networkState?.runId) return;
+    if (Number.isFinite(data.stateVersion) && data.stateVersion < networkState?.stateVersion) return;
+    if (networkState?.quizStage && networkState.quizStage.phase !== 'answer') return;
+    if (data.quizId && quizDisplay.quizId === data.quizId) {
+      quizDisplay.syncClock(data);
+      if (data.progress) quizDisplay.updateProgressSnapshot(data.progress);
+      return;
+    }
+    quizDisplay.showQuiz(data.question, data.options, data.timeLimit, data);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_PROGRESS, (data) => {
+    if (networkState?.quizStage?.phase !== 'answer' || (data.runId && data.runId !== networkState.runId)) return;
     quizDisplay.updateTeamProgress(data);
   });
 
   socket.on(SERVER_TO_CLIENT.GAME_QUIZ_RESULT, (data) => {
     if (currentServerState !== 'QUIZ') return;
+    if (data.runId && data.runId !== networkState?.runId) return;
+    if (networkState?.quizStage && (networkState.quizStage.phase !== 'reveal'
+      || networkState.quizStage.reveal?.quizId !== data.quizId)) return;
     const teamResults = Object.values((data && data.teamResults) || {});
     gameSound.play(teamResults.some(result => result && result.isCorrect) ? 'correct' : 'wrong');
     quizDisplay.showResult(data);

@@ -1,6 +1,6 @@
 # Lucky Horse 專案架構總覽
 
-更新日期：2026-09-30
+更新日期：2026-10-01
 適用版本：目前工作樹的 Network Protocol v2、五隊、單局、四關 16 題版本
 
 這份文件是新開發者理解系統的主要入口。它描述目前程式實際行為，而不是早期企劃。若文件與程式衝突，依下列優先順序判定：
@@ -105,8 +105,8 @@ LOBBY / MAP_SELECT / ROUND_LOBBY
 開賽倒數 3 秒
   └─ 四關：
        連點 8 秒
-       等待主持開始第一題
-       四次〔主持開始 → 作答 10 秒 → 統計保留至主持推進〕
+       連點倒數結束自動開始第 1 題
+       第 1 題作答 10 秒 → 統計保留；第 2～4 題〔主持開始 → 作答 10 秒 → 統計保留〕
        主持顯示四題結算 → 保留至主持開始下一關／最後衝刺
   └─ 最後衝刺 10 秒
   └─ 完賽後 5 秒進入頒獎
@@ -285,15 +285,15 @@ STAFF_SESSION_SECRET=至少 32 字元的隨機值
 - 不再複製完整事件表或設定值到多份文件；詳細值以程式碼為準，文件只描述責任、流程與不變量。
 - 舊企劃若已被實作取代，刪除或明確標示為歷史，不得和現行規格並列而不說明。
 
-## 手動進題與統計契約（16 題、4 關）
+## 自動首題、手動進題與統計契約（16 題、4 關）
 
 `CONTROL_ADVANCE_QUIZ_FLOW`（`control:advance_quiz_flow`）需帶 `requestId`、`runId`、`stageNumber`、`flowRevision`。
 伺服器重新驗證工作人員 session 與 control/admin 角色、暫停狀態及流程版本。每次轉換消耗目前版本；雙控制台競態只成功一次。
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
 Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → awaiting_question → answer → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
-等待、揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
+`tap → answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
 每題 `GAME_QUIZ_RESULT` 的完整結果含 options、distribution 及 teamResults。
@@ -332,3 +332,15 @@ schemaVersion 為 1，頂層包含 updatedAt、matches；每場包含 id、finis
 部署必須保留 runtime JSON，勿使用會刪除忽略檔的清理命令。手動以 candidate 目錄切換部署時，先停止舊程序並複製或掛載原有 runtime 成績檔（含必要備份）、確認擁有者與可寫權限，再啟動新程序，避免遺失歷史。備份時停止服務，把 runtime 目錄複製到權限受限、位於部署目錄外的位置，確認可讀後恢復服務。若確需清除：先經活動負責人確認與完成上述備份，停止服務，再手動移走成績 JSON，啟動後為空紀錄；沒有前端清除按鈕。
 
 驗證：`node tests/test-match-result-store.js` 使用 OS 暫存目錄驗證冪等、裁切排序、reset/restart、完整名單、重連、平手、資料隔離與故障保護。`npm run test:results-browser` 啟動本機隔離伺服器並使用暫存結果檔，驗證 staff HTTP 保護、完整勝隊名單、XSS、空狀態、平手、10 場切換、reset/reload、損毀警告及 390×844／320×568。已加入 `npm run test:predeploy`，不得跳過；Playwright 安裝方式見 README。測試不可寫入正式 runtime JSON。
+
+### 自動首題與 bot 排程防護
+
+`beginTapStage` 使用現有 `stage-tap` managed timeout，捕捉 runId、flowToken、stage 物件，消耗 tap 後直接 `startStageQuestion`。正式模式 prepare 為 0 秒；不是另一條自動流程。timeout 必須仍是 Map 中同一 entry 與同一代排程；Pause 清 timer、Resume 以剩餘時間重新武裝。`quiz-prepare` 另驗證 pending 物件，舊回呼不能啟動後一題。Control 僅 reveal／summary 可以推進，維持 requestId／runId／flowRevision 冪等防護。
+
+QuizManager 的 `getProgressSnapshot()` 產生全場及五隊答題進度；開始事件、staff recovery、staff state 的 quizProgress 與合併後進度事件共用它。Guest 快照移除 quizProgress。揭曉仍使用 `GAME_QUIZ_RESULT` 或 `quizStage.reveal`，Host 只格式化權威數值，不判斷 isCorrect、獎勵或距離。進度更新只改現有文字與 bar，揭曉以 quizId 去重；倒數以 endsAt／serverNow 同步。
+
+bot 原先以 socketId 記一次答案、只有 RACING 才清除；同關第 2～4 題永遠停在 QUIZ，造成鎖死。現在 bot 共用 QuizManager 的 socketId＋quizId 答案鎖，每題開窗排入 managed timeout，隨機分散在窗口內。回呼核對 runId、flowToken、quiz 物件、bot 身分與 answer phase，再走 handleQuizAnswer。Pause 凍結，reveal／stop／Reset 取消排程；tap interval 在每一關繼續。正式成績快照契約不變。
+
+### Guest 進場與更名責任
+
+`QuizUI.beginQuestion` 以 runId／關／題辨識 500ms 進場，重複快照不重啟；離題取消排程，啟用選項仍須通過 `GuestNetwork.canAnswer()`。手機倒數讀取權威 endsAt/serverNow。更名重用 guest:join 的 rename 意圖，GuestHandler 限制開賽前且未鎖加入，沿用 TeamManager 暱稱驗證與唯一性檢查；由目前 socket 的既有身分更新名稱、同步統計及 roster，成功 ACK 後手機才保存名稱。

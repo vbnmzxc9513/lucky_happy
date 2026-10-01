@@ -60,7 +60,9 @@ class QuizDisplay {
     }, 1000);
   }
 
-  showQuiz(questionText, options, timeLimit) {
+  showQuiz(questionText, options, timeLimit, payload = {}) {
+    this.resultKey = null;
+    this.quizId = payload.quizId;
     this.statistics?.remove();
     const overlay = document.getElementById('quiz-overlay');
     overlay.classList.remove('stage-result-view');
@@ -98,79 +100,78 @@ class QuizDisplay {
       normalizedOptions.forEach((opt) => {
         const card = document.createElement('div');
         card.className = 'quiz-option-card-v2';
-        card.innerHTML = `<span class="opt-text">${opt.label}. ${opt.text}</span>`;
+        const label = document.createElement('b');
+        label.className = 'opt-label'; label.textContent = opt.label;
+        const text = document.createElement('span');
+        text.className = 'opt-text'; text.textContent = opt.text;
+        card.append(label, text);
         optionsContainer.appendChild(card);
       });
     }
 
-    // 倒數計時
-    let left = timeLimit || 10;
-    timerNum.innerText = left;
-
+    this.endsAt = payload.endsAt || this.stageEndsAt;
+    this.syncClock(payload);
+    if (payload.progress) this.updateProgressSnapshot(payload.progress);
     if (this.timerInterval) clearInterval(this.timerInterval);
-    this.timerInterval = setInterval(() => {
-      if (this.paused) return;
-      left--;
-      if (left < 0) left = 0;
-      timerNum.innerText = left;
-      if (left <= 3) {
-        timerBadge.classList.add('timer-warning');
-      }
-      if (left <= 0) {
-        clearInterval(this.timerInterval);
-      }
-    }, 1000);
+    this.timerInterval = setInterval(() => this.tickClock(), 100);
+    this.tickClock();
+  }
+
+  syncClock(state) {
+    if (Number.isFinite(state.serverNow)) {
+      this.serverNow = state.paused ? state.pausedAt || state.serverNow : state.serverNow;
+      this.receivedAt = performance.now();
+    }
+    if ('paused' in state) this.paused = !!state.paused;
+    if (state.quizStage?.phase === 'answer') {
+      this.stageEndsAt = state.quizStage.endsAt;
+      this.endsAt = state.quizStage.endsAt;
+    }
+    this.tickClock();
+  }
+
+  tickClock() {
+    if (!Number.isFinite(this.endsAt) || !Number.isFinite(this.serverNow)) return;
+    const now = this.serverNow + (this.paused ? 0 : performance.now() - this.receivedAt);
+    const seconds = Math.max(0, Math.ceil((this.endsAt - now) / 1000));
+    document.getElementById('quiz-timer-num').textContent = seconds;
+    document.getElementById('quiz-countdown-circle').classList.toggle('timer-warning', seconds <= 3);
   }
 
   _renderTeamBar() {
-    if (!window.GameConfig || !window.GameConfig.TEAMS) return;
-    const teams = window.GameConfig.TEAMS;
     const bar = document.getElementById('quiz-team-bar');
-    if (!bar) return;
-    bar.innerHTML = '';
-    teams.forEach(t => {
-      const cell = document.createElement('div');
-      cell.className = 'quiz-team-cell';
-      cell.innerHTML = `
-        <span class="qt-name">${t.name}</span>
-        <span class="qt-progress" id="quiz-${t.id}-answered">0 / 0</span>
-        <div class="qt-bar-wrap">
-          <div class="qt-bar-fill" id="quiz-${t.id}-bar" style="width: 0%; background-color: ${t.hex};"></div>
-        </div>
-      `;
-      bar.appendChild(cell);
-    });
+    bar.replaceChildren();
+    for (const team of window.GameConfig.TEAMS) {
+      const cell = document.createElement('article'); cell.className = 'quiz-team-cell';
+      cell.style.setProperty('--team-color', team.hex);
+      const name = document.createElement('strong'); name.className = 'qt-name'; name.textContent = team.name;
+      const count = document.createElement('span'); count.className = 'qt-progress'; count.id = `quiz-${team.id}-answered`; count.textContent = '0 / 0 · 0.0%';
+      const track = document.createElement('div'); track.className = 'qt-bar-wrap';
+      const fill = document.createElement('i'); fill.className = 'qt-bar-fill'; fill.id = `quiz-${team.id}-bar`; fill.style.width = '0%';
+      track.append(fill); cell.append(name, count, track); bar.append(cell);
+    }
   }
 
-  updateAnsweredCount(stats) {
-    if (!window.GameConfig || !window.GameConfig.TEAMS) return;
-    const teams = window.GameConfig.TEAMS;
-    teams.forEach(t => {
-      const el = document.getElementById(`quiz-${t.id}-answered`);
-      const barEl = document.getElementById(`quiz-${t.id}-bar`);
-      if (el && stats && stats[t.id]) {
-        const { ans, total } = stats[t.id];
-        el.innerText = `${ans} / ${total}`;
-        if (barEl && total > 0) {
-          barEl.style.width = `${Math.round((ans / total) * 100)}%`;
-        }
-      }
-    });
+  updateTeamProgress(data) {
+    if (data?.progressSnapshot) this.updateProgressSnapshot(data.progressSnapshot);
   }
 
-  updateTeamProgress(progress) {
-    if (!progress || !progress.teamId) return;
-    const answered = Number(progress.answeredCount || 0);
-    const total = Number(progress.totalCount || 0);
-    const el = document.getElementById(`quiz-${progress.teamId}-answered`);
-    const barEl = document.getElementById(`quiz-${progress.teamId}-bar`);
-    if (el) el.innerText = `${answered} / ${total}`;
-    if (barEl) barEl.style.width = `${total > 0 ? Math.round(answered / total * 100) : 0}%`;
+  updateProgressSnapshot(progress) {
+    if (!progress || (this.quizId && progress.quizId !== this.quizId)) return;
+    for (const team of progress.teams) {
+      const count = document.getElementById(`quiz-${team.teamId}-answered`);
+      const fill = document.getElementById(`quiz-${team.teamId}-bar`);
+      if (count) count.textContent = `${team.answeredCount} / ${team.totalCount} · ${(team.progress * 100).toFixed(1)}%`;
+      if (fill) fill.style.width = `${team.progress * 100}%`;
+    }
+    document.getElementById('quiz-global-count').textContent = `已作答 ${progress.answeredCount} / ${progress.totalCount} 人`;
+    document.getElementById('quiz-global-rate').textContent = `作答率 ${(progress.responseRate * 100).toFixed(1)}% · 尚有 ${progress.unansweredCount} 人未作答`;
+    document.getElementById('quiz-global-fill').style.width = `${progress.responseRate * 100}%`;
   }
 
-  showResult(resultData) {
+  showResult(resultData, recovered = false) {
     if (this.timerInterval) clearInterval(this.timerInterval);
-    if (resultData?.distribution) return this.showStatistics(resultData);
+    if (resultData?.distribution) return this.showStatistics(resultData, recovered);
     const resBox = document.getElementById('quiz-result-section');
     const ansText = document.getElementById('correct-answer-text');
     const dynamicResults = document.getElementById('dynamic-quiz-results');
@@ -233,6 +234,8 @@ class QuizDisplay {
   }
 
   hide() {
+    this.resultKey = null;
+    this.quizId = null;
     this.statistics?.remove();
     if (this.timerInterval) clearInterval(this.timerInterval);
     document.getElementById('quiz-overlay').classList.remove('stage-result-view');
@@ -246,13 +249,16 @@ class QuizDisplay {
     if (teamBar) teamBar.style.display = 'flex';
   }
 
-  showStatistics(result) {
+  showStatistics(result, recovered = false) {
+    const key = result.quizId || 'legacy';
+    if (this.resultKey === key && this.statistics?.isConnected) return;
+    this.resultKey = key;
     const overlay = document.getElementById('quiz-overlay');
     overlay.style.display = 'flex';
     overlay.classList.add('stage-result-view');
     this.statistics?.remove();
     const panel = this.statistics = document.createElement('section');
-    panel.className = 'quiz-statistics';
+    panel.className = `quiz-statistics ${recovered ? '' : 'animate-reveal'}`;
     const add = (parent, tag, className, text) => {
       const element = document.createElement(tag);
       element.className = className;
@@ -262,14 +268,14 @@ class QuizDisplay {
     };
     const heading = add(panel, 'header', 'statistics-heading');
     add(heading, 'p', '', '本題答題統計');
-    add(heading, 'h2', '', `正確答案：${result.correctAnswer} · ${result.correctAnswerText}`);
+    add(heading, 'h2', '', `✓ 正確答案：${result.correctAnswer} · ${result.correctAnswerText}`);
     const dist = result.distribution;
     add(heading, 'p', '', `已作答 ${dist.answeredCount} 人 ／ 未作答 ${dist.unansweredCount} 人 ／ 全場 ${dist.totalPlayers} 人 · 回覆率 ${(dist.responseRate * 100).toFixed(1)}%`);
     const options = add(panel, 'div', 'statistics-options');
     for (const [label, text] of Object.entries(result.options)) {
       const option = dist.options[label];
       const row = add(options, 'article', `statistics-option ${label === result.correctAnswer ? 'is-correct' : ''}`);
-      add(row, 'span', 'statistics-option-text', `${label}. ${text}`);
+      add(row, 'span', 'statistics-option-text', `${label}. ${text}${label === result.correctAnswer ? " ✓ 正確答案" : ""}`);
       add(row, 'strong', '', `${option.count} 人 · ${(option.answeredPercent * 100).toFixed(1)}%`);
       const track = add(row, 'div', 'statistics-bar');
       const fill = add(track, 'i', '');
@@ -280,11 +286,20 @@ class QuizDisplay {
       const resultTeam = result.teamResults[team.id];
       if (!resultTeam) continue;
       const card = add(teams, 'article', `statistics-team ${resultTeam.isCorrect ? 'is-correct' : ''}`);
+      card.style.setProperty('--team-color', team.hex);
       add(card, 'h3', '', team.name);
       add(card, 'strong', '', `${resultTeam.correctCount} / ${resultTeam.totalCount} 人答對`);
-      add(card, 'p', '', `答對率 ${(resultTeam.correctRate * 100).toFixed(1)}%`);
-      add(card, 'b', '', resultTeam.isCorrect ? '本題答對' : '未達 50%');
-      add(card, 'small', '', resultTeam.isCorrect ? '已超過 50%' : '須嚴格大於 50%');
+      add(card, 'p', 'team-correct-rate', `答對率 ${(resultTeam.correctRate * 100).toFixed(1)}%`);
+      add(card, 'b', '', resultTeam.isCorrect ? '✓ 整隊答對' : '✕ 未超過 50%');
+      const threshold = add(card, 'div', 'team-threshold');
+      const rate = add(threshold, 'i', ''); rate.style.width = `${resultTeam.correctRate * 100}%`;
+      add(card, 'small', 'threshold-label', '50% 門檻');
+      const stack = add(card, 'div', 'team-answer-stack');
+      for (const [kind, count] of [['correct', resultTeam.correctCount], ['wrong', resultTeam.wrongCount], ['unanswered', resultTeam.unansweredCount]]) {
+        const segment = add(stack, 'i', kind);
+        segment.style.width = `${resultTeam.totalCount ? count / resultTeam.totalCount * 100 : 0}%`;
+      }
+      add(card, 'small', 'team-counts', `答對 ${resultTeam.correctCount} · 答錯 ${resultTeam.wrongCount} · 未作答 ${resultTeam.unansweredCount}`);
     }
     add(panel, 'footer', '', '選項比例以全場已作答人數為分母 · 隊伍答對率包含未作答者 · 等待主持人繼續');
     overlay.append(panel);

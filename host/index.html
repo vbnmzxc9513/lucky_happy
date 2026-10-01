@@ -10,8 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="/host/css/host.css?v=24">
     <link rel="stylesheet" href="/host/css/shuttle-race.css?v=4">
-    <link rel="stylesheet" href="/shared/stage-display.css?v=20260930-4x4">
-    <link rel="stylesheet" href="/host/css/quiz-statistics.css?v=1">
+    <link rel="stylesheet" href="/shared/stage-display.css?v=20261001-entry">
+    <link rel="stylesheet" href="/host/css/quiz-statistics.css?v=20261001-auto">
 </head>
 <body>
     <button id="btn-enable-sound" class="sound-unlock" type="button" aria-label="啟用大螢幕遊戲音效">
@@ -191,7 +191,7 @@
                             <span class="quiz-bolt">⚡</span>
                         </div>
                     </div>
-                    <p class="rules-card-desc">每關主持人逐題開始四題，共四關<br>答題後一起看成績、領取獎勵！</p>
+                    <p class="rules-card-desc">每關首題自動開始，其餘主持人推進<br>答題後一起看成績、領取獎勵！</p>
                 </div>
 
                 <!-- 卡片 4: 超過半數答對獎懲 -->
@@ -345,6 +345,11 @@
                     </div>
                 </div>
 
+                <div class="quiz-global-progress">
+                    <strong id="quiz-global-count">已作答 0 / 0 人</strong>
+                    <span id="quiz-global-rate">作答率 0.0% · 尚有 0 人未作答</span>
+                    <div class="quiz-global-track"><i id="quiz-global-fill"></i></div>
+                </div>
                 <!-- ABCD 四選項 2x2 大格 -->
                 <div id="quiz-options-display" class="quiz-options-grid-v2">
                     <!-- 動態注入的選項卡片 -->
@@ -469,10 +474,10 @@
     <script src="/shared/sound-manager.js?v=2"></script>
     <script src="/host/js/effects.js?v=12"></script>
     <script src="/host/js/race-renderer.js?v=13"></script>
-    <script src="/host/js/quiz-display.js?v=20260930-4x4"></script>
+    <script src="/host/js/quiz-display.js?v=20261001-auto"></script>
     <script src="/host/js/map-select-ui.js?v=12"></script>
     <script src="/host/js/scoreboard.js?v=14"></script>
-    <script src="/shared/stage-display.js?v=20260930-4x4"></script>
-    <script src="/host/js/host-app.js?v=20260929"></script>
+    <script src="/shared/stage-display.js?v=20261001-entry"></script>
+    <script src="/host/js/host-app.js?v=20261001-auto"></script>
 </body>
 </html>

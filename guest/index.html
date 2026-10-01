@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Noto+Serif+TC:wght@600;700;900&family=Outfit:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="/guest/css/guest.css?v=13">
-    <link rel="stylesheet" href="/shared/stage-display.css?v=20260930-4x4">
+    <link rel="stylesheet" href="/guest/css/guest.css?v=20261001-entry">
+    <link rel="stylesheet" href="/shared/stage-display.css?v=20261001-entry">
 </head>
 <body>
     <div id="final-sprint-mobile" class="final-sprint-mobile" aria-hidden="true">
@@ -72,6 +72,13 @@
         <!-- 2. 隊伍選擇畫面 (SCREEN_TEAM_SELECT) -->
         <section id="screen-team-select" class="screen">
             <div class="card-box team-select-box">
+                <button id="btn-rename" type="button" class="rename-button">✎ 修改名稱</button>
+                <form id="rename-form" hidden>
+                    <label for="input-new-nickname">重新取名</label>
+                    <input id="input-new-nickname" type="text" maxlength="12" autocomplete="off">
+                    <div class="rename-actions"><button id="btn-save-nickname" type="submit">儲存名稱</button><button id="btn-cancel-rename" type="button">取消</button></div>
+                    <p id="rename-error" role="status"></p>
+                </form>
                 <h2>選擇你的黑皮陣營</h2>
                 <p class="sub-text">五隊集結，選一隊並肩衝刺</p>
                 <p id="team-select-message" class="team-select-message" aria-live="polite"></p>
@@ -127,6 +134,7 @@
                     <div class="quiz-mobile-timer">倒數 <span id="mobile-quiz-timer">10</span> 秒</div>
                 </div>
 
+                <div class="quiz-entry-animation" aria-hidden="true"><span>準備作答</span></div>
                 <!-- 四個巨大選項按鈕 -->
                 <div class="options-grid">
                     <button class="opt-btn" data-opt="A"><span class="opt-tag">A</span> <span class="opt-text">選項 A</span></button>
@@ -163,8 +171,8 @@
     <script src="/shared/shuttle-race.js?v=1"></script>
     <script src="/guest/js/guest-network.js?v=2"></script>
     <script src="/guest/js/tap-handler.js?v=13"></script>
-    <script src="/guest/js/quiz-ui.js?v=20260929"></script>
-    <script src="/shared/stage-display.js?v=20260930-4x4"></script>
-    <script src="/guest/js/guest-app.js?v=20260929-2"></script>
+    <script src="/guest/js/quiz-ui.js?v=20261001-entry"></script>
+    <script src="/shared/stage-display.js?v=20261001-entry"></script>
+    <script src="/guest/js/guest-app.js?v=20261001-entry"></script>
 </body>
 </html>
