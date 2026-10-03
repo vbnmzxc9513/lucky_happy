@@ -758,3 +758,11 @@ body { height: 100dvh; }
 #input-new-nickname { box-sizing: border-box; width: 100%; min-height: 44px; padding: 8px; font-size: 18px; }
 .rename-actions { display: flex; gap: 8px; margin-top: 8px; }
 #rename-error { font-size: 14px; margin: 8px 0 0; overflow-wrap: anywhere; }
+
+/* Keep the existing controller design; only fit the reading/result states. */
+#screen-quiz .lock-msg { white-space:pre-line; color:#244f48; }
+#screen-quiz .opt-btn { touch-action:manipulation; }
+@media (orientation:landscape) and (max-height:500px) {
+  #screen-quiz .options-grid { grid-template-columns:repeat(4,1fr); }
+  #screen-quiz .opt-btn { min-height:72px; }
+}

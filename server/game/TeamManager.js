@@ -243,6 +243,7 @@ class TeamManager {
       team.speed = 0;
       team.isStunned = false;
       team.stunUntil = 0;
+      team.stunSource = null;
       team.shieldCount = 0;
     }
   }
@@ -261,6 +262,7 @@ class TeamManager {
       team.speed = 0;
       team.isStunned = false;
       team.stunUntil = 0;
+      team.stunSource = null;
       team.shieldCount = 0;
     }
     this.players.clear();

@@ -43,7 +43,9 @@ test('Bots complete all 16 questions once, four settlements, sprint and matching
     advance(8000); t.mock.timers.tick(0);
     assert.ok([...game.playerStats.values()].reduce((n, p) => n + p.tapCount, 0) > tapsBefore, 'bots tap every stage');
     for (let q = 1; q <= 4; q++) {
-      assert.equal(game.quizStage.phase, 'answer');
+      assert.equal(game.quizStage.phase, 'reading');
+      const beforeRead = accepted.length; advance(2999); assert.equal(accepted.length, beforeRead);
+      advance(1); assert.equal(game.quizStage.phase, 'answer');
       const quiz = game.quizManager.currentQuiz;
       advance(10000);
       const answers = accepted.filter(a => a.quizId === quiz.id);
@@ -86,7 +88,7 @@ test('Bots complete all 16 questions once, four settlements, sprint and matching
 
 test('Bot timers freeze on pause and become invalid after reveal, stop, reset and the next question', t => {
   const { game, advance, next, accepted } = setup(t);
-  game.startRound(); advance(11000); t.mock.timers.tick(0);
+  game.startRound(); advance(14000); t.mock.timers.tick(0);
   const stale = [...game.managedTimeouts.values()].filter(e => e.key.startsWith('bot-answer:')).map(e => e.callback);
   game.pauseGame(); advance(30000); stale.forEach(f => f());
   assert.equal(accepted.length, 0);
@@ -95,7 +97,7 @@ test('Bot timers freeze on pause and become invalid after reveal, stop, reset an
   stale.forEach(f => f()); assert.equal(accepted.length, 25);
   next(); stale.forEach(f => f()); assert.equal(accepted.length, 25);
   const pending = [...game.managedTimeouts.values()].filter(e => e.key.startsWith('bot-answer:')).map(e => e.callback);
-  game.stopBotSimulation(); pending.forEach(f => f()); advance(10000);
+  game.stopBotSimulation(); pending.forEach(f => f()); advance(13000);
   assert.equal(accepted.length, 25);
   assert.equal(game.teamManager.players.size, 0);
   assert.equal(game.playerStats.size, 0);

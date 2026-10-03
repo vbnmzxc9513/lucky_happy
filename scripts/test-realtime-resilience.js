@@ -223,7 +223,7 @@ async function main() {
   console.log('PASS unknown session cannot bypass in-race join lock');
 
   const firstGuest = guests[0];
-  const firstQuizOptions = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data.quizId === FIRST_FORMAL_QUIZ_ID);
+  const firstQuizOptions = waitForEvent(firstGuest.socket, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data.quizId === FIRST_FORMAL_QUIZ_ID && data.phase === 'answer', 15000);
   const hostQuiz = waitForEvent(host, SERVER_TO_CLIENT.GAME_QUIZ_START, data => data.quizId === FIRST_FORMAL_QUIZ_ID);
   await Promise.all([firstQuizOptions, hostQuiz]);
 

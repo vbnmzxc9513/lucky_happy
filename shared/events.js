@@ -40,9 +40,9 @@ const SERVER_TO_CLIENT = {
   GAME_POSITION_UPDATE: 'game:position_update',
   GAME_TEAM_UPDATED: 'game:team_updated',
   GAME_QUIZ_PREPARE: 'game:quiz_prepare',   // 賽前 3 秒倒數
-  GAME_QUIZ_START: 'game:quiz_start',       // 僅含題目，發給 Host
-  GAME_QUIZ_OPTIONS: 'game:quiz_options',   // 僅含選項，發給 Guest
-  GAME_QUIZ_ANSWER_ACK: 'game:quiz_answer_ack', // 答案確認/拒絕回饋
+  GAME_QUIZ_START: 'game:quiz_start',       // Host 完整題目；phase=reading/answer，附 opensAt/endsAt
+  GAME_QUIZ_OPTIONS: 'game:quiz_options',   // Guest 選項代號；reading 鎖定，answer 才開放
+  GAME_QUIZ_ANSWER_ACK: 'game:quiz_answer_ack', // 中性確認/拒絕；reveal 前不含 isCorrect
   GAME_QUIZ_PROGRESS: 'game:quiz_progress',
   GAME_QUIZ_RESULT: 'game:quiz_result',
   GAME_ITEM_TRIGGERED: 'game:item_triggered',

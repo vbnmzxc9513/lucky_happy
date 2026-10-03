@@ -36,9 +36,9 @@ test('checkCollisions() should work for any team ID', () => {
   };
   let triggered = false;
   const teamObj = { speed: 0 };
-  im.checkCollisions('purple', 61, teamObj, () => {
+  im.checkCollisions('purple', 100, teamObj, () => {
     triggered = true;
-  });
+  }, 99);
   assert.strictEqual(triggered, true);
   assert.strictEqual(im.activeItems['purple'][0].triggered, true);
 });

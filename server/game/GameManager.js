@@ -145,7 +145,7 @@ class GameManager {
         trackLength: map.track ? map.track.length : 1000,
         checkpoints: map.checkpoints || []
       } : null,
-      teams: this.teamManager.getAllTeamsInfo(),
+      teams: this.teamManager.getAllTeamsInfo().map(team => ({ ...team, stunSource: this.teamManager.teams[team.id].stunSource || null })),
       activeItems: this.itemManager.getActiveItems(),
       players: Array.from(this.teamManager.players.values()).map(player => this.getPublicPlayer(player)),
       totalPlayers: this.teamManager.players.size,
@@ -311,6 +311,7 @@ class GameManager {
       const beforePosition = team.position;
       const rewardPx = steps * settings.rewardUnitPx;
       team.position += rewardPx;
+      this.itemManager.skipThrough(id, team.position);
       teamResults[id] = { answers, correctCount, steps, rewardPx, beforePosition, position: team.position };
     }
     stage.reveal = null;
@@ -450,6 +451,9 @@ class GameManager {
     if (this.finalSprintStartedAt) this.finalSprintStartedAt += pausedDuration;
     if (this.hardFinishAt) this.hardFinishAt += pausedDuration;
     if (this.quizStage?.endsAt) this.quizStage.endsAt += pausedDuration;
+    for (const key of ['readingStartedAt', 'opensAt', 'deadlineAt']) {
+      if (Number.isFinite(this.quizStage?.[key])) this.quizStage[key] += pausedDuration;
+    }
     if (this.quizStage?.summary) {
       for (const key of ['summaryStartedAt', 'movementStartedAt', 'movementEndsAt', 'readyAt']) {
         this.quizStage.summary[key] += pausedDuration;
@@ -803,6 +807,7 @@ class GameManager {
 
     const teams = this.teamManager.teams;
 
+    const previousPositions = Object.fromEntries(Object.entries(teams).map(([id, team]) => [id, team.position]));
     // 動態對所有隊伍執行物理計算
     for (const team of Object.values(teams)) {
       this.physicsEngine.updateTeamPhysics(team);
@@ -812,11 +817,11 @@ class GameManager {
     const trackLen = map.track ? map.track.length : 1000;
 
     // 檢查道具碰撞（所有隊伍）
-    const onCollision = (teamId, itemType, effect, itemDef) => {
-      this.io.emit(SERVER_TO_CLIENT.GAME_ITEM_TRIGGERED, { teamId, itemType, effect, itemDef });
+    const onCollision = (teamId, itemType, effect, itemDef, item) => {
+      this.io.emit(SERVER_TO_CLIENT.GAME_ITEM_TRIGGERED, { ...this.delivery?.envelope(), runId: this.runId, teamId, itemType, effect, itemDef, itemId: item.id, source: item.type, resolvedType: item.resolvedType });
     };
     for (const [teamId, team] of Object.entries(teams)) {
-      this.itemManager.checkCollisions(teamId, team.position, team, onCollision);
+      this.itemManager.checkCollisions(teamId, team.position, team, onCollision, previousPositions[teamId]);
     }
 
     // 檢查關卡自動觸發
@@ -903,6 +908,66 @@ class GameManager {
 
   // 觸發答題 (由關卡設計)
   triggerQuiz(quizId, timeLimit = null, stageContinuation = false) {
+    if (!stageContinuation) return this.triggerLegacyQuiz(quizId, timeLimit);
+    if (this.isPaused) return false;
+    if (this.usesQuizStages() && !stageContinuation) {
+      return false;
+    }
+    if (this.state !== 'RACING' && !(stageContinuation && this.state === 'QUIZ')) return false;
+    const flowToken = this.flowToken;
+    console.log(`[GameManager] triggerQuiz called for quizId: ${quizId}`);
+    this.stopLoop();
+    this.setState('QUIZ');
+
+    const readingSeconds = stageContinuation ? Math.max(3, this.config.quizStages.prepareSeconds || 3) : this.getQuizPrepareSeconds();
+    const teamSizes = Object.fromEntries(Object.entries(this.teamManager.teams).map(([id, team]) => [id, team.members.size]));
+    const qData = this.quizManager.startQuiz(quizId, teamSizes, results => this.handleQuizResults(results, flowToken), timeLimit, readingSeconds);
+    if (!qData) return false;
+    this.pendingQuiz = null;
+    const quiz = this.quizManager.currentQuiz;
+    if (stageContinuation) {
+      this.quizStage.quizId = qData.quizId;
+      this.quizStage.readingStartedAt = Date.now();
+      this.quizStage.opensAt = this.quizManager.answerWindowOpenedAt;
+      this.quizStage.deadlineAt = this.quizManager.answerDeadlineAt;
+      this.setStagePhase('reading', readingSeconds);
+    }
+    this.broadcastStateSync();
+    const clock = { ...this.delivery?.envelope(), opensAt: this.quizManager.answerWindowOpenedAt,
+      endsAt: stageContinuation ? this.quizStage.endsAt : this.quizManager.answerWindowOpenedAt,
+      serverNow: Date.now(), phase: 'reading', paused: this.isPaused };
+    const start = { ...qData, ...clock, options: qData.optionList, progress: this.quizManager.getProgressSnapshot() };
+    if (this.delivery) this.delivery.staff(SERVER_TO_CLIENT.GAME_QUIZ_START, start);
+    else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_START, start);
+    const options = { quizId: qData.quizId, options: Object.keys(qData.optionMap), timeLimit: qData.timeLimit,
+      ...clock, alreadyAnswered: false };
+    if (this.delivery) this.io.to('role:guest').emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, options);
+    else this.io.emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, options);
+    this.scheduleManagedTimeout('quiz-open', () => {
+      if (flowToken !== this.flowToken || this.state !== 'QUIZ' || this.isPaused || this.quizManager.currentQuiz !== quiz || this.quizStage?.phase !== 'reading'
+        || Date.now() < this.quizManager.answerWindowOpenedAt) return;
+      // A delayed event loop must not consume any of the ten answer seconds.
+      this.quizManager.markAnswerWindowOpened();
+      this.quizManager.scheduleTimeout(qData.timeLimit * 1000);
+      if (stageContinuation) {
+        this.quizStage.opensAt = this.quizManager.answerWindowOpenedAt;
+        this.quizStage.deadlineAt = this.quizManager.answerDeadlineAt;
+        this.setStagePhase('answer', qData.timeLimit);
+        this.quizStage.answerStateVersion = this.stateVersion + 1;
+      }
+      this.broadcastStateSync();
+      // Recovery uses the same authoritative window, including accepted answer locks.
+      if (this.delivery) {
+        for (const socket of this.io.sockets.sockets.values()) {
+          if (socket.data.role === 'guest') this.emitActiveQuizRecovery(socket, 'guest');
+        }
+      }
+      this.scheduleBotAnswers();
+    }, readingSeconds * 1000);
+    return true;
+  }
+
+  triggerLegacyQuiz(quizId, timeLimit = null, stageContinuation = false) {
     if (this.isPaused) return false;
     if (this.usesQuizStages() && !stageContinuation) {
       return false;
@@ -1036,6 +1101,7 @@ class GameManager {
       
       if (res.effect === 'large_boost' || res.effect === 'small_boost') {
         teams[teamId].position += res.val;
+        this.itemManager.skipThrough(teamId, teams[teamId].position);
       } else if (res.effect === 'stun') {
         teams[teamId].isStunned = true;
         teams[teamId].stunUntil = Date.now() + res.val;
@@ -1286,14 +1352,17 @@ class GameManager {
       effect = 'stun';
       teams[teamId].isStunned = true;
       teams[teamId].stunUntil = Date.now() + this.config.stunDuration;
+      teams[teamId].stunSource = { source: 'gm', at: Date.now() };
     } else {
       teams[teamId].position += this.config.quizThresholds.SMALL_BOOST;
     }
 
+    if (effect !== 'stun') this.itemManager.skipThrough(teamId, teams[teamId].position, 'gm_boost');
     this.io.emit(SERVER_TO_CLIENT.GAME_ITEM_TRIGGERED, {
       teamId,
       itemType,
       effect,
+      ...this.delivery?.envelope(), runId: this.runId, source: 'gm',
       itemDef: { name: '後台上帝指令', icon: '⚡' }
     });
     return true;
@@ -1400,7 +1469,9 @@ class GameManager {
           options: activeQuiz.optionList,
           timeLimit: activeQuiz.timeLimit,
           ...this.delivery?.envelope(),
-          endsAt: this.quizManager.answerDeadlineAt,
+          phase: this.quizStage?.phase || 'answer',
+          opensAt: this.quizManager.answerWindowOpenedAt,
+          endsAt: this.quizStage?.endsAt || this.quizManager.answerDeadlineAt,
           serverNow: Date.now(),
           paused: this.isPaused,
           pausedAt: this.pausedAt,
@@ -1410,12 +1481,14 @@ class GameManager {
       } else {
         socket.emit(SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, {
           quizId: activeQuiz.quizId,
-          options: activeQuiz.optionMap,
+          options: Object.keys(activeQuiz.optionMap),
           alreadyAnswered: this.quizManager.answeredSet.has(`${socket.id}:${activeQuiz.quizId}`),
           receipt: this.delivery?.answerReceipts(socket.id).find(receipt => receipt.quizId === activeQuiz.quizId) || null,
           timeLimit: activeQuiz.timeLimit,
           ...this.delivery?.envelope(),
-          endsAt: this.quizManager.answerDeadlineAt,
+          phase: this.quizStage?.phase || 'answer',
+          opensAt: this.quizManager.answerWindowOpenedAt,
+          endsAt: this.quizStage?.endsAt || this.quizManager.answerDeadlineAt,
           recovered: true
         });
       }

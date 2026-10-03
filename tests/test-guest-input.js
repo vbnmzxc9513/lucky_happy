@@ -61,29 +61,26 @@ test('an expired race does not show a press before the button redraws', () => {
 });
 
 
-test('question entry blocks spillover for 500ms, keeps one-click answers and cancels stale callbacks', () => {
+test('only a new gesture after authority opens can answer; ACK remains neutral', () => {
   const dom = new JSDOM('<div class="quiz-ctrl-box"><div id="quiz-lock-msg"></div><div id="mobile-quiz-timer"></div>' +
     ['A','B','C','D'].map(opt => `<button class="opt-btn" data-opt="${opt}"><span class="opt-text"></span></button>`).join('') + '</div>', {runScripts:'outside-only'});
-  const pending = []; let answers = 0, ready = 0, clock = 0;
-  dom.window.performance.now = () => clock;
-  dom.window.setTimeout = (fn, ms) => { pending.push({fn,ms}); return pending.length; };
-  dom.window.clearTimeout = () => {};
   dom.window.eval(fs.readFileSync(path.join(__dirname, '../guest/js/quiz-ui.js'), 'utf8'));
-  const ui = new dom.window.QuizUI(() => { answers++; }, () => {
-    ready++; if (!ui.paused && !ui.isAnswered) dom.window.document.querySelectorAll('.opt-btn').forEach(b => b.disabled = false);
-  });
+  let answers = 0;
+  const ui = new dom.window.QuizUI(() => { answers++; });
   const button = dom.window.document.querySelector('.opt-btn');
-  ui.beginQuestion('run:1:1'); ui.showOptions(['one','two','three','four'], 10, () => 7);
-  assert.equal(pending[0].ms, 500);
-  assert.equal(dom.window.document.getElementById('mobile-quiz-timer').innerText, 7);
-  assert.equal(button.disabled, true); button.onclick(); assert.equal(answers, 0);
-  ui.beginQuestion('run:1:1'); assert.equal(pending.length, 1);
-  clock += 500; pending[0].fn(); button.click(); button.onclick(); assert.equal(answers, 1);
-  ui.beginQuestion('run:1:2'); ui.showOptions([], 10); ui.beginQuestion('run:1:3');
-  pending[1].fn(); assert.equal(ui.entering, true); assert.equal(ready, 1);
-  ui.showTeamResult({correctCount:0,totalCount:1,correctRate:0,isCorrect:false});
-  pending[2].fn(); assert.equal(ready, 1); assert.equal(button.disabled, true);
-  ui.beginQuestion('run:2:1'); ui.showOptions([], 10); ui.paused = true;
-  clock += 500; pending[3].fn(); button.onclick(); assert.equal(answers, 1); assert.equal(button.disabled, true);
+  const press = () => {
+    const event = new dom.window.Event('pointerdown');
+    Object.assign(event, {isPrimary:true, pointerId:1}); button.dispatchEvent(event);
+  };
+  ui.beginQuestion('run:1:1'); ui.showOptions([],10); ui.disableAll();
+  press(); button.onclick(); assert.equal(answers,0);
+  button.disabled=false; button.onclick(); assert.equal(answers,0,'delayed click cannot inherit reading press');
+  press(); ui.beginQuestion('run:1:2'); button.disabled=false; button.onclick(); assert.equal(answers,0,'old question gesture expires');
+  press(); button.click(); assert.equal(answers,1); button.onclick(); assert.equal(answers,1);
+  ui.showAnswerAck({success:true,isCorrect:true});
+  assert.equal(dom.window.document.getElementById('quiz-lock-msg').textContent,'已作答');
+  assert.equal(dom.window.document.querySelector('.is-correct,.is-wrong'),null);
+  ui.showAnswerAck({success:true,isCorrect:false});
+  assert.equal(dom.window.document.getElementById('quiz-lock-msg').textContent,'已作答');
   ui.hide(); dom.window.close();
 });

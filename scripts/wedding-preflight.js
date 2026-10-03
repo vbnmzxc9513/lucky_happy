@@ -145,7 +145,7 @@ async function main() {
     record(
       'four-stage pacing and final sprint',
       stages.enabled === true && stages.questionsPerStage === 4 && JSON.stringify(stages.rewardSteps) === JSON.stringify([0, 1, 2, 4, 6]) && stages.tapSeconds === 8
-        && stages.prepareSeconds === 0 && stages.manualAdvance === true
+        && stages.prepareSeconds === 3 && stages.manualAdvance === true
         && stages.sprintSeconds === 10,
       `tap=${stages.tapSeconds}s, questions/group=${stages.questionsPerStage}, final sprint=${stages.sprintSeconds}s`
     );

@@ -1,4 +1,4 @@
-/** Authoritative distance snapshots are interpolated before folding onto the track. */
+/** Authoritative distances share one linear camera; rewards reuse the main horses. */
 class RaceRenderer {
   constructor() {
     this.itemsMap = new Map();
@@ -14,7 +14,8 @@ class RaceRenderer {
       const track = document.getElementById('track-container');
       this.startX = this.shuttle ? 300 : 0;
       this.span = Math.max(1, (track?.clientWidth || 1200) - this.startX - (this.shuttle ? 290 : 180));
-      if (paint && this.latest) this.paint(this.latest);
+      if (paint && this.summary) { cancelAnimationFrame(this.frame); this.frame = null; this.animateReward(); }
+      else if (paint && this.presented) this.paint(this.presented);
     };
     window.addEventListener('resize', this.resize);
   }
@@ -39,8 +40,19 @@ class RaceRenderer {
 
   setState(state) {
     const wasActive = this.active;
+    cancelAnimationFrame(this.frame); this.frame = null;
+    this.summary = state.quizStage?.phase === 'summary' ? state.quizStage.summary : null;
+    this.paused = !!state.paused;
+    if (this.cameraTransition && (!wasActive || this.paused)) this.cameraTransition.lastAt = performance.now();
+    this.serverNow = (state.paused ? state.pausedAt : state.serverNow) || Date.now();
+    this.receivedAt = performance.now();
+    if (this.summary) {
+      const results = Object.values(this.summary.teamResults);
+      this.camera = window.ShuttleRace.camera(results.map(r => r.beforePosition), results.map(r => r.position));
+      this.cameraTransition = null;
+    }
     this.active = state.state === 'RACING' && !state.paused;
-    document.body.classList.toggle('shuttle-paused', !this.active);
+    document.body.classList.toggle('shuttle-paused', !this.active && !(this.summary && !this.paused));
     if (!['COUNTDOWN', 'RACING', 'QUIZ'].includes(state.state)) {
       this.reset();
       return;
@@ -54,7 +66,13 @@ class RaceRenderer {
       this.candidate = null;
       this.needsSnap = false;
     }
-    if (this.active) this.start();
+    if (this.active && wasActive && !this.needsSnap) {
+      this.updatePositions(teams);
+      // A roster snapshot must repaint items at the same delayed presentation time.
+      this.paintInterpolated(performance.now());
+    }
+    if (this.summary) { cancelAnimationFrame(this.frame); this.frame = null; this.animateReward(); }
+    else if (this.active) this.start();
     else { cancelAnimationFrame(this.frame); this.frame = null; this.clearNotice(); }
   }
 
@@ -71,6 +89,10 @@ class RaceRenderer {
     this.disconnect();
     this.samples = [];
     this.latest = null;
+    this.summary = null;
+    this.camera = null;
+    this.cameraTransition = null;
+    this.presented = null;
     this.ranks = null;
     this.candidate = null;
     this.lastNoticeAt = -Infinity;
@@ -123,55 +145,104 @@ class RaceRenderer {
     const step = now => {
       this.frame = null;
       if (!this.active) return;
-      const at = now - 100;
-      let a = this.samples[0], b = a;
-      for (const sample of this.samples) {
-        if (sample.at <= at) a = sample;
-        b = sample;
-        if (sample.at >= at) break;
-      }
-      if (a && b) {
-        const fraction = a === b ? 1 : Math.max(0, Math.min(1, (at - a.at) / (b.at - a.at)));
-        const teams = Object.fromEntries(Object.entries(b.teams).map(([id, data]) => [id, { ...data,
-          position: (a.teams[id]?.position || 0) + (data.position - (a.teams[id]?.position || 0)) * fraction
-        }]));
-        this.paint(teams);
-      }
+      this.paintInterpolated(now);
       this.frame = requestAnimationFrame(step);
     };
     this.frame = requestAnimationFrame(step);
   }
 
+  paintInterpolated(now) {
+    const at = now - 100;
+    let a = this.samples[0], b = a;
+    for (const sample of this.samples) {
+      if (sample.at <= at) a = sample;
+      b = sample;
+      if (sample.at >= at) break;
+    }
+    if (a && b) {
+      const fraction = a === b ? 1 : Math.max(0, Math.min(1, (at - a.at) / (b.at - a.at)));
+      const teams = Object.fromEntries(Object.entries(b.teams).map(([id, data]) => [id, { ...data,
+        position: (a.teams[id]?.position || 0) + (data.position - (a.teams[id]?.position || 0)) * fraction
+      }]));
+      this.paint(teams);
+    }
+  }
+
+  advanceCamera(teams, now) {
+    if (!this.camera) this.camera = window.ShuttleRace.camera(Object.values(teams).map(t => t.position));
+    const transition = this.cameraTransition;
+    if (transition && !this.paused) {
+      transition.elapsed += Math.max(0, Math.min(50, now - transition.lastAt));
+      transition.lastAt = now;
+      const t = Math.min(1, transition.elapsed / transition.duration);
+      const ease = t * t * (3 - 2 * t);
+      // Interpolate the affine projection, so pixel motion stays continuous.
+      const fromScale = 1 / (transition.from.high - transition.from.low);
+      const toScale = 1 / (transition.to.high - transition.to.low);
+      const scale = fromScale + (toScale - fromScale) * ease;
+      const offset = -transition.from.low * fromScale
+        + (-transition.to.low * toScale + transition.from.low * fromScale) * ease;
+      this.camera = { low: -offset / scale, high: (1 - offset) / scale };
+      if (t === 1) this.cameraTransition = null;
+    }
+    const furthest = Math.max(...Object.values(teams).map(t => t.position));
+    const target = this.cameraTransition?.to || this.camera;
+    if (furthest <= target.high - 750 || this.paused) return;
+    const to = { low: this.camera.low, high: furthest + 12000 };
+    const positions = Object.values(this.presented || teams).map(t => t.position);
+    const shift = Math.max(...positions.map(position => Math.abs(
+      window.ShuttleRace.project(position, this.camera) - window.ShuttleRace.project(position, to)) * this.span));
+    this.cameraTransition = { from: { ...this.camera }, to, lastAt: now, elapsed: 0,
+      duration: Math.max(600, Math.min(6000, shift * 6)) };
+  }
+
+  animateReward() {
+    if (!this.summary) return;
+    const now = this.serverNow + (this.paused ? 0 : performance.now() - this.receivedAt);
+    const teams = Object.fromEntries(Object.entries(this.summary.teamResults).map(([id, r]) => {
+      const t = window.SummaryMotion.progress(this.summary, r.steps, now, window.GameConfig);
+      const progress = this.reducedMotion.matches && now >= this.summary.movementStartedAt ? 1 : window.SummaryMotion.ease(t);
+      return [id, { position: r.beforePosition + (r.position - r.beforePosition) * progress,
+        speed: t > 0 && t < 1 && !this.paused ? 10 : 0, isStunned: false }];
+    }));
+    this.paint(teams);
+    if (!this.paused && now < this.summary.readyAt) this.frame = requestAnimationFrame(() => { this.frame = null; this.animateReward(); });
+  }
+
   paint(teams) {
+    if (this.shuttle && !this.summary) {
+      this.advanceCamera(teams, performance.now());
+    }
+    this.presented = teams;
     const ranks = window.ShuttleRace.rank(teams);
     for (const [id, data] of Object.entries(teams)) {
       const node = this.nodes.get(id);
       if (!node?.horse) continue;
-      const measure = window.ShuttleRace.measure(data.position, window.GameConfig);
-      const x = this.shuttle ? measure.x : Math.min(1, data.position / this.trackLen);
+      const x = this.shuttle ? window.ShuttleRace.project(data.position, this.camera) : Math.min(1, data.position / this.trackLen);
       node.horse.style.transform = `translate3d(${this.startX + x * this.span}px,0,0)`;
-      node.horse.style.setProperty('--facing', this.shuttle ? measure.direction : 1);
+      node.horse.style.setProperty('--facing', 1);
       node.horse.style.setProperty('--stride', `${Math.max(.25, .55 - (data.speed || 0) / 80)}s`);
-      node.horse.classList.toggle('is-running', this.active && !data.isStunned && data.speed > .3);
+      node.horse.classList.toggle('is-running', (this.active || !!this.summary) && !data.isStunned && data.speed > .3);
       node.horse.classList.toggle('is-stunned', !!data.isStunned);
-      const pct = this.shuttle ? measure.progress : Math.min(100, data.position / this.trackLen * 100);
+      const pct = this.shuttle ? x * 100 : Math.min(100, data.position / this.trackLen * 100);
       const setText = (el, value) => { if (el && el.textContent !== value) el.textContent = value; };
       if (node.fill) node.fill.style.width = `${pct}%`;
       setText(node.text, window.DistanceDisplay.position(data.position, window.GameConfig));
       setText(node.rank, `第 ${ranks[id]} 名`);
       setText(node.laps, window.DistanceDisplay.position(data.position, window.GameConfig));
       if (node.stun) node.stun.style.display = data.isStunned ? 'inline-block' : 'none';
-      this.paintItems(id, measure);
+      this.paintItems(id);
     }
   }
 
-  paintItems(id, measure) {
+  paintItems(id) {
     const layer = document.getElementById('items-layer');
     if (!layer) return;
     const assets = { accelerator: 'item_speedboost', obstacle: 'obstacle_rock', shield: 'obstacle_fence', magnet: 'obstacle_puddle', mystery: 'item_mystery_box' };
     const lane = window.GameConfig.TEAMS.findIndex(t => t.id === id);
     for (const item of this.items?.[id] || []) {
-      const visible = !item.triggered && (!this.shuttle || Math.floor(item.x / measure.legLength) === measure.leg);
+      const fraction = this.shuttle ? window.ShuttleRace.project(item.x, this.camera) : item.x / this.trackLen;
+      const visible = !item.triggered && fraction >= 0 && fraction <= 1;
       let el = this.itemsMap.get(item.id);
       if (!visible) { if (el) { el.remove(); this.itemsMap.delete(item.id); } continue; }
       if (!el) {
@@ -182,9 +253,8 @@ class RaceRenderer {
         layer.append(el);
         this.itemsMap.set(item.id, el);
       }
-      const fraction = this.shuttle ? window.ShuttleRace.measure(item.x, window.GameConfig).x : item.x / this.trackLen;
-      el.style.left = `${this.startX + fraction * this.span + (this.shuttle ? 100 : 50)}px`;
-      el.style.top = `${lane * 20 + 10}%`;
+      el.style.left = `${this.startX + fraction * this.span + (this.shuttle ? 110 : 90)}px`;
+      el.style.top = this.shuttle ? `calc(${lane * 20 + 10}% + 38px)` : `${lane * 20 + 10}%`;
     }
   }
 

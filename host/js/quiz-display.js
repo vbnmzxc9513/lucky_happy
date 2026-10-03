@@ -80,6 +80,7 @@ class QuizDisplay {
     // 恢復題目框預設樣式並顯示題目
     qBox.style.fontSize = '';
     qBox.style.color = '';
+    qBox.classList.toggle('is-long', (questionText || '').length > 65);
     qBox.innerText = questionText || '題目載入中...';
     
     resBox.style.display = 'none';
@@ -100,6 +101,7 @@ class QuizDisplay {
       normalizedOptions.forEach((opt) => {
         const card = document.createElement('div');
         card.className = 'quiz-option-card-v2';
+        card.classList.toggle('is-long', opt.text.length > 30);
         const label = document.createElement('b');
         label.className = 'opt-label'; label.textContent = opt.label;
         const text = document.createElement('span');
@@ -123,10 +125,13 @@ class QuizDisplay {
       this.receivedAt = performance.now();
     }
     if ('paused' in state) this.paused = !!state.paused;
-    if (state.quizStage?.phase === 'answer') {
+    if (['reading', 'answer'].includes(state.quizStage?.phase)) {
       this.stageEndsAt = state.quizStage.endsAt;
       this.endsAt = state.quizStage.endsAt;
     }
+    this.phase = state.quizStage?.phase || state.phase || this.phase;
+    const badge = document.getElementById('quiz-countdown-circle');
+    badge?.setAttribute('data-phase', this.phase === 'reading' ? '閱讀' : '作答');
     this.tickClock();
   }
 

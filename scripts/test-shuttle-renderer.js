@@ -25,8 +25,8 @@ try {
   now = 100; r.updatePositions(teams(1600));
   now = 150; pending(now);
   const horse = w.document.getElementById('horse-red');
-  assert.equal(horse.style.getPropertyValue('--facing'), '-1', 'interpolates through the actual endpoint');
-  assert.equal(r.itemsMap.has('first'), false);
+  assert.equal(horse.style.getPropertyValue('--facing'), '1', 'cumulative distance always faces forward');
+  assert.equal(r.itemsMap.has('first'), true);
   assert.equal(r.itemsMap.has('next'), true);
   r.removeItemDom('next');
   r.paint(teams(1700));
@@ -53,5 +53,44 @@ try {
   assert.equal(r.itemsMap.size, 0);
   assert.equal(r.samples.length, 0);
   assert.equal(w.document.getElementById('race-overtake').hidden, true);
+  // Reproduce a roster snapshot during the 100ms presentation delay.
+  now=0; r.setState(state(1000));
+  now=100; r.updatePositions(teams(1100));
+  now=150; pending(now);
+  const x = () => Number(horse.style.transform.match(/translate3d\(([^p]+)px/)[1]);
+  const beforeSnapshot=x();
+  now=160; r.setState(state(1160));
+  const snapshotX=x();
+  assert(snapshotX>=beforeSnapshot);
+  assert(r.presented.red.position<1160,'full snapshot uses the same delayed timeline');
+  now=176; pending(now);
+  assert(x()>=snapshotX,'next RAF does not rewind the snapshot');
+  const beforeResize=x(); r.resize();
+  assert.equal(x(),beforeResize,'resize retains presented rather than latest authority distance');
+  r.reset(); now=0; r.setState(state(0)); r.span=1310;
+  now=100; r.paint(teams(11250)); const beforeExpansion=x();
+  now=116; r.paint(teams(11251));
+  assert(x()>=beforeExpansion,'one unit advance cannot snap backwards at the camera boundary');
+  const fixedItem={id:'zoom-rock',x:11500,type:'obstacle'};
+  r.items={red:[fixedItem]};
+  let previous=x();
+  for(now=132;now<6000;now+=16) {
+    r.paint(teams(11251));
+    assert(Math.abs(x()-previous)<8,'shared camera movement is bounded per 16ms frame');
+    previous=x();
+    assert(Math.abs(Number(r.itemsMap.get('zoom-rock').style.left.slice(0,-2))
+      -(r.startX+w.ShuttleRace.project(fixedItem.x,r.camera)*r.span+110))<1e-8,'item follows the same moving camera');
+  }
+  assert.equal(r.cameraTransition,null,'camera expansion converges');
+  assert(Math.abs(r.camera.high-23251)<1e-6);
+  r.paint(teams(23252));
+  r.setState(state(23252,true)); const pausedX=x();
+  now+=10000; r.paint(teams(23252));
+  assert.equal(x(),pausedX,'pause freezes the ongoing camera expansion');
+  r.setState(state(23252));
+  assert.equal(x(),pausedX,'resume does not catch up the camera in one frame');
+  r.disconnect(); now+=10000; r.setState(state(23252));
+  assert.equal(x(),pausedX,'reconnection keeps the unfinished camera transition continuous');
+  r.reset();
   console.log('PASS renderer: endpoint interpolation, items, pause, reconnect, notices, reset');
 } finally { w.close(); }

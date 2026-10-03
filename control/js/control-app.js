@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!gameState.quizStage) byId('quiz-state').textContent = '尚未開始';
     if (gameState.quizStage) {
       const stage = gameState.quizStage;
-      const phase = { awaiting_question: '等待主持開始本題', tap: '連點中', prepare: '準備答題', answer: '作答中', reveal: '顯示統計／等待下一步', summary: '本關結算／等待下一關', sprint: '最後衝刺' };
+      const phase = { awaiting_question: '等待主持開始本題', tap: '連點中', reading: '閱讀中（手機鎖定）', prepare: '準備答題', answer: '作答中', reveal: '顯示統計／等待下一步', summary: '本關結算／等待下一關', sprint: '最後衝刺' };
       byId('quiz-state').textContent = `第 ${stage.stageNumber}/${stage.stageCount} 關 · 第 ${stage.questionNumber}/${stage?.questionsPerStage || gameState?.config?.quizStages?.questionsPerStage} 題 · ${phase[stage.phase]} (${stage.phase}) · ${stage.completedQuestions} 題完成`;
     }
     if (gameState.config?.quizStages?.enabled) {

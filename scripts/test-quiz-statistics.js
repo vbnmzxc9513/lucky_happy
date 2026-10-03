@@ -29,7 +29,7 @@ try {
   phone.showTeamResult(result.teamResults.red, result);
   const text = guest.window.document.getElementById('quiz-lock-msg').textContent;
   assert.ok(text.includes('正確答案') && text.includes('1 / 2') && text.includes('50.0%'));
-  assert.ok(text.includes('未達 50%') && text.includes('等待主持人進入下一題'));
+  assert.ok(text.includes('未超過 50%'));
   assert.ok([...guest.window.document.querySelectorAll('.opt-btn')].every(button => button.disabled));
   console.log('PASS persistent host statistics and private guest result DOM');
 } finally { host.window.close(); guest.window.close(); game.resetGame(); }

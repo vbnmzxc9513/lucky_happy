@@ -23,7 +23,7 @@ try {
   assert.equal(host.summary.querySelectorAll('.stage-team').length, 5);
   assert.equal(host.summary.querySelectorAll('.stage-stars span').length, 20);
   assert.deepEqual([...host.summary.querySelectorAll('.stage-reward')].map(el => el.textContent), [0, 1, 2, 4, 6].map(n => `前進 ${n*100} m`));
-  assert.deepEqual([...host.summary.querySelectorAll('.stage-distance')].map(el => el.textContent), [10, 1510, 3010, 6010, 9010].map(n => `總距離 ${Math.floor(n/15)} m`));
+  assert.equal(host.summary.querySelectorAll('.stage-distance,.stage-runner').length,0,'host uses real race runners and synchronized distances');
   assert.equal(host.summary.querySelectorAll('.stage-perfect-seal, .stage-confetti').length, 0);
   const firstStar = host.summary.querySelector('.stage-stars span');
   host.sync(state);

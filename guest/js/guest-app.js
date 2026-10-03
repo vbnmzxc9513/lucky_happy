@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!network.applySnapshot(state)) return;
     updatePlayerStatus(state.self);
     currentGameState = state.state;
-    if (state.quizStage?.phase === 'answer') {
+    if (['reading', 'answer'].includes(state.quizStage?.phase)) {
       quizUI.beginQuestion(`${state.runId}:${state.quizStage.stageNumber}:${state.quizStage.questionNumber}`);
     }
     if (!['LOBBY', 'MAP_SELECT', 'ROUND_LOBBY'].includes(state.state)) document.getElementById('rename-form').hidden = true;
@@ -375,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ownTeam = state.teams?.find(t => t.id === myPlayerInfo.teamId);
     if (ownTeam) document.getElementById('my-team-progress').textContent = window.DistanceDisplay.position(ownTeam.position, window.GameConfig);
     quizUI.paused = !!state.paused;
+    if (state.paused) quizUI.gesture = null;
     stageDisplay?.sync(myPlayerInfo.isJoined && state.self.joined ? state : { ...state, quizStage: null }, myPlayerInfo.teamId);
     if (state.quizStage?.phase === 'summary') quizUI.disableAll();
     if (state.quizStage?.phase === 'awaiting_question') quizUI.showWaiting();
@@ -593,11 +594,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const stage = network.snapshot.quizStage;
     quizUI.beginQuestion(stage ? `${data.runId}:${stage.stageNumber}:${stage.questionNumber}` : `${data.runId}:${data.quizId}`);
-    quizUI.showOptions(data.options, data.timeLimit, () => {
+    quizUI.showOptions(Array.isArray(data.options) ? Object.fromEntries(data.options.map(label => [label, ""])) : data.options, data.timeLimit, () => {
       const snapshot = network.snapshot;
       const now = snapshot.paused ? snapshot.pausedAt || network.pausedNow : network.serverNow();
       return Math.max(0, Math.ceil(((snapshot.endsAt || network.quiz?.endsAt) - now) / 1000));
     });
+    if (stage?.phase === 'reading') {
+      quizUI.disableAll();
+      const message = document.getElementById('quiz-lock-msg');
+      message.style.display = 'block'; message.textContent = '閱讀中';
+    }
     renderedCanAnswer = undefined;
     scheduleNetworkUi();
     if (data.alreadyAnswered || network.submission) {
@@ -605,8 +611,10 @@ document.addEventListener('DOMContentLoaded', () => {
       quizUI.disableAll();
       const message = document.getElementById('quiz-lock-msg');
       message.style.display = 'block';
+      const answer = data.receipt?.answer || network.submission?.payload?.answer;
+      document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.toggle('selected', btn.dataset.opt === answer));
       message.innerText = network.submission?.state === 'pending'
-        ? '答案傳送中，等待確認' : '本題已作答，答案已保留';
+        ? '答案傳送中，等待確認' : '已作答';
     }
   });
 

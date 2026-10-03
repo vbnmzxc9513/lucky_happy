@@ -53,3 +53,7 @@
 .stage-clock-guest.is-tap.is-urgent { animation: stage-entry .6s ease-out; }
 
 .stage-lane::after { content:""; position:absolute; left:0; right:calc(-1 * var(--horse-width)); bottom:0; border-bottom:2px solid #4c807b66; pointer-events:none; }
+
+.stage-host .stage-team { grid-template-columns: 28% 1fr auto; grid-template-rows: 1fr; align-items:center; }
+.stage-host .stage-stars { grid-column:2; grid-row:1; }
+.stage-host .stage-reward { grid-column:3; }

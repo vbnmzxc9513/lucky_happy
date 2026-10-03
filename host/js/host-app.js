@@ -645,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 5. 接收道具與特效
   socket.on(SERVER_TO_CLIENT.GAME_ITEM_TRIGGERED, (data) => {
+    if (data.runId && data.runId !== networkState?.runId) return;
     if (currentServerState !== 'RACING') return;
     if (data.itemId) raceRenderer.removeItemDom(data.itemId);
     const teams = (window.GameConfig && window.GameConfig.TEAMS) || [];
@@ -675,7 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('game-state-label').innerText = '🚨 突襲答題關卡進行中！';
     if (data.runId && data.runId !== networkState?.runId) return;
     if (Number.isFinite(data.stateVersion) && data.stateVersion < networkState?.stateVersion) return;
-    if (networkState?.quizStage && networkState.quizStage.phase !== 'answer') return;
+    if (networkState?.quizStage && !['reading', 'answer'].includes(networkState.quizStage.phase)) return;
     if (data.quizId && quizDisplay.quizId === data.quizId) {
       quizDisplay.syncClock(data);
       if (data.progress) quizDisplay.updateProgressSnapshot(data.progress);

@@ -121,14 +121,14 @@
       const oldStage = previous?.quizStage;
       const questionChanged = oldStage?.stageNumber !== data.quizStage?.stageNumber
         || oldStage?.questionNumber !== data.quizStage?.questionNumber;
-      if (data.state !== 'QUIZ' || (phase && phase !== 'answer') || questionChanged) {
+      if (data.state !== 'QUIZ' || (phase && !['reading', 'answer'].includes(phase)) || questionChanged) {
         this.quiz = null;
         this.submission = null;
       }
       if (!previous || newRun || data.stateVersion !== previous.stateVersion) {
         this.seq = -1;
         this.taps.clear();
-        if (data.state === 'QUIZ' && (!phase || phase === 'answer')) this.needsQuizRecovery = true;
+        if (data.state === 'QUIZ' && (!phase || ['reading', 'answer'].includes(phase))) this.needsQuizRecovery = true;
       }
       const endsAt = Object.hasOwn(data, 'endsAt') ? data.endsAt : data.quizStage?.endsAt ?? null;
       this.snapshot = { ...data, endsAt };
@@ -136,7 +136,7 @@
       if (data.paused && !previous?.paused) this.pausedNow = this.serverNow();
       if (!data.paused) this.pausedNow = null;
       this.recovering = !this.identityReady;
-      if (data.state !== 'QUIZ' || (phase && phase !== 'answer')) this.needsQuizRecovery = false;
+      if (data.state !== 'QUIZ' || (phase && !['reading', 'answer'].includes(phase))) this.needsQuizRecovery = false;
       this.onChange();
       return true;
     }
@@ -162,7 +162,7 @@
 
     applyOptions(data) {
       if (!this.acceptCurrent(data) || this.snapshot.state !== 'QUIZ'
-        || (this.snapshot.quizStage && this.snapshot.quizStage.phase !== 'answer')
+        || (this.snapshot.quizStage && !['reading', 'answer'].includes(this.snapshot.quizStage.phase))
         || !data.quizId || !Number.isFinite(data.endsAt) || !data.options) return false;
       if (this.needsQuizRecovery && typeof data.alreadyAnswered !== 'boolean') {
         this.requestSync();
@@ -173,7 +173,7 @@
       this.quiz = { ...data };
       this.needsQuizRecovery = false;
       if (data.alreadyAnswered) {
-        this.submission = { ...this.submission, state: 'confirmed' };
+        this.submission = { ...this.submission, state: 'confirmed', answer: data.receipt?.answer || this.submission?.payload?.answer };
       } else if (this.submission?.state === 'rejected') {
         this.submission = null;
       }

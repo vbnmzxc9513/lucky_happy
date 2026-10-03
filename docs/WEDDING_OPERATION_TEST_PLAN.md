@@ -152,7 +152,7 @@ LAN 備援演練必須使用和 DigitalOcean 相同的 Git commit、題庫、地
 | 強制重連 | 19 / 19 恢復 |
 | 題目 | 16 次開始、16 次答案揭曉、4 次四題結算 |
 | 最終獎項 | 4 個 |
-| 正常總時長 | 總時間取決於主持停留時間；自動計時 205 秒，另加 5 秒頒獎轉場 |
+| 正常總時長 | 總時間取決於主持停留時間；自動計時 253 秒，另加 5 秒頒獎轉場 |
 | 最後衝刺 | 完成 16 題與四次結算後衝刺 10 秒 |
 | HTTP `/guest/` P95 | < 250ms |
 | 投影位置更新間隔 P95 | < 100ms，最大間隔 < 1 秒 |
@@ -206,7 +206,7 @@ npm run preflight
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
 Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+`tap → reading（3 秒）→ answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
 揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
@@ -231,3 +231,10 @@ Guest 重連快照不含其他隊結果、options 分布或 results 歷史；只
 新增彩排：第四題揭曉後按結算，確認結果停留 0.8 秒，再五隊同時水平前進，100／200／400／600 m 差異明顯；0 m 不移動。最後一隊停止後至少 1 秒，Control 才開放下一關／最後衝刺，不能自動跳關。
 
 動畫中暫停、恢復、重整 Host／Guest／Control；應接續權威進度，沒有二次發獎。用兩台 Control 提前推進，應拒絕 SUMMARY_ANIMATION_ACTIVE；到期競態仍只能成功一次。Guest 只顯示自己隊伍。檢查六種指定解析度與長隊名，不得有水平捲動、紙花、印章、慶祝口號或手機聲音。檢查 Results 舊紀錄的總距離使用 m，而下載 JSON 原 position 未改。
+
+
+## 2026-10-03 互動更新
+
+每題額外閱讀 3 秒，由伺服器鎖定手機，開放後保留完整 10 秒作答；揭曉前 ACK 與恢復收據只確認「已作答」。正式主賽道採五隊共用的累積距離線性座標。結算先顯示成果 0.8 秒，再切回原主賽道角色前進；數字與排名同步動畫時間。獎勵跨過的道具被略過，不補觸發暈眩。
+
+完整權威時間、資料過濾及相機契約見 [架構文件](PROJECT_ARCHITECTURE.md)；根因、測試和連續截圖見 [交接文件](INTERACTION_FIX_REVIEW.md)。

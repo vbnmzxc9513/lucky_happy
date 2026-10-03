@@ -1,6 +1,6 @@
 # Lucky Horse 專案架構總覽
 
-更新日期：2026-10-01
+更新日期：2026-10-03
 適用版本：目前工作樹的 Network Protocol v2、五隊、單局、四關 16 題版本
 
 這份文件是新開發者理解系統的主要入口。它描述目前程式實際行為，而不是早期企劃。若文件與程式衝突，依下列優先順序判定：
@@ -106,13 +106,13 @@ LOBBY / MAP_SELECT / ROUND_LOBBY
   └─ 四關：
        連點 8 秒
        連點倒數結束自動開始第 1 題
-       第 1 題作答 10 秒 → 統計保留；第 2～4 題〔主持開始 → 作答 10 秒 → 統計保留〕
+       第 1 題閱讀 3 秒 → 作答 10 秒 → 統計保留；第 2～4 題〔主持開始 → 閱讀 3 秒 → 作答 10 秒 → 統計保留〕
        主持顯示四題結算 → 保留至主持開始下一關／最後衝刺
   └─ 最後衝刺 10 秒
   └─ 完賽後 5 秒進入頒獎
 ```
 
-自動計時部分合計 205 秒；每題之間及每關之間由主持控制，總時間取決於主持停留時間與暫停時間。完賽後 5 秒轉入頒獎。
+自動計時部分合計 253 秒；每題之間及每關之間由主持控制，總時間取決於主持停留時間與暫停時間。完賽後 5 秒轉入頒獎。
 
 ### 6.1 連點計分
 
@@ -142,9 +142,9 @@ boost = baseBoost / sqrt(teamSize)
 
 獎勵不在單題揭曉時發放，避免重連、重整或重複同步造成重複計分。
 
-### 6.3 折返賽道
+### 6.3 累積距離主賽道
 
-正式畫面使用折返跑道。`ShuttleRace.measure` 將累積距離換算成圈數、方向與畫面位置；畫面左右位置不是排名，排名以伺服器累積距離為準。折返端點不會結束四關模式，比賽在 16 題與四次結算完成後的最後衝刺結束。
+正式主畫面使用 `ShuttleRace.camera/project`，五隊及道具共用累積距離線性座標及共同視窗。距離較遠者位置向右較前，相同距離位置一致；不以折返餘數或舊 trackLength 截斷。`measure` 只保留給歷史 helper 與手機圈數資料相容，不用於正式 Host 定位。比賽在 16 題與四次結算完成後的最後衝刺結束。
 
 ## 7. 玩家生命週期與斷線復原
 
@@ -292,7 +292,7 @@ STAFF_SESSION_SECRET=至少 32 字元的隨機值
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
 Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+`tap → reading（3 秒）→ answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
 揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
@@ -343,16 +343,35 @@ bot 原先以 socketId 記一次答案、只有 RACING 才清除；同關第 2�
 
 ### Guest 進場與更名責任
 
-`QuizUI.beginQuestion` 以 runId／關／題辨識 500ms 進場，重複快照不重啟；離題取消排程，啟用選項仍須通過 `GuestNetwork.canAnswer()`。手機倒數讀取權威 endsAt/serverNow。更名重用 guest:join 的 rename 意圖，GuestHandler 限制開賽前且未鎖加入，沿用 TeamManager 暱稱驗證與唯一性檢查；由目前 socket 的既有身分更新名稱、同步統計及 roster，成功 ACK 後手機才保存名稱。
+`QuizUI.beginQuestion` 以 runId／關／題清除上一題及指標手勢；reading 時選項停用，answer 的新手勢仍須通過 `GuestNetwork.canAnswer()`。沒有本地延後開放的 setTimeout。手機倒數讀取權威 endsAt/serverNow。更名重用 guest:join 的 rename 意圖，GuestHandler 限制開賽前且未鎖加入，沿用 TeamManager 暱稱驗證與唯一性檢查；由目前 socket 的既有身分更新名稱、同步統計及 roster，成功 ACK 後手機才保存名稱。
 
 ## 公尺顯示與結算前進動畫
 
 顯示統一使用整數、千分位與 m，例如「前進 400 m」「總距離 1,856 m」。唯一換算來源是 shared/distance-display.js；設定 distanceDisplay.metersPerRewardStep = 100，internalUnitsPerMeter 由 quizStages.rewardUnitPx / metersPerRewardStep 推導，位置採 floor。物理、排名、勝負及歷史 JSON 仍使用原始 position；Results 只在顯示時換算，JSON／CSV 匯出契約不變。
 
-第四題揭曉後按「顯示本關結算」：Q1～Q4 先保留 0.8 秒，五隊同時水平前進；100／200／400／600 m 分別移動 1.4／1.8／2.4／3 秒，0 m 不移動。最長實際移動完成後至少保留 1 秒，Control 才開放下一關或最後衝刺，仍由主持手動按下。全隊 0 m 時共保留 1.8 秒。
+第四題揭曉後按「顯示本關結算」：Q1～Q4 先保留 0.8 秒，五隊切回真正主賽道後同時水平前進；100／200／400／600 m 分別移動 1.4／1.8／2.4／3 秒，0 m 不移動。最長實際移動完成後至少保留 1 秒，Control 才開放下一關或最後衝刺，仍由主持手動按下。全隊 0 m 時共保留 1.8 秒。
 
 summary 包含 summaryStartedAt、movementStartedAt、movementEndsAt、readyAt。Host／Guest 依 serverNow 本地播放 transform，重整或重連接續當下進度；Pause 凍結，Resume 平移全部時間。伺服器在 readyAt 前拒絕 SUMMARY_ANIMATION_ACTIVE，保留 requestId、runId、stageNumber、flowRevision 防護。沒有逐幀網路事件或自動推進 timer，重播不會再次發獎。
 
-Host 顯示五條跑道，Guest 只顯示自己隊伍。只用既有跑步素材、2px 步伐、淡速度線及陰影；生日隊結算使用既有無紙花跑步素材，隊名及隊伍色維持原樣。無紙花、印章、慶祝文字或手機聲音。prefers-reduced-motion 直接顯示終點，但仍遵守伺服器 readyAt。
+Host 顯示五條既有主跑道與原隊伍角色，Guest 只顯示自己隊伍。使用既有跑步素材、步伐及陰影，不新增紙花、印章、慶祝文字或手機聲音；Guest 簡潔回饋可使用既有 summaryImgPath。prefers-reduced-motion 在權威移動開始時直接顯示終點，但仍遵守伺服器 readyAt。
 
 驗收：npm test、四組 browser 測試及 test:predeploy；新增距離換算、時間守門、暫停恢復、資料隔離與穩定 DOM 測試。結算截圖位於 ignored 的 reports/stages/，涵蓋 Host 1280×720、1920×1080、1366×768、1134×855 與 Guest 390×844、320×568。投影後排可讀性與實機流暢度仍須現場彩排。
+
+
+## 2026-10-03 權威閱讀與主賽道修正
+
+每題先在 Host 顯示完整題目及選項，reading 持續額外 3 秒，Guest 僅看代號且禁止作答；answer 才開始完整 10 秒。readingStartedAt、opensAt、deadlineAt 與 endsAt 由伺服器建立，暫停恢復統一平移。首題仍自動開始，其餘由主持開始；閱讀期不能跳過。16 題自動計時合計 253 秒。
+
+揭曉前 ACK、重送 ACK、收據與恢復 payload 不含本題 isCorrect，個人累計統計不對外公開；Guest 確認只顯示「已作答」並保留選擇。reveal 時全隊包含未作答者收到同一正解。公開手機選項只有代號；題庫不提供公開 HTTP，docs 改用工作人員驗證以避免歷史資料洩漏。
+
+主賽道正式模式改用所有隊伍及道具共用的累積距離線性座標，不再以折返餘數定位。共同視窗至少涵蓋 12000 raw units，前方預留 7000 raw units（涵蓋下一段普通連點／衝刺），一般跑步固定視窗，超出視窗時才共同擴展；不以舊 trackLength 截斷。結算時在結果頁遮罩下選定包含所有 beforePosition 和 position 的共同視窗，整段獎勵動畫固定相機。先顯示精簡五隊成果 0.8 秒，再撤去遮罩，原主賽道馬匹、數字和排名依同一 SummaryMotion 時間前進，停止後留至少 1 秒。Host 結算不再建立另一組小角色。前端動畫不改寫伺服器距離，Control 及伺服器 readyAt 鎖保留。
+
+路障以正常物理更新前後的累積距離區間碰撞，移除 position + 40；圖示與馬匹中心共用座標。獎勵跨越的道具標記 triggered/skipped，重連不重建。事件含 itemId、source、resolvedType，工作人員可從隊伍 stunSource 查核路障／神秘箱／GM。不能以關閉碰撞處理問題。
+
+新增驗收：閱讀中直接 Socket 作答、2999/3000 ms 邊界、完整 10 秒、舊指標手勢穿透、ACK/收據重送與 session 恢復、動畫暫停重整、路障跨越及獎勵略過。視覺證據與測試結果見 docs/INTERACTION_FIX_REVIEW.md。
+
+### Reviewer 回歸修正：相機與同步呈現
+
+普通跑步超出共同視窗時，RaceRenderer 不再直接改写 high；共同投影的比例與位移以 smoothstep 連續過渡到新視窗，過渡長度按原畫面的像素位移計算（600～6000ms）。五隊與道具共用每幀相機，不作每隊獨立補償。重新縮放仍會逐步改變畫面間距，但不再單幀大幅跳退；結算仍固定相機。相機過渡只累積呈現幀時間，每幀最多 50ms，暫停與重連不補跳整段停留時間。
+
+正常 RACING 完整快照與位置封包都經同一個延遲 100ms 的 paintInterpolated；完整快照可立即重畫道具，但馬匹不先畫 latest 再返回舊時間。首次連線、長時間過期恢復或流程切換才建立單點樣本；resize 重畫 presented。倒數徽章只保留正常排版中的閱讀／作答標籤，移除原「秒」及絕對定位重疊。

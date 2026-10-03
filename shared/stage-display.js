@@ -35,7 +35,8 @@
       const stage = this.stage;
       const key = stage ? `${state.runId || ''}:${teamId || ''}:${stage.stageNumber}:${stage.phase}:${stage.questionNumber}:${stage.flowRevision}` : null;
       this.summary.hidden = !stage || stage.phase !== 'summary';
-      if (this.mode === 'host') document.body.classList.toggle('stage-summary-active', !this.summary.hidden);
+      if (this.mode === 'host' && this.summary.hidden) document.body.classList.remove('stage-summary-active');
+
       this.summary.classList.toggle('is-paused', this.paused);
       this.label.hidden = !stage || stage.phase === 'summary';
       if (stage?.phase === 'summary' && key !== this.lastKey) {
@@ -52,12 +53,18 @@
       const stage = this.stage;
       if (!stage) return;
       const now = this.serverNow + (this.paused ? 0 : performance.now() - this.receivedAt);
+      if (this.mode === 'host' && stage.phase === 'summary') {
+        this.summary.hidden = now >= stage.summary.movementStartedAt;
+        this.label.hidden = !this.summary.hidden;
+        document.body.classList.toggle('stage-summary-active', !this.summary.hidden);
+      } else if (this.mode === 'host') document.body.classList.remove('stage-summary-active');
       const seconds = Math.max(0, Math.ceil((stage.endsAt - now) / 1000));
       const prefix = `第 ${stage.stageNumber} / ${stage.stageCount} 關`;
       const suffix = stage.phase === 'tap' ? `距離答題關卡還有 ${seconds} 秒`
         : stage.phase === 'sprint' ? `最後衝刺 ${seconds} 秒`
           : stage.phase === 'reveal' ? `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題 · 統計結果 · 等待主持人`
-          : `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題 · ${stage.phase === 'answer' ? '作答中' : '準備中'}`;
+          : stage.phase === 'summary' ? (now < stage.summary.movementEndsAt ? '本關獎勵推進' : '等待主持人繼續')
+          : `第 ${stage.questionNumber} / ${stage.questionsPerStage || this.config.quizStages.questionsPerStage} 題 · ${stage.phase === 'answer' ? '作答中' : stage.phase === 'reading' ? '閱讀中 · ' + seconds + ' 秒' : '準備中'}`;
       this.label.classList.toggle('is-tap', stage.phase === 'tap');
       this.label.classList.toggle('is-paused', this.paused);
       const text = stage.phase === 'tap' ? String(seconds) : `${prefix} · ${suffix}`;
@@ -77,6 +84,14 @@
     }
 
     animateSummary() {
+      if (this.mode === 'host') {
+        this.tick();
+        const now = this.serverNow + (this.paused ? 0 : performance.now() - this.receivedAt);
+        if (this.stage?.phase === 'summary' && !this.paused && now < this.stage.summary.movementStartedAt) {
+          this.frame = requestAnimationFrame(() => { this.frame = null; this.animateSummary(); });
+        }
+        return;
+      }
       if (this.stage?.phase !== 'summary' || this.summary.hidden) return;
       const now = this.serverNow + (this.paused ? 0 : performance.now() - this.receivedAt);
       const summary = this.stage.summary;
@@ -85,6 +100,8 @@
         const fraction = root.SummaryMotion.ease(progress) * row.steps / Math.max(...this.config.quizStages.rewardSteps);
         // The moving wrapper is exactly the effective lane width; percentage transforms need no layout reads.
         row.runner.style.transform = 'translate3d(' + (fraction * 100) + '%,0,0)';
+        const distance = row.beforePosition + (row.position - row.beforePosition) * root.SummaryMotion.ease(progress);
+        row.total.textContent = '總距離 ' + root.DistanceDisplay.position(distance, this.config);
         row.runner.classList.toggle('is-moving', !this.paused && progress > 0 && progress < 1 && row.steps > 0);
       }
       if (!this.paused && now < summary.movementEndsAt && !this.reducedMotion?.matches) {
@@ -139,9 +156,11 @@
         const total = document.createElement('p');
         total.className = 'stage-distance';
         total.textContent = '總距離 ' + root.DistanceDisplay.position(result.position, this.config);
-        row.append(name, stars, track, reward, total);
+        if (this.mode === 'host') row.append(name, stars, reward);
+        else row.append(name, stars, track, reward, total);
         grid.append(row);
-        this.runners.push({ runner, steps: result.steps });
+        this.runners.push({ runner, steps: result.steps, total, position: result.position,
+          beforePosition: result.beforePosition ?? result.position - result.steps * this.config.quizStages.rewardUnitPx });
       }
       this.next = document.createElement('footer');
       this.next.className = 'stage-next';

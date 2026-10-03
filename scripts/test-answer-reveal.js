@@ -43,10 +43,13 @@ const GameManager = require('../server/game/GameManager');
       assert.equal(await page.locator('.stage-clock-host.is-urgent').count(), 1);
       await page.waitForTimeout(1100);
       assert.equal(await page.locator('.stage-clock-host').innerText(), '3');
-      await page.evaluate(({config, map, teams}) => receive('game:state_sync', {
-        state:'RACING',config,currentMap:map,teams,activeItems:{},paused:false,serverNow:Date.now(),
-        quizStage:{phase:'tap',stageNumber:1,stageCount:4,endsAt:Date.now()+3000}
-      }), {config:game.config,map:game.mapManager.getCurrentMap(),teams:game.getGameState().teams});
+      await page.evaluate(({config, map, teams}) => {
+        const now=Date.now();
+        receive('game:state_sync', {
+          state:'RACING',config,currentMap:map,teams,activeItems:{},paused:false,serverNow:now,
+          quizStage:{phase:'tap',stageNumber:1,stageCount:4,endsAt:now+3000}
+        });
+      }, {config:game.config,map:game.mapManager.getCurrentMap(),teams:game.getGameState().teams});
       assert.equal(await page.locator('.stage-clock-host').evaluate(el=>getComputedStyle(el).animationName), 'stage-entry');
       await page.waitForTimeout(650);
       assert.equal(await page.locator('.stage-clock-host').evaluate(el => {
@@ -71,6 +74,17 @@ const GameManager = require('../server/game/GameManager');
             i < count ? quiz.correctAnswer : wrong);
         }
         const progress = game.quizManager.getProgressSnapshot();
+        await page.evaluate(({quiz,config})=>{
+          const now=Date.now();receive('game:state_sync',{state:'QUIZ',config,paused:false,serverNow:now,
+            quizStage:{phase:'reading',stageNumber:1,stageCount:4,questionNumber:1,endsAt:now+3000}});
+          receive('game:quiz_start',{quizId:quiz.id,question:quiz.question,options:quiz.optionMap,phase:'reading',serverNow:now,endsAt:now+3000});
+        },{quiz,config:game.config});
+        assert.equal(await page.locator('.quiz-option-card-v2').count(),4);
+        assert.equal(await page.locator('#quiz-countdown-circle small').count(),0,'single countdown phase label');
+        assert.equal(await page.locator('#quiz-countdown-circle').evaluate(el=>getComputedStyle(el,'::after').position),'static','phase label participates in layout instead of overlapping');
+        assert.equal(await page.locator('#quiz-countdown-circle').getAttribute('data-phase'),'閱讀');
+        assert.equal(await page.locator('.is-correct,.is-wrong').count(),0);
+        if(cp===game.mapManager.getCurrentMap().checkpoints[0]) await page.screenshot({path:`reports/answer-reveal/reading-${width}.png`});
         await page.evaluate(({quiz, progress, config}) => {
           const now = Date.now();
           receive('game:state_sync', { state: 'QUIZ', config, serverNow: now, paused: false,
@@ -166,14 +180,18 @@ const GameManager = require('../server/game/GameManager');
     await page.evaluate(({config, result}) => {
       receive('game:state_sync', {state:'QUIZ',config,serverNow:Date.now(),
         quizStage:{phase:'answer',stageNumber:1,stageCount:4,questionNumber:1,endsAt:Date.now()+10000}});
-      receive('game:quiz_start',{quizId:result.quizId,question:'今天來參加婚禮的親朋好友們，最想一起送給新人什麼樣的祝福呢？',
-        options:{A:'永遠幸福快樂相親相愛一起牽手到老',B:'珍惜每一個一起度過的美好時光',C:'一起旅行探索更多美麗的新地方',D:'每一天都充滿歡笑與溫暖的祝福'},
+      receive('game:quiz_start',{quizId:result.quizId,question:'今天來參加婚禮的親朋好友們，最想一起送給新人什麼樣的祝福呢？'.repeat(3),
+        options:{A:'永遠幸福快樂相親相愛一起牽手到老'.repeat(3),B:'珍惜每一個一起度過的美好時光'.repeat(3),C:'一起旅行探索更多美麗的新地方'.repeat(3),D:'每一天都充滿歡笑與溫暖的祝福'.repeat(3)},
         endsAt:Date.now()+10000,serverNow:Date.now(),progress:{quizId:result.quizId,teams:[],totalCount:0,answeredCount:0,unansweredCount:0,responseRate:0}});
     }, {config:longConfig,result:empty});
     assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#quiz-question-box,.opt-text,.qt-name')].filter(el => {
       const r=el.getBoundingClientRect();
       return r.bottom > innerHeight || r.right > innerWidth || el.scrollHeight > el.clientHeight+1 || el.scrollWidth > el.clientWidth+1;
     }).map(el=>el.textContent)), [], 'long question, options and team names fit');
+    assert.deepEqual(await page.locator('.quiz-option-card-v2 .opt-text').evaluateAll(els=>els.filter(el=>{
+      const text=el.getBoundingClientRect(),card=el.closest('.quiz-option-card-v2').getBoundingClientRect();
+      return text.top<card.top || text.bottom>card.bottom || text.left<card.left || text.right>card.right;
+    }).map(el=>el.textContent)), [], 'long option text stays inside its own card');
     assert.deepEqual(await page.locator('.qt-bar-fill').evaluateAll(els=>els.map(el=>el.style.width)), ['0%','0%','0%','0%','0%']);
     await page.screenshot({path:'reports/answer-reveal/long-content-1280.png'});
     await page.evaluate(({config,result}) => receive('game:state_sync',{state:'QUIZ',config,serverNow:Date.now(),

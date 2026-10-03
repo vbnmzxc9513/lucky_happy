@@ -296,7 +296,7 @@ async function main() {
 
     const quizOptions = waitForEvent(winnerGuest, SERVER_TO_CLIENT.GAME_QUIZ_OPTIONS, data => data?.quizId === FIRST_FORMAL_QUIZ_ID);
     const waiting = await waitForEvent(controlA, SERVER_TO_CLIENT.GAME_STATE_SYNC,
-      data => data.quizStage?.phase === 'answer', 10000);
+      data => data.quizStage?.phase === 'answer', 15000);
     const advanceData = { runId: waiting.runId, stageNumber: waiting.quizStage.stageNumber,
       flowRevision: waiting.quizStage.flowRevision, requestId: randomUUID() };
     for (const socket of [projection, winnerGuest]) {

@@ -64,7 +64,7 @@ class RealtimeDelivery {
         quizStages: config.quizStages, shuttleRace: config.shuttleRace, finalSprint: config.finalSprint,
         distanceDisplay: config.distanceDisplay, summaryAnimation: config.summaryAnimation };
       const key = JSON.stringify(minimalConfig);
-      state = { ...rest, currentMap: currentMap ? { id: currentMap.id, trackLength: currentMap.trackLength } : null,
+      state = { ...rest, teams: rest.teams.map(({ stunSource, ...team }) => team), currentMap: currentMap ? { id: currentMap.id, trackLength: currentMap.trackLength } : null,
         self: this.game.buildTapStatus(socket.id) };
       if (state.quizStage) {
         const { results, reveal, summary, ...currentStage } = state.quizStage;
@@ -143,7 +143,8 @@ class RealtimeDelivery {
     return [...ledger.values()]
       .filter(entry => entry.kind === 'answer' && entry.result.success)
       .map(entry => ({ runId: entry.result.runId, requestId: entry.result.requestId,
-        quizId: entry.quizId, answer: entry.result.answer, isCorrect: entry.result.isCorrect,
+        quizId: entry.quizId, answer: entry.result.answer,
+        ...(this.game.quizManager.currentQuiz?.id === entry.quizId ? {} : { isCorrect: entry.result.isCorrect }),
         answerTimeMs: entry.result.answerTimeMs, receivedAt: entry.receivedAt }));
   }
 
@@ -197,7 +198,7 @@ class RealtimeDelivery {
     if (!ledger) { ledger = new Map(); this.operations.set(identity, ledger); }
     const fingerprint = JSON.stringify([kind, data.quizId, data.answer, data.timestamp, data.stateVersion]);
     const cached = ledger.get(data.requestId);
-    if (cached) return cached.fingerprint === fingerprint ? cached.result : reject('REQUEST_ID_CONFLICT');
+    if (cached) return cached.fingerprint === fingerprint ? this.publicOperation(cached.result, kind, data.quizId) : reject('REQUEST_ID_CONFLICT');
     // An answer is scoped to this run and question's server deadline. Display,
     // roster and pause/resume snapshots must not invalidate an in-flight answer.
     // handleQuizAnswer still rejects paused, closed and wrong-question requests.
@@ -209,6 +210,8 @@ class RealtimeDelivery {
       }
       if (ledger.size >= 256) return reject('RATE_LIMITED');
     }
+    if (kind === 'answer' && Number.isFinite(this.game.quizStage?.answerStateVersion)
+      && (!Number.isSafeInteger(data.stateVersion) || data.stateVersion < this.game.quizStage.answerStateVersion)) return reject('STALE_ANSWER_WINDOW');
     const outcome = execute();
     const result = kind === 'tap'
       ? { success: outcome.success, reason: outcome.reason, critical: outcome.critical,
@@ -222,7 +225,13 @@ class RealtimeDelivery {
       if (!receipts) { receipts = []; this.tapReceiptLedger.set(identity, receipts); }
       receipts.push({ runId: result.runId, requestId: data.requestId });
     }
-    return result;
+    return this.publicOperation(result, kind, data.quizId);
+  }
+
+  publicOperation(result, kind, quizId) {
+    if (kind !== 'answer') return result;
+    const { isCorrect, ...neutral } = result;
+    return this.game.quizManager.currentQuiz?.id === quizId ? neutral : result;
   }
 
   reset() {

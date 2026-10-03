@@ -81,7 +81,7 @@ npm run security:check
 | 每題揭曉 | 保留至主持手動推進 |
 | 每階段結算 | 保留至主持開始下一關 |
 | 最後衝刺 | 10 秒 |
-| 自動計時部分 | 205 秒；總時間另加主持停留 |
+| 自動計時部分 | 253 秒；總時間另加主持停留 |
 | 完賽至頒獎 | 5 秒 |
 | 暫停期間 | 不計入排程 |
 
@@ -151,7 +151,7 @@ npm run security:check
 `CONTROL_ACTION_RESULT` 回傳 `action: ADVANCE_QUIZ_FLOW`、`requestId`、`success`、失敗 `reason`；合法工作人員另收最新 `state`。
 Host、Guest 或未驗證來源收到 FORBIDDEN，不附管理狀態。舊局 STALE_RUN、舊流程 STALE_FLOW、已消耗 requestId STALE_REQUEST（每局帳本，重置清除）、非法階段 INVALID_PHASE、暫停 GAME_PAUSED。
 
-`tap → answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
+`tap → reading（3 秒）→ answer（本關第 1 題自動） → reveal → answer → reveal → answer → reveal → answer → reveal → summary → tap / sprint`。
 揭曉及結算的 endsAt 為 null，不排自動推進 timeout；第四題統計必須先保留，再由主持切到結算。
 自動計時只涵蓋倒數、連點、題目作答與最後衝刺；每題之間及每關之間由主持控制，總時間取決於主持停留時間。
 
@@ -195,7 +195,7 @@ Host 截圖在 `reports/answer-reveal/` 與 `reports/stages/`；Control 在 `rep
 
 ### 手機轉場與更名回歸
 
-`npm run test:guest-browser` 已納入 test:predeploy：390×844、320×568 驗證浮水印、改名與重新整理保留隊伍、進場選項立即隱藏、500ms 後才開放、進場點擊沒有答案紀錄、單擊作答及斷線重連。test-guest-input 驗證重複快照、舊動畫、暫停及揭曉；test-guest-rename 驗證重複／無效名字、開賽鎖定、舊連線與權威名稱恢復。真實手機觸控與投影仍須場地彩排。
+`npm run test:guest-browser` 已納入 test:predeploy：390×844、320×568 驗證浮水印、改名與重新整理保留隊伍、權威 reading 期間按鈕停用、3 秒後開放完整作答時間、跨階段指標操作沒有答案紀錄、單擊作答及斷線重連。test-guest-input 驗證重複快照、舊手勢、暫停及揭曉；test-guest-rename 驗證重複／無效名字、開賽鎖定、舊連線與權威名稱恢復。真實手機觸控與投影仍須場地彩排。
 
 ## 公尺顯示與結算前進動畫
 
@@ -204,3 +204,10 @@ tests/test-distance-display.js 檢查 0／1500／3000／6000／9000 原始單位
 test-stage-browser 驗證 0／100／200／400／600 m、實際水平位移比例、同時起跑、動畫幀間隔、長隊名、穩定 DOM、重新載入、暫停與 reduced motion。Host 1280×720、1920×1080、1366×768、1134×855；Guest 390×844、320×568。test-network-browser 另以真實 Socket 走完四題並在 400 m 結算中重整、暫停／恢復。Control 測試動畫期間停用、到期解鎖；Results 測試舊 raw position 顯示公尺且匯出原值不變。
 
 執行 npm test、四個 browser scripts、test:predeploy、npm audit --audit-level=moderate、git diff --check。查看 reports/stages/ 的 start、running、rewards、long 與 guest 截圖；輸出皆 ignored。場地投影後排與實機效能仍需人工驗收。
+
+
+## 2026-10-03 互動更新
+
+每題額外閱讀 3 秒，由伺服器鎖定手機，開放後保留完整 10 秒作答；揭曉前 ACK 與恢復收據只確認「已作答」。正式主賽道採五隊共用的累積距離線性座標。結算先顯示成果 0.8 秒，再切回原主賽道角色前進；數字與排名同步動畫時間。獎勵跨過的道具被略過，不補觸發暈眩。
+
+完整權威時間、資料過濾及相機契約見 [架構文件](PROJECT_ARCHITECTURE.md)；根因、測試和連續截圖見 [交接文件](INTERACTION_FIX_REVIEW.md)。

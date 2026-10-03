@@ -56,6 +56,10 @@ const { CLIENT_TO_SERVER: C, SERVER_TO_CLIENT: S } = require('../shared/events')
         quizStage:{...state.quizStage,endsAt:now+3000}});}, {event:S.GAME_STATE_SYNC,state:tap});
       await page.waitForTimeout(1200);
       assert.match(await page.locator('#auto-question-status').innerText(), /剩餘 2 秒/);
+      await page.evaluate(({event,state})=>handlers[event]({...state,quizStage:{...state.quizStage,phase:'reading',endsAt:Date.now()+3000}}),{event:S.GAME_STATE_SYNC,state});
+      assert.equal(await page.locator('#btn-advance-quiz').isDisabled(),true);
+      assert.match(await page.locator('#quiz-state').textContent(),/閱讀中/);
+      await page.screenshot({path:`reports/control/reading-${width}x${height}.png`});
       const answer = {...state, serverNow: Date.now(), quizStage: {...state.quizStage,phase:'answer'}};
       await page.evaluate(({event,state}) => handlers[event](state), {event:S.GAME_STATE_SYNC,state:answer});
       assert.equal(await page.locator('#btn-advance-quiz').isDisabled(), true);

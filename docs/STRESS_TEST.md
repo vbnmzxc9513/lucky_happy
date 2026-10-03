@@ -36,7 +36,7 @@ Use `STAFF_ACCESS_CODE` when the deployed staff verification code is different f
 
 ## 現行模式
 
-正式 16 題、4 關，每題與每關之間由主持控制。自動主持模式會送出合法 CONTROL_ADVANCE_QUIZ_FLOW；manualHost 不代替真人按鈕。自動計時部分 205 秒，總時間另加主持停留與暫停。
+正式 16 題、4 關，每題與每關之間由主持控制。自動主持模式會送出合法 CONTROL_ADVANCE_QUIZ_FLOW；manualHost 不代替真人按鈕。自動計時部分 253 秒，總時間另加主持停留與暫停。
 
 ## 2026-08-29 Full Confidence Result（歷史數據，不代表現行版本）
 
@@ -59,3 +59,10 @@ For the complete repeatable suite, including unit, UI-state, 30-client resilienc
 ```bash
 npm run test:confidence
 ```
+
+
+## 2026-10-03 互動更新
+
+每題額外閱讀 3 秒，由伺服器鎖定手機，開放後保留完整 10 秒作答；揭曉前 ACK 與恢復收據只確認「已作答」。正式主賽道採五隊共用的累積距離線性座標。結算先顯示成果 0.8 秒，再切回原主賽道角色前進；數字與排名同步動畫時間。獎勵跨過的道具被略過，不補觸發暈眩。
+
+完整權威時間、資料過濾及相機契約見 [架構文件](PROJECT_ARCHITECTURE.md)；根因、測試和連續截圖見 [交接文件](INTERACTION_FIX_REVIEW.md)。

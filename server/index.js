@@ -216,7 +216,7 @@ const staticOptions = {
     }
   }
 };
-app.use('/docs', express.static(config.paths.docs, staticOptions));
+app.use('/docs', requireStaffAccess, express.static(config.paths.docs, staticOptions));
 app.use('/assets', express.static(config.paths.hostAssets, staticOptions));
 app.use('/host', requireStaffAccess, express.static(config.paths.host, staticOptions));
 app.use('/guest', express.static(config.paths.guest, staticOptions));

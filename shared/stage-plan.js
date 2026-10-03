@@ -6,7 +6,7 @@
     const answerSeconds = checkpoints.reduce((sum, cp) => sum + Math.max(1, Math.min(60,
       Number(cp.timeLimit) || config.quizTimeLimit || 10)), 0);
     const racingSeconds = stageCount * stages.tapSeconds + stages.sprintSeconds;
-    const timedSeconds = (config.countdownSeconds || 0) + racingSeconds + answerSeconds;
+    const timedSeconds = (config.countdownSeconds || 0) + racingSeconds + answerSeconds + questionCount * Math.max(3, stages.prepareSeconds || 3);
     return { questionCount, stageCount, answerSeconds, racingSeconds, timedSeconds, totalSeconds: null, manualAdvance: true };
   }
   function validateFormal(map, config) {

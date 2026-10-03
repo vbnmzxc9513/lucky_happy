@@ -13,10 +13,19 @@ class QuizUI {
 
   initButtons() {
     document.querySelectorAll('.opt-btn').forEach(btn => {
+      const ready = () => !this.isAnswered && !this.paused && !this.entering && !btn.disabled;
+      btn.addEventListener('pointerdown', event => {
+        this.gesture = ready() && event.isPrimary ? { button: btn, pointerId: event.pointerId, key: this.entryKey } : null;
+      });
+      btn.addEventListener('pointercancel', () => { this.gesture = null; });
+      btn.addEventListener('keydown', event => {
+        if (ready() && !event.repeat && ['Enter', ' '].includes(event.key)) this.gesture = { button: btn, key: this.entryKey };
+      });
       btn.onclick = () => {
-        if (this.isAnswered || this.paused || this.entering || btn.disabled) return;
-        const opt = btn.getAttribute('data-opt');
-        this.selectOption(opt, btn);
+        const gesture = this.gesture;
+        this.gesture = null;
+        if (!ready() || gesture?.button !== btn || gesture.key !== this.entryKey) return;
+        this.selectOption(btn.getAttribute('data-opt'), btn);
       };
     });
   }
@@ -25,20 +34,15 @@ class QuizUI {
     if (!key || this.entryKey === key) return;
     this.cancelEntry();
     this.entryKey = key;
-    this.entering = true;
-    document.querySelector('.quiz-ctrl-box')?.classList.add('quiz-entering');
+    this.gesture = null;
+    this.isAnswered = false;
+    this.entering = false;
     this.disableAll();
-    const readyAt = performance.now() + 500;
-    const finishEntry = () => {
-      if (this.entryKey !== key) return;
-      const remaining = readyAt - performance.now();
-      if (remaining > 0) { this.entryTimer = setTimeout(finishEntry, Math.ceil(remaining)); return; }
-      this.entering = false;
-      this.entryTimer = null;
-      document.querySelector('.quiz-ctrl-box')?.classList.remove('quiz-entering');
-      this.onEntryReady();
-    };
-    this.entryTimer = setTimeout(finishEntry, 500);
+    const message = document.getElementById('quiz-lock-msg');
+    message.classList.remove('is-correct', 'is-wrong');
+    message.textContent = '閱讀中';
+    message.style.display = 'block';
+    document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
   }
 
   cancelEntry() {
@@ -98,13 +102,14 @@ class QuizUI {
   }
 
   showOptions(optionsData, timeLimit, authorityClock = null) {
+    this.gesture = null;
     this.isAnswered = false;
     const optionsMap = this.normalizeOptions(optionsData);
     const lockMsg = document.getElementById('quiz-lock-msg');
     if (lockMsg) lockMsg.style.display = 'none';
 
     document.querySelectorAll('.opt-btn').forEach(btn => {
-      btn.disabled = this.entering;
+      btn.disabled = true;
       btn.classList.remove('selected');
       const opt = btn.getAttribute('data-opt');
       const textEl = btn.querySelector('.opt-text');
@@ -134,7 +139,7 @@ class QuizUI {
     const lockMsg = document.getElementById('quiz-lock-msg');
     if (lockMsg) {
       lockMsg.style.display = 'block';
-      lockMsg.innerText = '答案傳送中，等待確認';
+      lockMsg.innerText = '送出中';
     }
 
   }
@@ -153,10 +158,7 @@ class QuizUI {
       return;
     }
 
-    lockMsg.classList.add(result.isCorrect ? 'is-correct' : 'is-wrong');
-    lockMsg.innerHTML = result.isCorrect
-      ? '<strong>答對了！</strong><span>漂亮命中，等待隊伍答對率結算</span>'
-      : '<strong>差一點！</strong><span>答案已鎖定，等待統計</span>';
+    lockMsg.textContent = '已作答';
   }
 
   showWaiting() {
@@ -180,7 +182,7 @@ class QuizUI {
     document.getElementById('mobile-quiz-timer').innerText = '—';
     lockMsg.textContent = `正確答案：${result.correctAnswer || ''} ${result.correctAnswerText || ''}\n`
       + `本隊答對 ${teamResult.correctCount} / ${teamResult.totalCount} 人（${(teamResult.correctRate * 100).toFixed(1)}%）\n`
-      + `${teamResult.isCorrect ? '本題答對（超過 50%）' : '未達 50%（須嚴格大於 50%）'}\n等待主持人進入下一題`;
+      + `${teamResult.isCorrect ? '✓ 整隊答對' : '未超過 50%'} `;
   }
 
   disableAll() {

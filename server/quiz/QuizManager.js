@@ -66,13 +66,13 @@ class QuizManager {
     return labels[0];
   }
 
-  startQuiz(quizId, teamMembersCount, onTimeoutCallback, overrideTimeLimit = null) {
+  startQuiz(quizId, teamMembersCount, onTimeoutCallback, overrideTimeLimit = null, readingSeconds = 0) {
     const quiz = this.quizLoader.getQuizById(quizId) || this.quizLoader.getRandomQuiz();
     if (!quiz) return null;
     const normalizedQuiz = this.normalizeQuiz(quiz);
 
     this.currentQuiz = normalizedQuiz;
-    this.answerWindowOpenedAt = Date.now();
+    this.answerWindowOpenedAt = Date.now() + readingSeconds * 1000;
     this.answeredSet.clear();
     
     this.answers = {};
@@ -92,7 +92,7 @@ class QuizManager {
     this.timeoutCallback = onTimeoutCallback || null;
     this.pausedAt = null;
     this.pausedRemainingMs = null;
-    this.scheduleTimeout(timeLimit * 1000);
+    this.scheduleTimeout((readingSeconds + timeLimit) * 1000);
 
     return {
       quizId: normalizedQuiz.id,
@@ -124,7 +124,9 @@ class QuizManager {
     }
 
     const answeredAt = Date.now();
-    if (this.answerDeadlineAt && answeredAt > this.answerDeadlineAt) {
+    if (this.pausedAt) return { success: false, reason: "GAME_PAUSED" };
+    if (answeredAt < this.answerWindowOpenedAt) return { success: false, reason: "ANSWER_WINDOW_NOT_OPEN" };
+    if (this.answerDeadlineAt && answeredAt >= this.answerDeadlineAt) {
       return { success: false, reason: 'ANSWER_WINDOW_CLOSED' };
     }
     const answerTimeMs = this.answerWindowOpenedAt

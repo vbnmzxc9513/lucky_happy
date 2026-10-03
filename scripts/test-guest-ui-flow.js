@@ -167,8 +167,8 @@ function runTests() {
     assertActiveScreen('screen-quiz');
     if (phase === 'reveal') {
       const text = dom.window.document.getElementById('quiz-lock-msg').textContent;
-      assert.ok(text.includes('5 / 10') && text.includes('50.0%') && text.includes('未達 50%'));
-      assert.ok(text.includes('等待主持人進入下一題'));
+      assert.ok(text.includes('5 / 10') && text.includes('50.0%') && text.includes('未超過 50%'));
+      assert.ok(text.includes('正確答案'));
       assert.ok(dom.window.document.querySelector('[data-opt="B"]').classList.contains('selected'));
       assert.ok([...dom.window.document.querySelectorAll('.opt-btn')].every(button => button.disabled));
     }

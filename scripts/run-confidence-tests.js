@@ -10,6 +10,7 @@ const portArgIndex = process.argv.indexOf('--port');
 const port = portArgIndex >= 0 ? Number(process.argv[portArgIndex + 1]) : 3996;
 const serverUrl = `http://127.0.0.1:${port}`;
 const fastTests = [
+  'tests/test-interaction-authority.js',
   'tests/test-distance-display.js',
   'tests/test-match-result-store.js',
   'tests/test-network-delivery.js',

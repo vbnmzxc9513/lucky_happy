@@ -69,7 +69,7 @@ const DEFAULT_CONFIG = {
     enabled: true,
     questionsPerStage: 4,
     tapSeconds: 8,
-    prepareSeconds: 0,
+    prepareSeconds: 3,
     manualAdvance: true,
 
     sprintSeconds: 10,

@@ -607,6 +607,7 @@ function createGuest(index, socket = createSocket()) {
     metrics.quizOptions++;
     stopTapping(client);
     cancelQuizAnswer(client);
+    if (data?.phase === 'reading') return;
     if (!data || !data.quizId || data.alreadyAnswered || client.answeredQuizIds.has(data.quizId) || !canSend(client, 'QUIZ')) return;
     if (data.runId != null && data.runId !== client.state.runId) return;
     if (Math.random() > CONFIG.answerRate) return;

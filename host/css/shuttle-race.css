@@ -38,3 +38,11 @@
 .shuttle-race.final-sprint-active #screen-racing .track-area { height: 100%; }
 @keyframes shuttle-stride { 0%, 100% { transform: translateY(0) rotate(-2deg); } 45% { transform: translateY(-7px) rotate(2deg); } }
 @media (prefers-reduced-motion: reduce) { .shuttle-race .horse-unit * { animation: none !important; } }
+
+.shuttle-race .item-dom { margin-left:-30px; animation:none; z-index:25; }
+.shuttle-race .track-area::before, .shuttle-race .track-area::after { display:none; }
+
+/* The parent layer must be above horses: a child's z-index cannot escape it. */
+.shuttle-race #items-layer { z-index:30; }
+.shuttle-race .item-dom { width:100px; height:100px; margin-top:-50px; margin-left:-50px; }
+.shuttle-race .lane-label .lane-laps { font-size:28px; white-space:nowrap; }

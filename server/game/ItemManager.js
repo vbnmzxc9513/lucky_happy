@@ -57,13 +57,19 @@ class ItemManager {
   /**
    * 檢查馬匹與道具碰撞
    */
-  checkCollisions(teamId, position, teamObj, onTriggerCallback) {
+  checkCollisions(teamId, position, teamObj, onTriggerCallback, previousPosition = position) {
     const items = this.activeItems[teamId] || [];
     for (const item of items) {
-      if (!item.triggered && (position + 40) >= item.x) {
+      if (!item.triggered && previousPosition <= item.x && position >= item.x) {
         item.triggered = true;
         this.applyItemEffect(teamId, item, teamObj, onTriggerCallback);
       }
+    }
+  }
+
+  skipThrough(teamId, position, reason = 'distance_reward') {
+    for (const item of this.activeItems[teamId] || []) {
+      if (!item.triggered && item.x <= position) { item.triggered = true; item.skipped = reason; }
     }
   }
 
@@ -74,6 +80,7 @@ class ItemManager {
       effectType = randomTypes[Math.floor(Math.random() * randomTypes.length)];
     }
 
+    item.resolvedType = effectType;
     const itemDef = this.itemsData[effectType] || {};
     let effectResult = itemDef.effect || 'none';
 
@@ -82,6 +89,7 @@ class ItemManager {
         teamObj.shieldCount--;
         effectResult = 'shield_blocked';
       } else {
+        teamObj.stunSource = { source: item.type, resolvedType: effectType, itemId: item.id, x: item.x, at: Date.now() };
         teamObj.isStunned = true;
         teamObj.stunUntil = Date.now() + (itemDef.duration || 2500);
       }
@@ -92,7 +100,7 @@ class ItemManager {
     }
 
     if (onTriggerCallback) {
-      onTriggerCallback(teamId, item.type, effectResult, itemDef);
+      onTriggerCallback(teamId, item.type, effectResult, itemDef, item);
     }
   }
 
